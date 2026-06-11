@@ -48,6 +48,7 @@ class RolesAndPermissionsSeeder extends Seeder
         ]);
 
         // AUTO-ASIGNAR ROLES A CUENTAS EXISTENTES BASADO EN EL TIPO DE PERSONA
+        // Protegido con hasRole para ser idempotente
         $cuentas = CuentaSistema::with('persona')->get();
         
         foreach ($cuentas as $cuenta) {
@@ -55,14 +56,14 @@ class RolesAndPermissionsSeeder extends Seeder
 
             switch ($cuenta->persona->tipo) {
                 case 'admin':
-                    $cuenta->assignRole($adminRole);
+                    if (!$cuenta->hasRole($adminRole)) $cuenta->assignRole($adminRole);
                     break;
                 case 'instructor':
-                    $cuenta->assignRole($instructorRole);
+                    if (!$cuenta->hasRole($instructorRole)) $cuenta->assignRole($instructorRole);
                     break;
                 case 'staff':
                 case 'secretaria':
-                    $cuenta->assignRole($staffRole);
+                    if (!$cuenta->hasRole($staffRole)) $cuenta->assignRole($staffRole);
                     break;
             }
         }
