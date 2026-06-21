@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\SolicitudInscripcion;
 use App\Models\Matricula;
 use App\Models\CuentaPorCobrar;
+use App\Models\Finance\LineaPagoModulo;
 use App\Models\Persona;
 use Exception;
 use Illuminate\Support\Facades\DB;
@@ -95,26 +96,29 @@ class RegistrationStateService
                 $solicitud->fecha_validacion = now();
                 $solicitud->save();
 
-                // 2. Crear matrícula (solo si es estudiante registrado)
+                // 2. Crear matrícula
                 $matricula = $this->crearMatricula($solicitud);
-                $cuentaPorCobrar = null;
-
-                if ($matricula) {
-                    $cuentaPorCobrar = $this->crearCuentaPorCobrar($solicitud, $matricula);
-                    if (!$cuentaPorCobrar) {
-                        throw new Exception('No se pudo crear la cuenta por cobrar');
-                    }
+                if (! $matricula) {
+                    throw new Exception('No se pudo crear la matrícula');
                 }
 
-                // 4. Actualizar estado a matricula_creada
+                // 3. Crear líneas de pago por módulo
+                $lineasPago = $this->crearLineasPagoModulo($solicitud, $matricula);
+
+                // 4. Marcar cuentas legacy existentes
+                CuentaPorCobrar::where('matricula_id', $matricula->id)
+                    ->update(['es_legacy' => true]);
+
+                // 5. Actualizar estado a matricula_creada
                 $solicitud->estado = SolicitudInscripcion::ESTADO_MATRICULA_CREADA;
                 $solicitud->save();
 
                 return [
                     'exito' => true,
-                    'mensaje' => 'Solicitud aprobada correctamente.' . ($matricula ? ' Matrícula creada.' : ''),
-                    'matricula_id' => $matricula->id ?? null,
-                    'cuenta_cobrar_id' => $cuentaPorCobrar->id ?? null,
+                    'mensaje' => 'Solicitud aprobada correctamente. Matrícula creada.',
+                    'matricula_id' => $matricula->id,
+                    'lineas_pago_ids' => collect($lineasPago)->pluck('id')->toArray(),
+                    'requiere_pago_inicial' => count($lineasPago) > 0,
                 ];
             });
         } catch (Exception $e) {
@@ -220,7 +224,6 @@ class RegistrationStateService
             $matricula = Matricula::create([
                 'estudiante_id' => $solicitud->persona_id ?: null,
                 'curso_abierto_id' => $solicitud->curso_abierto_id,
-                'precio_total' => $solicitud->monto_solicitado,
                 'tipo_pago' => $solicitud->tipo_pago,
                 'voucher_url' => $solicitud->archivo_comprobante_url,
                 'estado' => 'activo',
@@ -237,39 +240,35 @@ class RegistrationStateService
         }
     }
     /**
-     * 
-     * @param SolicitudInscripcion $solicitud
-     * @param Matricula $matricula
-     * @return CuentaPorCobrar|null
+     * Crea líneas de pago por módulo para la matrícula.
+     * Reemplaza el antiguo crearCuentaPorCobrar con granularidad por módulo.
      */
-    private function crearCuentaPorCobrar(SolicitudInscripcion $solicitud, Matricula $matricula): ?CuentaPorCobrar
+    private function crearLineasPagoModulo(SolicitudInscripcion $solicitud, Matricula $matricula): array
     {
-        try {
-            $cuentaPorCobrar = CuentaPorCobrar::create([
+        $modulos = $solicitud->cursoAbierto->modulos()->orderBy('numero_orden')->get();
+
+        if ($modulos->isEmpty()) {
+            return [];
+        }
+
+        $lineas = [];
+
+        foreach ($modulos as $i => $modulo) {
+            $precioBase = $modulo->precio_base ?? 0;
+
+            $linea = LineaPagoModulo::create([
                 'matricula_id' => $matricula->id,
-                'solicitud_inscripcion_id' => $solicitud->id,
-                'monto_total' => $solicitud->cursoAbierto->precio_base,
+                'modulo_id' => $modulo->id,
+                'monto_original' => $precioBase,
+                'monto_ajustado' => $precioBase,
                 'monto_abonado' => 0,
-                'estado' => CuentaPorCobrar::ESTADO_PENDIENTE,
+                'estado' => LineaPagoModulo::ESTADO_PENDIENTE,
+                'orden' => $i,
             ]);
 
-            if ($solicitud->monto_solicitado > 0) {
-                \App\Models\TransaccionIngreso::create([
-                    'cuenta_cobrar_id' => $cuentaPorCobrar->id,
-                    'monto' => $solicitud->monto_solicitado,
-                    'metodo_pago' => $solicitud->tipo_comprobante ?? 'transferencia',
-                    'comprobante_url' => $solicitud->archivo_comprobante_url,
-                    'fecha_pago' => $solicitud->fecha_pago_declarada ?? now(),
-                    'registrado_por' => auth()->user()?->persona_id ?? null,
-                    'observaciones' => 'Pago inicial de matr\u00edcula (solicitud #' . $solicitud->id . ')',
-                    'estado_verificacion' => 'pendiente',
-                ]);
-            }
-
-            return $cuentaPorCobrar;
-        } catch (Exception $e) {
-            \Log::error("Error creando cuenta por cobrar: {$e->getMessage()}");
-            return null;
+            $lineas[] = $linea;
         }
+
+        return $lineas;
     }
 }

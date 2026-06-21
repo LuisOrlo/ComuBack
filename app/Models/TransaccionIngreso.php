@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use App\Models\Finance\LineaPagoModulo;
 
 class TransaccionIngreso extends Model
 {
@@ -16,6 +17,7 @@ class TransaccionIngreso extends Model
 
     protected $fillable = [
         'cuenta_cobrar_id',
+        'linea_pago_modulo_id',
         'monto',
         'metodo_pago',
         'comprobante_url',
@@ -52,5 +54,10 @@ class TransaccionIngreso extends Model
     public function verificador(): BelongsTo
     {
         return $this->belongsTo(Persona::class, 'verificado_por');
+    }
+
+    public function lineaPagoModulo(): BelongsTo
+    {
+        return $this->belongsTo(LineaPagoModulo::class, 'linea_pago_modulo_id');
     }
 }

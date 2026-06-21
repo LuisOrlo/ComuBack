@@ -7,6 +7,7 @@ use App\Models\Matricula;
 use App\Models\Nota;
 use App\Models\CambioHorario;
 use App\Models\CuentaPorCobrar;
+use App\Models\Finance\LineaPagoModulo;
 use Illuminate\Support\Facades\DB;
 
 class CourseTransferService
@@ -78,7 +79,6 @@ class CourseTransferService
                 'estudiante_id' => $matriculaOrigen->estudiante_id,
                 'curso_abierto_id' => $cursoNuevo->id,
                 'horario_id' => $cursoNuevo->horario_id,
-                'precio_total' => $cursoNuevo->precio_base,
                 'tipo_pago' => $matriculaOrigen->tipo_pago,
                 'estado' => Matricula::ESTADO_ACTIVO,
                 'fecha_inicio' => $cursoNuevo->fecha_inicio,
@@ -105,16 +105,21 @@ class CourseTransferService
 
             $cuentaActual = CuentaPorCobrar::where('matricula_id', $matriculaOrigen->id)->first();
             if ($cuentaActual) {
-                $cuentaActual->update([
+                $cuentaActual->update(['es_legacy' => true]);
+            }
+
+            // Crear líneas de pago por módulo para el nuevo curso
+            $modulosNuevosParaPago = $cursoNuevo->modulos()->orderBy('numero_orden')->get();
+            foreach ($modulosNuevosParaPago as $i => $modulo) {
+                $precioBase = $modulo->precio_base ?? 0;
+                LineaPagoModulo::create([
                     'matricula_id' => $nuevaMatricula->id,
-                    'monto_total' => $cursoNuevo->precio_base,
-                ]);
-            } else {
-                CuentaPorCobrar::create([
-                    'matricula_id' => $nuevaMatricula->id,
-                    'monto_total' => $cursoNuevo->precio_base,
+                    'modulo_id' => $modulo->id,
+                    'monto_original' => $precioBase,
+                    'monto_ajustado' => $precioBase,
                     'monto_abonado' => 0,
-                    'estado' => CuentaPorCobrar::ESTADO_PENDIENTE,
+                    'estado' => LineaPagoModulo::ESTADO_PENDIENTE,
+                    'orden' => $i,
                 ]);
             }
 

@@ -53,6 +53,9 @@ cp .env.example .env
 composer install
 php artisan key:generate
 php artisan migrate
+php artisan db:sync-migrations    # Marca como ejecutadas las migraciones cuyas tablas ya existen
+php artisan migrate                # Corre solo las pendientes (nuevas)
+php artisan storage:link
 # No es necesario ya que la DB, tiene el schema completo
 php artisan db:seed
 ```

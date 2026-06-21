@@ -1543,4 +1543,52 @@ class EstudianteController extends Controller
         }
         return null;
     }
+
+    /**
+     * Buscar estudiantes existentes por cédula, nombre o correo.
+     * Usado para evitar duplicados al crear matrículas manuales.
+     */
+    public function buscar(Request $request): JsonResponse
+    {
+        $request->validate([
+            'cedula' => 'nullable|string|max:20',
+            'nombre' => 'nullable|string|max:255',
+            'correo' => 'nullable|email|max:255',
+        ]);
+
+        $query = Persona::where('tipo', 'estudiante')->activos();
+
+        if ($request->filled('cedula')) {
+            $query->where('cedula', $request->cedula);
+        }
+
+        if ($request->filled('nombre')) {
+            $search = '%' . $request->nombre . '%';
+            $query->where(function ($q) use ($search) {
+                $q->where('nombres', 'ilike', $search)
+                  ->orWhere('apellidos', 'ilike', $search);
+            });
+        }
+
+        if ($request->filled('correo')) {
+            $query->where('correo', $request->correo);
+        }
+
+        $resultados = $query->with('perfilEstudiante', 'ciudad')
+            ->limit(20)
+            ->get();
+
+        return response()->json([
+            'datos' => $resultados->map(fn ($p) => [
+                'id' => $p->id,
+                'nombres' => $p->nombres,
+                'apellidos' => $p->apellidos,
+                'cedula' => $p->cedula,
+                'correo' => $p->correo,
+                'celular' => $p->celular,
+                'ciudad' => $p->ciudad?->nombre,
+            ]),
+            'total' => $resultados->count(),
+        ]);
+    }
 }

@@ -26,6 +26,7 @@ class Modulo extends Model
         'semana_inicio',
         'semana_fin',
         'ponderacion',
+        'precio_base',
     ];
 
     protected $casts = [

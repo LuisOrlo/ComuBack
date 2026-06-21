@@ -31,12 +31,14 @@ class CuentaPorCobrar extends Model
         'monto_total',
         'monto_abonado',
         'estado',
+        'es_legacy',
     ];
 
     protected $casts = [
         'monto_total' => 'decimal:2',
         'monto_abonado' => 'decimal:2',
         'saldo_pendiente' => 'decimal:2',
+        'es_legacy' => 'boolean',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
     ];

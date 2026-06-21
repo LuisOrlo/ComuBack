@@ -160,6 +160,7 @@ Route::prefix('v1')->group(function () {
         Route::post('importar', [EstudianteController::class, 'importStudents'])->name('estudiantes.import');
         Route::post('importar/validar', [EstudianteController::class, 'validateImport'])->name('estudiantes.import.validate');
         Route::post('exportar', [EstudianteController::class, 'exportStudents'])->name('estudiantes.export');
+        Route::get('buscar', [EstudianteController::class, 'buscar'])->name('estudiantes.buscar');
 
         // ========================================================================
         // RUTAS PARAMETRIZADAS POR ESTUDIANTE

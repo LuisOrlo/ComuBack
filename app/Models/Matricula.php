@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use App\Models\Finance\LineaPagoModulo;
 use Carbon\Carbon;
 
 class Matricula extends Model
@@ -22,7 +23,7 @@ class Matricula extends Model
         'estudiante_id',
         'curso_abierto_id',
         'horario_id',
-        'precio_total',
+        'precio_total_legacy',
         'tipo_pago',
         'voucher_url',
         'solicitud_inscripcion_id',
@@ -122,6 +123,31 @@ class Matricula extends Model
     public function cuentaPorCobrar(): HasOne
     {
         return $this->hasOne(CuentaPorCobrar::class, 'matricula_id', 'id');
+    }
+
+    /**
+     * Líneas de pago por módulo
+     */
+    public function lineasPago(): HasMany
+    {
+        return $this->hasMany(LineaPagoModulo::class, 'matricula_id', 'id');
+    }
+
+    /**
+     * Precio total calculado desde las líneas de pago por módulo.
+     * Reemplaza la columna renombrada precio_total_legacy.
+     * Fallback a precio_total_legacy si no hay líneas de pago (matrículas legacy).
+     */
+    public function getPrecioTotalAttribute(): float
+    {
+        if ($this->relationLoaded('lineasPago')) {
+            $sum = $this->lineasPago->sum('monto_ajustado');
+            if ($sum > 0) return $sum;
+        } else {
+            $sum = (float) $this->lineasPago()->sum('monto_ajustado');
+            if ($sum > 0) return $sum;
+        }
+        return (float) ($this->precio_total_legacy ?? 0);
     }
 
     // ========================================================================
