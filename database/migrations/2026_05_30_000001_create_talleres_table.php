@@ -21,7 +21,7 @@ return new class extends Migration
             $table->date('fecha_fin');
             $table->integer('capacidad');
             $table->uuid('profesor_id')->nullable();
-            $table->foreign('profesor_id')->references('id')->on('people.users');
+            $table->foreign('profesor_id')->references('id')->on('people.personas');
             $table->enum('estado', ['planificado', 'activo', 'completado', 'cancelado'])->default('planificado');
             $table->timestamps();
             $table->softDeletes();

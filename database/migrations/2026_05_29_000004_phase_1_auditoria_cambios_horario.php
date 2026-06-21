@@ -46,16 +46,16 @@ return new class extends Migration
                 v_datos_nuevos JSON;
                 v_accion VARCHAR;
             BEGIN
-                IF TG_OP = \'\'INSERT\'\' THEN
-                    v_accion := \'\'INSERT\'\';
+                IF TG_OP = \'INSERT\' THEN
+                    v_accion := \'INSERT\';
                     v_datos_anteriores := NULL;
                     v_datos_nuevos := ROW_TO_JSON(NEW);
-                ELSIF TG_OP = \'\'UPDATE\'\' THEN
-                    v_accion := \'\'UPDATE\'\';
+                ELSIF TG_OP = \'UPDATE\' THEN
+                    v_accion := \'UPDATE\';
                     v_datos_anteriores := ROW_TO_JSON(OLD);
                     v_datos_nuevos := ROW_TO_JSON(NEW);
-                ELSIF TG_OP = \'\'DELETE\'\' THEN
-                    v_accion := \'\'DELETE\'\';
+                ELSIF TG_OP = \'DELETE\' THEN
+                    v_accion := \'DELETE\';
                     v_datos_anteriores := ROW_TO_JSON(OLD);
                     v_datos_nuevos := NULL;
                 END IF;
@@ -83,11 +83,13 @@ return new class extends Migration
 
         // Crear trigger para auditoría
         DB::connection('pgsql')->statement('
-            DROP TRIGGER IF EXISTS trg_auditar_cambios_horario ON academic.cambios_horario;
+            DROP TRIGGER IF EXISTS trg_auditar_cambios_horario ON academic.cambios_horario
+        ');
+        DB::connection('pgsql')->statement('
             CREATE TRIGGER trg_auditar_cambios_horario
             AFTER INSERT OR UPDATE OR DELETE ON academic.cambios_horario
             FOR EACH ROW
-            EXECUTE FUNCTION audit.fn_auditar_cambios_horario();
+            EXECUTE FUNCTION audit.fn_auditar_cambios_horario()
         ');
     }
 
@@ -99,8 +101,10 @@ return new class extends Migration
 
         // Eliminar trigger y función
         DB::connection('pgsql')->statement('
-            DROP TRIGGER IF EXISTS trg_auditar_cambios_horario ON academic.cambios_horario;
-            DROP FUNCTION IF EXISTS audit.fn_auditar_cambios_horario();
+            DROP TRIGGER IF EXISTS trg_auditar_cambios_horario ON academic.cambios_horario
+        ');
+        DB::connection('pgsql')->statement('
+            DROP FUNCTION IF EXISTS audit.fn_auditar_cambios_horario()
         ');
         
         // Opcional: eliminar tabla de auditoría

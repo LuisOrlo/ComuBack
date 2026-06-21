@@ -16,7 +16,7 @@ return new class extends Migration
             $table->uuid('taller_id');
             $table->foreign('taller_id')->references('id')->on('academic.talleres')->onDelete('cascade');
             $table->uuid('estudiante_id');
-            $table->foreign('estudiante_id')->references('id')->on('people.users')->onDelete('cascade');
+            $table->foreign('estudiante_id')->references('id')->on('people.personas')->onDelete('cascade');
             $table->date('fecha_inscripcion');
             $table->enum('estado', ['inscrito', 'completado', 'retirado'])->default('inscrito');
             $table->timestamps();

@@ -49,11 +49,13 @@ return new class extends Migration
 
         // Crear trigger ANTES de insertar matrícula
         DB::connection('pgsql')->statement('
-            DROP TRIGGER IF EXISTS trg_validar_capacidad ON academic.matriculas;
+            DROP TRIGGER IF EXISTS trg_validar_capacidad ON academic.matriculas
+        ');
+        DB::connection('pgsql')->statement('
             CREATE TRIGGER trg_validar_capacidad
             BEFORE INSERT ON academic.matriculas
             FOR EACH ROW
-            EXECUTE FUNCTION academic.fn_validar_capacidad_curso();
+            EXECUTE FUNCTION academic.fn_validar_capacidad_curso()
         ');
     }
 
@@ -66,8 +68,10 @@ return new class extends Migration
 
         // Eliminar trigger y función
         DB::connection('pgsql')->statement('
-            DROP TRIGGER IF EXISTS trg_validar_capacidad ON academic.matriculas;
-            DROP FUNCTION IF EXISTS academic.fn_validar_capacidad_curso();
+            DROP TRIGGER IF EXISTS trg_validar_capacidad ON academic.matriculas
+        ');
+        DB::connection('pgsql')->statement('
+            DROP FUNCTION IF EXISTS academic.fn_validar_capacidad_curso()
         ');
     }
 };

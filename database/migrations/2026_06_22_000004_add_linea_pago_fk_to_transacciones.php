@@ -8,6 +8,9 @@ return new class extends Migration
 {
     public function up(): void
     {
+        if (Schema::hasColumn('finance.transacciones_ingreso', 'linea_pago_modulo_id')) {
+            return;
+        }
         Schema::table('finance.transacciones_ingreso', function (Blueprint $table) {
             $table->foreignUuid('linea_pago_modulo_id')
                 ->nullable()

@@ -11,6 +11,9 @@ return new class extends Migration
      */
     public function up(): void
     {
+        if (Schema::connection('pgsql')->hasTable('academic.participantes_cursos_personalizados')) {
+            return;
+        }
         Schema::connection(config('database.default'))->create('academic.participantes_cursos_personalizados', function (Blueprint $table) {
             $table->uuid('id')->primary();
             $table->uuid('curso_personalizado_id');
@@ -25,7 +28,7 @@ return new class extends Migration
             // Índices
             $table->index('curso_personalizado_id');
             $table->index('participante_externo_id');
-            $table->unique(['curso_personalizado_id', 'participante_externo_id']);
+            $table->unique(['curso_personalizado_id', 'participante_externo_id'], 'pcp_curso_part_unique');
         });
     }
 
