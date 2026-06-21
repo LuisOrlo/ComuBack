@@ -8,6 +8,9 @@ return new class extends Migration
 {
     public function up(): void
     {
+        if (Schema::connection('pgsql')->hasTable('finance.lineas_pago_modulo')) {
+            return;
+        }
         Schema::create('finance.lineas_pago_modulo', function (Blueprint $table) {
             $table->uuid('id')->primary();
             $table->foreignUuid('matricula_id')->constrained('academic.matriculas')->onDelete('cascade');

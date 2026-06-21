@@ -13,6 +13,9 @@ return new class extends Migration
     public function up(): void
     {
         // Crear tabla clientes_externos en schema people
+        if (Schema::connection('pgsql')->hasTable('people.clientes_externos')) {
+            return;
+        }
         Schema::connection('pgsql')->create('people.clientes_externos', function (Blueprint $table) {
             $table->uuid('id')->primary()->default(DB::raw('uuid_generate_v4()'));
             

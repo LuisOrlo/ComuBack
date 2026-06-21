@@ -11,6 +11,9 @@ return new class extends Migration
      */
     public function up(): void
     {
+        if (Schema::connection('pgsql')->hasTable('jobs')) {
+            return;
+        }
         Schema::create('jobs', function (Blueprint $table) {
             $table->id();
             $table->string('queue')->index();

@@ -11,6 +11,9 @@ return new class extends Migration
      */
     public function up(): void
     {
+        if (Schema::hasTable('academic.inscripciones_externos_talleres')) {
+            return;
+        }
         Schema::connection(config('database.default'))->create('academic.inscripciones_externos_talleres', function (Blueprint $table) {
             $table->uuid('id')->primary();
             $table->uuid('taller_id');

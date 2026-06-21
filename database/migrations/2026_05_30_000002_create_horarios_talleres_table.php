@@ -11,6 +11,9 @@ return new class extends Migration
      */
     public function up(): void
     {
+        if (Schema::hasTable('academic.horarios_talleres')) {
+            return;
+        }
         Schema::connection(config('database.default'))->create('academic.horarios_talleres', function (Blueprint $table) {
             $table->uuid('id')->primary();
             $table->uuid('taller_id');

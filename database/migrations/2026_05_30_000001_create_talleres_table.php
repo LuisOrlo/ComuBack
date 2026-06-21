@@ -11,6 +11,9 @@ return new class extends Migration
      */
     public function up(): void
     {
+        if (Schema::connection(config('database.default'))->hasTable('academic.talleres')) {
+            return;
+        }
         Schema::connection(config('database.default'))->create('academic.talleres', function (Blueprint $table) {
             $table->uuid('id')->primary();
             $table->string('codigo')->unique();

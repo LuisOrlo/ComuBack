@@ -8,6 +8,9 @@ return new class extends Migration
 {
     public function up(): void
     {
+        if (Schema::connection('pgsql')->hasTable('estudiante_segmentos')) {
+            return;
+        }
         Schema::create('estudiante_segmentos', function (Blueprint $table) {
             $table->uuid('id')->primary();
             $table->string('nombre');

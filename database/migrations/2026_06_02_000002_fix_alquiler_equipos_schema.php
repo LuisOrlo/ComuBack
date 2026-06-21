@@ -16,7 +16,9 @@ return new class extends Migration
         ');
 
         Schema::connection('pgsql')->dropIfExists('services.alquiler_equipos');
-
+        if (Schema::connection('pgsql')->hasTable('services.alquiler_equipos')) {
+            return;
+        }
         Schema::connection('pgsql')->create('services.alquiler_equipos', function (Blueprint $table) {
             $table->uuid('id')->primary()->default(DB::raw('uuid_generate_v4()'));
             $table->uuid('equipo_id');

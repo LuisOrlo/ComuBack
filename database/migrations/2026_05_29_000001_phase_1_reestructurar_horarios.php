@@ -19,6 +19,9 @@ return new class extends Migration
         // ============================================================================
 
         // Paso 1: Crear tabla nueva horarios_dias
+        if (Schema::connection('pgsql')->hasTable('academic.horarios_dias')) {
+            return;
+        }
         Schema::connection('pgsql')->create('academic.horarios_dias', function (Blueprint $table) {
             $table->id();
             $table->uuid('horario_id')->references('id')->on('academic.horarios')->onDelete('cascade');

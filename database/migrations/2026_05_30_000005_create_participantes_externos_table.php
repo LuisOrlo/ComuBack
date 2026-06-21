@@ -11,6 +11,9 @@ return new class extends Migration
      */
     public function up(): void
     {
+        if (Schema::hasTable('academic.participantes_externos')) {
+            return;
+        }
         Schema::connection(config('database.default'))->create('academic.participantes_externos', function (Blueprint $table) {
             $table->uuid('id')->primary();
             $table->string('nombre');

@@ -12,6 +12,9 @@ return new class extends Migration
      */
     public function up(): void
     {
+        if (Schema::connection('pgsql')->hasTable('academic.solicitudes_inscripcion')) {
+            return;
+        }
         Schema::connection('pgsql')->create('academic.solicitudes_inscripcion', function (Blueprint $table) {
             $table->uuid('id')->primary()->default(DB::raw('uuid_generate_v4()'));
             
