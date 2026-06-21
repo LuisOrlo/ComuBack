@@ -17,6 +17,7 @@ class UpdateTallerRequest extends FormRequest
             'nombre' => 'sometimes|string|max:200',
             'descripcion' => 'nullable|string|max:2000',
             'fecha' => 'sometimes|date',
+            'fecha_fin' => 'nullable|date|after_or_equal:fecha',
             'hora_inicio' => 'sometimes|date_format:H:i',
             'hora_fin' => 'sometimes|date_format:H:i',
             'instructor_id' => 'sometimes|uuid|exists:personas,id',
@@ -24,6 +25,11 @@ class UpdateTallerRequest extends FormRequest
             'capacidad_maxima' => 'sometimes|integer|min:1|max:500',
             'precio' => 'sometimes|numeric|min:0',
             'estado' => 'sometimes|in:pendiente,confirmado,completado,cancelado',
+            'horarios' => 'nullable|array',
+            'horarios.*.dia_semana' => 'required_with:horarios|integer|between:1,7',
+            'horarios.*.hora_inicio' => 'required_with:horarios|date_format:H:i',
+            'horarios.*.hora_fin' => 'required_with:horarios|date_format:H:i|after:horarios.*.hora_inicio',
+            'horarios.*.aula' => 'nullable|string|max:100',
         ];
     }
 

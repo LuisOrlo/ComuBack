@@ -7,6 +7,7 @@ use App\Models\CursoAbierto;
 use App\Models\Horario;
 use App\Models\HorarioDia;
 use App\Models\Clase;
+use App\Models\Modulo;
 use App\Http\Requests\StoreCursoAbiertoRequest;
 use App\Http\Requests\UpdateCursoAbiertoRequest;
 use App\Services\InstructorConflictValidator;
@@ -259,6 +260,47 @@ class CursoAbiertoController extends Controller
         unset($data['dias_semana']);
 
         $curso->update($data);
+
+        // Sincronizar módulos si se enviaron en el request
+        $modulosRecibidos = $request->input('modulos');
+        if ($modulosRecibidos !== null) {
+            $catalogo = \App\Models\CatalogoCurso::find($curso->catalogo_curso_id);
+
+            if (!$catalogo || $catalogo->categoria !== 'taller') {
+                $existingIds = $curso->modulos()->pluck('id')->toArray();
+                $newIds = [];
+
+                foreach ($modulosRecibidos as $i => $mod) {
+                    $modId = $mod['id'] ?? null;
+                    $modData = [
+                        'nombre_modulo' => $mod['nombre'] ?? ('Módulo ' . ($i + 1)),
+                        'numero_orden' => $i + 1,
+                        'fecha_inicio' => $mod['fecha_inicio'] ?? null,
+                        'fecha_fin' => $mod['fecha_fin'] ?? null,
+                    ];
+
+                    if ($modId && in_array($modId, $existingIds)) {
+                        Modulo::where('id', $modId)
+                              ->where('curso_abierto_id', $curso->id)
+                              ->update($modData);
+                        $newIds[] = $modId;
+                    } else {
+                        $nuevoMod = Modulo::create(array_merge($modData, [
+                            'curso_abierto_id' => $curso->id,
+                        ]));
+                        $newIds[] = $nuevoMod->id;
+                    }
+                }
+
+                $toDelete = array_diff($existingIds, $newIds);
+                if (!empty($toDelete)) {
+                    Clase::whereIn('modulo_id', $toDelete)->delete();
+                    Modulo::whereIn('id', $toDelete)->delete();
+                }
+
+                $curso->refresh();
+            }
+        }
 
         // Regenerar clases si hay modulos con fechas y dias definidos
         $diasSemana = $request->input('dias_semana', []);

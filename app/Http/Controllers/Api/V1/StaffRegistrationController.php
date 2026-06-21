@@ -29,9 +29,9 @@ class StaffRegistrationController extends Controller
     {
         $query = SolicitudInscripcion::with([
             'estudiante:id,nombres,apellidos,correo',
-            'participanteExterno:id,nombres,apellidos,correo,celular,cedula,ocupacion,direccion,estado_civil,fecha_nacimiento,edad',
+            'participanteExterno:id,nombres,apellidos,correo,celular,cedula,ocupacion,direccion,ciudad,estado_civil,fecha_nacimiento,edad',
             'cursoAbierto:id,catalogo_curso_id,precio_base,capacidad_maxima,estudiantes_inscritos',
-            'cursoAbierto.catalogo:id,nombre',
+            'cursoAbierto.catalogo:id,nombre,categoria',
         ]);
 
         // Filtro por estado
@@ -83,9 +83,9 @@ class StaffRegistrationController extends Controller
     {
         $solicitud = SolicitudInscripcion::with([
             'estudiante:id,nombres,apellidos,cedula,correo,celular',
-            'participanteExterno:id,nombres,apellidos,correo,celular,cedula,ocupacion,direccion,estado_civil,fecha_nacimiento,edad',
+            'participanteExterno:id,nombres,apellidos,correo,celular,cedula,ocupacion,direccion,ciudad,estado_civil,fecha_nacimiento,edad',
             'cursoAbierto:id,catalogo_curso_id,precio_base,capacidad_maxima,estudiantes_inscritos,fecha_inicio,fecha_fin',
-            'cursoAbierto.catalogo:id,nombre,descripcion',
+            'cursoAbierto.catalogo:id,nombre,descripcion,categoria',
             'validador:id,nombres,apellidos,correo',
         ])->find($id);
 
@@ -229,7 +229,7 @@ class StaffRegistrationController extends Controller
                         ]) ?? [],
                         $solicitud->estudiante?->perfilEstudiante?->only([
                             'fecha_nacimiento', 'ocupacion', 'direccion',
-                            'estado_civil', 'edad',
+                            'ciudad', 'estado_civil', 'edad',
                         ]) ?? [],
                     )
                     : $solicitud->participanteExterno?->toArray() ?? [],
@@ -331,6 +331,7 @@ class StaffRegistrationController extends Controller
             ],
             'ocupacion' => 'nullable|string|max:100',
             'direccion' => 'nullable|string|max:1000',
+            'ciudad' => 'nullable|string|max:100',
             'estado_civil' => 'nullable|string|max:20',
             'fecha_nacimiento' => 'nullable|date',
             'edad' => 'nullable|integer|min:0|max:150',
@@ -355,6 +356,7 @@ class StaffRegistrationController extends Controller
                 $perfilUpdate = array_filter([
                     'ocupacion' => $validated['ocupacion'] ?? null,
                     'direccion' => $validated['direccion'] ?? null,
+                    'ciudad' => $validated['ciudad'] ?? null,
                     'estado_civil' => $validated['estado_civil'] ?? null,
                     'fecha_nacimiento' => $validated['fecha_nacimiento'] ?? null,
                     'edad' => $validated['edad'] ?? null,
@@ -373,6 +375,7 @@ class StaffRegistrationController extends Controller
                     'cedula' => $validated['cedula'] ?? null,
                     'ocupacion' => $validated['ocupacion'] ?? null,
                     'direccion' => $validated['direccion'] ?? null,
+                    'ciudad' => $validated['ciudad'] ?? null,
                     'estado_civil' => $validated['estado_civil'] ?? null,
                     'fecha_nacimiento' => $validated['fecha_nacimiento'] ?? null,
                     'edad' => $validated['edad'] ?? null,
@@ -404,16 +407,38 @@ class StaffRegistrationController extends Controller
 
         $validated = $request->validate([
             'monto_solicitado' => 'nullable|numeric|min:0.01',
-            'tipo_pago' => 'nullable|string|max:50',
+            'tipo_pago' => 'nullable|string|in:completo,abono',
+            'tipo_comprobante' => 'nullable|string|max:50',
             'fecha_pago_declarada' => 'nullable|date',
         ]);
 
         try {
-            $dataUpdate = array_filter([
-                'monto_solicitado' => $validated['monto_solicitado'] ?? null,
-                'tipo_pago' => $validated['tipo_pago'] ?? null,
-                'fecha_pago_declarada' => $validated['fecha_pago_declarada'] ?? null,
-            ], fn($v) => $v !== null);
+            $dataUpdate = [];
+
+            if (isset($validated['monto_solicitado'])) {
+                $monto = $validated['monto_solicitado'];
+                $dataUpdate['monto_solicitado'] = $monto;
+
+                // Auto-detectar tipo de pago según el monto vs el precio base del curso
+                $solicitud->load('cursoAbierto');
+                $precioBase = $solicitud->cursoAbierto?->precio_base;
+                if ($precioBase) {
+                    $dataUpdate['tipo_pago'] = $monto >= $precioBase ? 'completo' : 'abono';
+                }
+            }
+
+            // Explicit tipo_pago override (solo valores permitidos por constraint)
+            if (isset($validated['tipo_pago'])) {
+                $dataUpdate['tipo_pago'] = $validated['tipo_pago'];
+            }
+
+            if (isset($validated['tipo_comprobante'])) {
+                $dataUpdate['tipo_comprobante'] = $validated['tipo_comprobante'];
+            }
+
+            if (isset($validated['fecha_pago_declarada'])) {
+                $dataUpdate['fecha_pago_declarada'] = $validated['fecha_pago_declarada'];
+            }
 
             if (!empty($dataUpdate)) {
                 $solicitud->update($dataUpdate);

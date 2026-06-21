@@ -111,6 +111,74 @@ class InstructorConflictValidator
         ];
     }
 
+    /**
+     * Validar conflictos para un taller multi-día con horarios por día.
+     *
+     * @param string $instructorId
+     * @param array $fechas Array de fechas en formato Y-m-d
+     * @param array|null $horarios Array de horarios [{dia_semana, hora_inicio, hora_fin}]
+     * @param string|null $excludeTallerId
+     * @return array
+     */
+    public function validarTallerRango(
+        string $instructorId,
+        array $fechas,
+        ?array $horarios,
+        ?string $excludeTallerId = null
+    ): array {
+        $errores = [];
+
+        if (empty($horarios)) {
+            return ['valido' => true, 'errores' => []];
+        }
+
+        // Construir mapa: fecha -> horarios del taller
+        $horariosPorFecha = [];
+        foreach ($fechas as $fecha) {
+            $carbon = \Carbon\Carbon::parse($fecha);
+            $diaSemana = (int) $carbon->format('N');
+            foreach ($horarios as $h) {
+                if (($h['dia_semana'] ?? null) == $diaSemana) {
+                    $horariosPorFecha[$fecha][] = $h;
+                }
+            }
+        }
+
+        foreach ($horariosPorFecha as $fecha => $horariosDia) {
+            foreach ($horariosDia as $h) {
+                // Buscar conflictos con otros talleres en esa fecha
+                $tallerConflicto = $this->buscarConflictoEnTalleres(
+                    $instructorId,
+                    $fecha,
+                    $this->formatTime($h['hora_inicio']),
+                    $this->formatTime($h['hora_fin']),
+                    $excludeTallerId
+                );
+                if ($tallerConflicto) {
+                    $errores[] = "El instructor ya está asignado al taller \"{$tallerConflicto['nombre']}\" "
+                        . "el {$tallerConflicto['fecha']} de {$tallerConflicto['hora_inicio']} a {$tallerConflicto['hora_fin']}";
+                }
+
+                // Buscar conflictos con clases de cursos
+                $claseConflicto = $this->buscarConflictoEnClases(
+                    $instructorId,
+                    $fecha,
+                    $this->formatTime($h['hora_inicio']),
+                    $this->formatTime($h['hora_fin'])
+                );
+                if ($claseConflicto) {
+                    $errores[] = "El instructor ya tiene una clase del curso \"{$claseConflicto['nombre']}\" "
+                        . "el {$claseConflicto['fecha']} de {$claseConflicto['hora_inicio']} a {$claseConflicto['hora_fin']}";
+                }
+            }
+        }
+
+        return [
+            'valido' => empty($errores),
+            'errores' => array_unique($errores),
+        ];
+    }
+
     // ========================================================================
     // MÉTODOS PRIVADOS
     // ========================================================================
@@ -197,20 +265,47 @@ class InstructorConflictValidator
         $talleres = DB::connection('pgsql')
             ->table('academic.talleres')
             ->where('instructor_id', $instructorId)
-            ->whereBetween('fecha', [$fechaInicio, $fechaFin])
+            ->where(function ($query) use ($fechaInicio, $fechaFin) {
+                $query->whereBetween('fecha', [$fechaInicio, $fechaFin])
+                    ->orWhere(function ($q) use ($fechaInicio, $fechaFin) {
+                        $q->whereNotNull('fecha_fin')
+                          ->where('fecha', '<=', $fechaFin)
+                          ->where('fecha_fin', '>=', $fechaInicio);
+                    });
+            })
             ->whereIn('estado', ['pendiente', 'confirmado'])
             ->get();
 
         foreach ($talleres as $taller) {
-            $fechaTaller = Carbon::parse($taller->fecha);
-            $diaSemanaTaller = (int) $fechaTaller->format('N'); // 1=Lun, 7=Dom
+            // Para talleres multi-día, verificar cada fecha del rango
+            if (!empty($taller->fecha_fin)) {
+                $inicio = Carbon::parse(max($taller->fecha, $fechaInicio));
+                $fin = Carbon::parse(min($taller->fecha_fin, $fechaFin));
+                $current = $inicio->copy();
+                while ($current->lte($fin)) {
+                    $diaSemanaTaller = (int) $current->format('N');
+                    if (in_array($diaSemanaTaller, $diasSemana)) {
+                        if ($this->horariosSeSolapan($horaInicio, $horaFin, $taller->hora_inicio, $taller->hora_fin)) {
+                            $conflictos[] = [
+                                'nombre' => $taller->nombre,
+                                'fecha' => $current->format('d/m/Y'),
+                                'hora_inicio' => substr($taller->hora_inicio, 0, 5),
+                                'hora_fin' => substr($taller->hora_fin, 0, 5),
+                            ];
+                        }
+                    }
+                    $current->addDay();
+                }
+                continue;
+            }
 
-            // Solo hay conflicto si el taller cae en un día de la semana del curso
+            $fechaTaller = Carbon::parse($taller->fecha);
+            $diaSemanaTaller = (int) $fechaTaller->format('N');
+
             if (!in_array($diaSemanaTaller, $diasSemana)) {
                 continue;
             }
 
-            // Verificar solapamiento de horarios
             if ($this->horariosSeSolapan($horaInicio, $horaFin, $taller->hora_inicio, $taller->hora_fin)) {
                 $conflictos[] = [
                     'nombre' => $taller->nombre,

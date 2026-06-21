@@ -32,6 +32,7 @@ class Matricula extends Model
         'calificacion_final',
         'observaciones',
         'solicitud_inscripcion_id',
+        'fecha_inscripcion',
     ];
 
     protected $casts = [
@@ -39,6 +40,7 @@ class Matricula extends Model
         'calificacion_final' => 'float',
         'fecha_inicio' => 'datetime',
         'fecha_fin' => 'datetime',
+        'fecha_inscripcion' => 'datetime',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
         'deleted_at' => 'datetime',

@@ -101,17 +101,19 @@ class RegistrationValidationService
             }
         }
 
-        // 8. Validar monto
+        // 8. Validar monto (permitir 0, el admin definira el valor real)
         if ($montoSolicitado < 0) {
             $errores[] = 'El monto solicitado no puede ser negativo';
         }
 
-        if ($tipoPago === 'completo' && $montoSolicitado != $curso->precio_base) {
+        if ($tipoPago === 'completo' && $montoSolicitado != $curso->precio_base && $montoSolicitado != 0) {
             $errores[] = "Para pago completo, el monto debe ser {$curso->precio_base}";
         }
 
-        if ($tipoPago === 'abono' && ($montoSolicitado <= 0 || $montoSolicitado >= $curso->precio_base)) {
-            $errores[] = "Para abono, el monto debe ser mayor a 0 y menor a {$curso->precio_base}";
+        if ($tipoPago === 'abono' && $montoSolicitado < 0) {
+            $errores[] = "Para abono, el monto no puede ser negativo";
+        } elseif ($tipoPago === 'abono' && $montoSolicitado >= $curso->precio_base && $montoSolicitado != 0) {
+            $errores[] = "Para abono, el monto debe ser menor a {$curso->precio_base}";
         }
 
         return [

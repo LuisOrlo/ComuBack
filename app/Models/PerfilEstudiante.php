@@ -21,6 +21,7 @@ class PerfilEstudiante extends Model
         'direccion',
         'estado_civil',
         'edad',
+        'ciudad',
     ];
 
     protected function casts(): array

@@ -9,6 +9,7 @@ use App\Http\Resources\Estudiantes\EstudianteResource;
 use App\Models\Persona;
 use App\Models\PerfilEstudiante;
 use App\Models\ClienteExterno;
+use App\Models\Ciudad;
 use App\Models\Matricula;
 use App\Models\Clase;
 use App\Models\Asistencia;
@@ -16,6 +17,7 @@ use App\Models\Nota;
 use App\Models\CuentaPorCobrar;
 use App\Models\TransaccionIngreso;
 use App\Models\EstudianteSegmento;
+use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -71,6 +73,9 @@ class EstudianteController extends Controller
                     'perfil_estudiante' => $p->perfilEstudiante ? [
                         'fecha_nacimiento' => $p->perfilEstudiante->fecha_nacimiento?->format('Y-m-d'),
                         'notas_internas' => $p->perfilEstudiante->notas_internas,
+                        'primera_matricula' => $p->perfilEstudiante->primera_matricula?->format('Y-m-d') ?? ($totalMatriculas > 0 ? $p->matriculas->pluck('fecha_inscripcion')->filter()->sort()->first()?->format('Y-m-d') : null),
+                        'ultima_matricula' => $p->perfilEstudiante->ultima_matricula?->format('Y-m-d') ?? ($totalMatriculas > 0 ? $p->matriculas->pluck('fecha_inscripcion')->filter()->sort()->last()?->format('Y-m-d') : null),
+                        'total_cursos' => $p->perfilEstudiante->total_cursos ?? $totalMatriculas,
                         'ocupacion' => $p->perfilEstudiante->ocupacion,
                         'direccion' => $p->perfilEstudiante->direccion,
                         'estado_civil' => $p->perfilEstudiante->estado_civil,
@@ -86,7 +91,7 @@ class EstudianteController extends Controller
             ->with([
                 'solicitudesInscripcion' => fn ($q) =>
                     $q->whereIn('estado', ['aprobado', 'matricula_creada'])
-                      ->with(['cursoAbierto.catalogo', 'cuentasPorCobrar']),
+                      ->with(['cursoAbierto.catalogo', 'cuentasPorCobrar', 'matricula']),
                 'ciudad',
             ])
             ->orderBy('nombres')
@@ -98,6 +103,17 @@ class EstudianteController extends Controller
                 );
 
                 $totalSolicitudes = $solicitudes->count();
+                $fechasSolicitudes = $solicitudes
+                    ->pluck('matricula.fecha_inscripcion')
+                    ->filter()
+                    ->map(fn($d) => $d instanceof Carbon ? $d : Carbon::parse($d))
+                    ->sort();
+                $fechaNacimiento = $c->fecha_nacimiento;
+                if ($fechaNacimiento) {
+                    $fechaNacimiento = $fechaNacimiento instanceof Carbon
+                        ? $fechaNacimiento->format('Y-m-d')
+                        : Carbon::parse($fechaNacimiento)->format('Y-m-d');
+                }
                 $cuentas = $solicitudes->flatMap(fn($s) => $s->cuentasPorCobrar)->filter();
                 $estados = $cuentas->pluck('estado')->unique();
 
@@ -122,7 +138,7 @@ class EstudianteController extends Controller
                     'cedula' => $c->cedula,
                     'correo' => $c->correo,
                     'celular' => $c->celular,
-                    'ciudad' => $c->ciudad ? ['nombre' => $c->ciudad->nombre] : null,
+                    'ciudad' => $this->resolverCiudad($c),
                     'es_activo' => true,
                     'total_cursos' => $solicitudes->count(),
                     'estado_pago' => $estadoPago,
@@ -138,10 +154,10 @@ class EstudianteController extends Controller
                         'ocupacion' => $c->ocupacion,
                         'direccion' => $c->direccion,
                         'estado_civil' => $c->estado_civil,
-                        'fecha_nacimiento' => $c->fecha_nacimiento,
-                        'primera_matricula' => null,
-                        'ultima_matricula' => null,
-                        'total_cursos' => $solicitudes->count(),
+                        'fecha_nacimiento' => $fechaNacimiento,
+                        'primera_matricula' => $fechasSolicitudes->isNotEmpty() ? $fechasSolicitudes->first()->format('Y-m-d') : null,
+                        'ultima_matricula' => $fechasSolicitudes->isNotEmpty() ? $fechasSolicitudes->last()->format('Y-m-d') : null,
+                        'total_cursos' => $totalSolicitudes,
                         'notas_internas' => null,
                     ],
                 ];
@@ -269,7 +285,7 @@ class EstudianteController extends Controller
     {
         $estudiante = Persona::query()
             ->estudiantes()
-            ->with(['ciudad', 'perfilEstudiante'])
+            ->with(['ciudad', 'perfilEstudiante', 'matriculas'])
             ->find($id);
 
         if ($estudiante) {
@@ -279,16 +295,31 @@ class EstudianteController extends Controller
         }
 
         $cliente = ClienteExterno::query()
-            ->with(['ciudad'])
+            ->with([
+                'ciudad',
+                'solicitudesInscripcion' => fn($q) => $q->whereIn('estado', ['aprobado', 'matricula_creada']),
+                'solicitudesInscripcion.matricula',
+            ])
             ->find($id);
 
         if ($cliente) {
-            try {
-                $totalCursos = $cliente->solicitudesInscripcion()
-                    ->whereIn('estado', ['aprobado', 'matricula_creada'])
-                    ->count();
-            } catch (\Exception $e) {
-                $totalCursos = 0;
+            $solicitudes = $cliente->solicitudesInscripcion;
+            $totalCursos = $solicitudes->count();
+
+            $fechasMatriculas = $solicitudes
+                ->pluck('matricula.fecha_inscripcion')
+                ->filter()
+                ->map(fn($d) => $d instanceof Carbon ? $d : Carbon::parse($d))
+                ->sort();
+
+            $primeraMatricula = $fechasMatriculas->isNotEmpty() ? $fechasMatriculas->first()->format('Y-m-d') : null;
+            $ultimaMatricula = $fechasMatriculas->isNotEmpty() ? $fechasMatriculas->last()->format('Y-m-d') : null;
+
+            $fechaNacimiento = $cliente->fecha_nacimiento;
+            if ($fechaNacimiento) {
+                $fechaNacimiento = $fechaNacimiento instanceof Carbon
+                    ? $fechaNacimiento->format('Y-m-d')
+                    : Carbon::parse($fechaNacimiento)->format('Y-m-d');
             }
 
             return response()->json([
@@ -304,24 +335,60 @@ class EstudianteController extends Controller
                     'total_cursos' => $totalCursos,
                     'estado_pago' => 'ninguno',
                     'saldo_pendiente' => 0,
-                    'ciudad' => $cliente->ciudad ? [
-                        'id' => $cliente->ciudad->id,
-                        'nombre' => $cliente->ciudad->nombre,
-                        'pais' => $cliente->ciudad->pais ?? null,
-                    ] : null,
+                    'ciudad' => $this->resolverCiudadCompleta($cliente),
                     'perfil_estudiante' => [
                         'edad' => $cliente->edad,
                         'ocupacion' => $cliente->ocupacion,
                         'direccion' => $cliente->direccion,
                         'estado_civil' => $cliente->estado_civil,
-                        'fecha_nacimiento' => $cliente->fecha_nacimiento,
-                        'primera_matricula' => null,
-                        'ultima_matricula' => null,
+                        'fecha_nacimiento' => $fechaNacimiento,
+                        'primera_matricula' => $primeraMatricula,
+                        'ultima_matricula' => $ultimaMatricula,
                         'total_cursos' => $totalCursos,
                         'notas_internas' => null,
                     ],
                     'creado_en' => $cliente->created_at?->toIso8601String(),
                     'actualizado_en' => $cliente->updated_at?->toIso8601String(),
+                ],
+            ]);
+        }
+
+        // Fallback: inscripcion de taller
+        $inscripcionTaller = \App\Models\InscripcionTaller::query()
+            ->with('taller')
+            ->find($id);
+
+        if ($inscripcionTaller) {
+            $taller = $inscripcionTaller->taller;
+            return response()->json([
+                'datos' => [
+                    'id' => $inscripcionTaller->id,
+                    'tipo' => 'estudiante',
+                    'nombres' => $inscripcionTaller->nombres,
+                    'apellidos' => $inscripcionTaller->apellidos ?? '',
+                    'cedula' => $inscripcionTaller->cedula,
+                    'correo' => $inscripcionTaller->correo,
+                    'celular' => $inscripcionTaller->telefono,
+                    'ciudad' => $inscripcionTaller->ciudad ? ['nombre' => $inscripcionTaller->ciudad] : null,
+                    'es_activo' => true,
+                    'total_cursos' => 1,
+                    'estado_pago' => $inscripcionTaller->pago_verificado ? 'al_dia' : 'deudor',
+                    'saldo_pendiente' => max(0, ($taller->precio ?? 0) - ($inscripcionTaller->monto_pagado ?? 0)),
+                    'perfil_estudiante' => [
+                        'edad' => $inscripcionTaller->edad ?? null,
+                        'ocupacion' => $inscripcionTaller->ocupacion ?? null,
+                        'direccion' => $inscripcionTaller->direccion ?? null,
+                        'estado_civil' => $inscripcionTaller->estado_civil ?? null,
+                        'fecha_nacimiento' => $inscripcionTaller->fecha_nacimiento
+                            ? (\Carbon\Carbon::parse($inscripcionTaller->fecha_nacimiento)->format('Y-m-d'))
+                            : null,
+                        'primera_matricula' => $inscripcionTaller->fecha_inscripcion ?? null,
+                        'ultima_matricula' => $inscripcionTaller->fecha_inscripcion ?? null,
+                        'total_cursos' => 1,
+                        'notas_internas' => 'Inscrito al taller: ' . ($taller->nombre ?? 'Sin nombre'),
+                    ],
+                    'creado_en' => $inscripcionTaller->created_at?->toIso8601String(),
+                    'actualizado_en' => $inscripcionTaller->updated_at?->toIso8601String(),
                 ],
             ]);
         }
@@ -361,6 +428,29 @@ class EstudianteController extends Controller
                 ->find($id);
 
             if (!$cliente) {
+                $inscripcionTaller = \App\Models\InscripcionTaller::query()->with('taller')->find($id);
+                if ($inscripcionTaller) {
+                    $t = $inscripcionTaller->taller;
+                    return response()->json([
+                        'datos' => [
+                            'estudiante' => [
+                                'id' => $inscripcionTaller->id,
+                                'nombre_completo' => $inscripcionTaller->nombres . ' ' . ($inscripcionTaller->apellidos ?? ''),
+                                'cedula' => $inscripcionTaller->cedula ?? '—',
+                                'correo' => $inscripcionTaller->correo ?? '—',
+                            ],
+                            'matriculas' => [[
+                                'id' => $inscripcionTaller->id,
+                                'curso' => 'Taller: ' . ($t->nombre ?? 'Sin nombre'),
+                                'estado' => $inscripcionTaller->estado ?? 'activo',
+                                'fecha_inscripcion' => $inscripcionTaller->fecha_inscripcion ?? $inscripcionTaller->created_at?->format('Y-m-d'),
+                                'porcentaje_asistencia' => 100,
+                                'promedio' => null,
+                                'notas' => [],
+                            ]],
+                        ],
+                    ]);
+                }
                 return response()->json(['mensaje' => 'Estudiante no encontrado'], 404);
             }
 
@@ -709,9 +799,48 @@ class EstudianteController extends Controller
                     'solicitudesInscripcion.cuentasPorCobrar.transacciones',
                     'ciudad',
                 ])
-                ->find($id);
+                 ->find($id);
 
             if (!$cliente) {
+                $inscripcionTaller = \App\Models\InscripcionTaller::query()->with('taller')->find($id);
+                if ($inscripcionTaller) {
+                    $t = $inscripcionTaller->taller;
+                    $precio = (float) ($t->precio ?? 0);
+                    $pagado = (float) ($inscripcionTaller->monto_pagado ?? 0);
+                    return response()->json([
+                        'datos' => [
+                            'estudiante' => [
+                                'id' => $inscripcionTaller->id,
+                                'nombre_completo' => $inscripcionTaller->nombres . ' ' . ($inscripcionTaller->apellidos ?? ''),
+                                'cedula' => $inscripcionTaller->cedula ?? '—',
+                                'correo' => $inscripcionTaller->correo ?? '—',
+                                'celular' => $inscripcionTaller->telefono ?? '—',
+                            ],
+                            'cuentas' => [[
+                                'id' => $inscripcionTaller->id,
+                                'origen' => 'taller',
+                                'origen_id' => $inscripcionTaller->id,
+                                'concepto' => 'Taller: ' . ($t->nombre ?? 'Sin nombre'),
+                                'monto_total' => $precio,
+                                'monto_abonado' => $pagado,
+                                'saldo_pendiente' => max(0, $precio - $pagado),
+                                'estado' => $inscripcionTaller->pago_verificado ? 'pagado' : ($pagado > 0 ? 'abonado' : 'pendiente'),
+                                'fecha_creacion' => $inscripcionTaller->fecha_inscripcion ?? $inscripcionTaller->created_at?->format('Y-m-d'),
+                                'transacciones' => [],
+                            ]],
+                            'transacciones' => [],
+                            'resumen' => [
+                                'total_adeudado' => max(0, $precio - $pagado),
+                                'total_pagado' => $pagado,
+                                'total_general' => $precio,
+                                'porcentaje_pagado' => $precio > 0 ? round(($pagado / $precio) * 100) : 0,
+                                'cuentas_pendientes' => $inscripcionTaller->pago_verificado ? 0 : 1,
+                                'cuentas_abonadas' => ($pagado > 0 && !$inscripcionTaller->pago_verificado) ? 1 : 0,
+                                'cuentas_pagadas' => $inscripcionTaller->pago_verificado ? 1 : 0,
+                            ],
+                        ],
+                    ]);
+                }
                 return response()->json(['mensaje' => 'Estudiante no encontrado'], 404);
             }
 
@@ -1371,5 +1500,47 @@ class EstudianteController extends Controller
             return "'" . $value;
         }
         return $value;
+    }
+
+    /**
+     * Resolver el nombre de ciudad de un ClienteExterno.
+     * Maneja el conflicto de naming entre la columna 'ciudad' (string)
+     * y la relacion 'ciudad()' (BelongsTo).
+     */
+    private function resolverCiudad(ClienteExterno $c): ?array
+    {
+        if ($c->ciudad_id) {
+            $ciudadModel = Ciudad::find($c->ciudad_id);
+            if ($ciudadModel) {
+                return ['nombre' => $ciudadModel->nombre];
+            }
+        }
+        $ciudadStr = $c->getAttribute('ciudad');
+        if ($ciudadStr) {
+            return ['nombre' => $ciudadStr];
+        }
+        return null;
+    }
+
+    /**
+     * Resolver ciudad completa (id, nombre, pais) para ClienteExterno.
+     */
+    private function resolverCiudadCompleta(ClienteExterno $c): ?array
+    {
+        if ($c->ciudad_id) {
+            $ciudadModel = Ciudad::find($c->ciudad_id);
+            if ($ciudadModel) {
+                return [
+                    'id' => $ciudadModel->id,
+                    'nombre' => $ciudadModel->nombre,
+                    'pais' => $ciudadModel->pais ?? null,
+                ];
+            }
+        }
+        $ciudadStr = $c->getAttribute('ciudad');
+        if ($ciudadStr) {
+            return ['nombre' => $ciudadStr];
+        }
+        return null;
     }
 }

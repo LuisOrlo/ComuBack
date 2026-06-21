@@ -74,13 +74,14 @@ class InscripcionTallerController extends Controller
             'cedula' => 'required|string|max:20',
             'correo' => 'required|email|max:150',
             'telefono' => 'nullable|string|max:20',
+            'ciudad' => 'nullable|string|max:100',
             'ocupacion' => 'nullable|string|max:100',
             'direccion' => 'nullable|string|max:500',
             'estado_civil' => 'nullable|string|max:20',
             'fecha_nacimiento' => 'nullable|date',
             'edad' => 'nullable|integer|min:0|max:150',
             'tipo_pago' => 'required|in:completo,abono',
-            'monto_pagado' => 'required|numeric|min:0.01',
+            'monto_pagado' => 'required|numeric|min:0',
             'metodo_pago' => 'nullable|string|max:50',
             'fecha_pago' => 'nullable|date',
         ]);
@@ -99,15 +100,21 @@ class InscripcionTallerController extends Controller
             ], 422);
         }
 
-        if ($validated['tipo_pago'] === 'completo' && (float)$validated['monto_pagado'] != (float)$taller->precio) {
+        if ($validated['tipo_pago'] === 'completo' && (float)$validated['monto_pagado'] != (float)$taller->precio && (float)$validated['monto_pagado'] != 0) {
             return response()->json([
                 'mensaje' => "Para pago completo, el monto debe ser {$taller->precio}",
             ], 422);
         }
 
-        if ($validated['tipo_pago'] === 'abono' && ((float)$validated['monto_pagado'] <= 0 || (float)$validated['monto_pagado'] >= (float)$taller->precio)) {
+        if ($validated['tipo_pago'] === 'abono' && (float)$validated['monto_pagado'] < 0) {
             return response()->json([
-                'mensaje' => "Para abono, el monto debe ser mayor a 0 y menor a {$taller->precio}",
+                'mensaje' => "Para abono, el monto no puede ser negativo",
+            ], 422);
+        }
+
+        if ($validated['tipo_pago'] === 'abono' && (float)$validated['monto_pagado'] > 0 && (float)$validated['monto_pagado'] >= (float)$taller->precio) {
+            return response()->json([
+                'mensaje' => "Para abono, el monto debe ser menor a {$taller->precio}",
             ], 422);
         }
 
@@ -118,6 +125,7 @@ class InscripcionTallerController extends Controller
             'cedula' => $validated['cedula'],
             'correo' => $validated['correo'],
             'telefono' => $validated['telefono'] ?? null,
+            'ciudad' => $validated['ciudad'] ?? null,
             'ocupacion' => $validated['ocupacion'] ?? null,
             'direccion' => $validated['direccion'] ?? null,
             'estado_civil' => $validated['estado_civil'] ?? null,

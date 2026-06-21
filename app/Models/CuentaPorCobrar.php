@@ -43,6 +43,8 @@ class CuentaPorCobrar extends Model
 
     protected $hidden = ['created_at', 'updated_at'];
 
+    protected $appends = ['tipo'];
+
     // Estados (t_estado_pago enum)
     const ESTADO_PENDIENTE = 'pendiente';
     const ESTADO_ABONADO = 'abonado';
@@ -214,5 +216,21 @@ class CuentaPorCobrar extends Model
         ];
 
         return $descripciones[$this->estado] ?? 'Desconocido';
+    }
+
+    /**
+     * Determinar el tipo de cuenta para clasificación en el frontend
+     */
+    public function getTipoAttribute(): string
+    {
+        if ($this->inscripcion_taller_id) {
+            return 'taller';
+        }
+
+        if ($this->reserva_aula_id || $this->reserva_podcast_id || $this->alquiler_equipo_id || $this->reserva_radio_id) {
+            return 'servicio';
+        }
+
+        return 'curso';
     }
 }

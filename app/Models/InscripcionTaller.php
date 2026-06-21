@@ -20,6 +20,7 @@ class InscripcionTaller extends Model
         'cedula',
         'correo',
         'telefono',
+        'ciudad',
         'ocupacion',
         'direccion',
         'estado_civil',

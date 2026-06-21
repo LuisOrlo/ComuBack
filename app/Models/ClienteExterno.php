@@ -25,6 +25,7 @@ class ClienteExterno extends Model
         'correo',
         'celular',
         'ciudad_id',
+        'ciudad',
         'observaciones',
         'ocupacion',
         'direccion',
