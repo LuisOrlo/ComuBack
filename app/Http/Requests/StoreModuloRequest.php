@@ -21,6 +21,7 @@ class StoreModuloRequest extends FormRequest
             'ponderacion' => 'required|numeric|min:0.1|max:100',
             'catalogo_curso_id' => 'required_without:curso_abierto_id|nullable|uuid|exists:catalogo_cursos,id',
             'curso_abierto_id' => 'required_without:catalogo_curso_id|nullable|uuid|exists:cursos_abiertos,id',
+            'precio_base' => 'nullable|numeric|min:0',
         ];
     }
 

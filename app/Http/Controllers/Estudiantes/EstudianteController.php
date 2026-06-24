@@ -609,6 +609,13 @@ class EstudianteController extends Controller
             return response()->json(['mensaje' => 'Estudiante externo eliminado exitosamente.']);
         }
 
+        // Participante de taller
+        $inscripcion = \App\Models\InscripcionTaller::find($id);
+        if ($inscripcion) {
+            $inscripcion->delete();
+            return response()->json(['mensaje' => 'Participante de taller eliminado exitosamente.']);
+        }
+
         return response()->json(['mensaje' => 'Estudiante no encontrado'], 404);
     }
 
@@ -618,9 +625,18 @@ class EstudianteController extends Controller
             $matriculaIds = Matricula::where('estudiante_id', $estudiante->id)->pluck('id');
 
             if ($matriculaIds->isNotEmpty()) {
+                // Eliminar transacciones legacy (cuenta_cobrar)
                 TransaccionIngreso::whereIn('cuenta_cobrar_id', function ($q) use ($matriculaIds) {
                     $q->select('id')->from('finance.cuentas_por_cobrar')->whereIn('matricula_id', $matriculaIds);
                 })->delete();
+
+                // Eliminar transacciones nuevas (linea_pago_modulo)
+                TransaccionIngreso::whereIn('linea_pago_modulo_id', function ($q) use ($matriculaIds) {
+                    $q->select('id')->from('finance.lineas_pago_modulo')->whereIn('matricula_id', $matriculaIds);
+                })->delete();
+
+                // Eliminar líneas de pago por módulo
+                \App\Models\Finance\LineaPagoModulo::whereIn('matricula_id', $matriculaIds)->delete();
 
                 CuentaPorCobrar::whereIn('matricula_id', $matriculaIds)->delete();
 

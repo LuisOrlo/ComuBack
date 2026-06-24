@@ -41,12 +41,17 @@ class StorePagoInicialRequest extends FormRequest
                         return;
                     }
 
-                    $saldo = max($linea->monto_ajustado - $linea->monto_abonado, 0);
+                    // Si viene un ajuste de precio, validamos contra el nuevo monto_ajustado
+                    $montoAjustado = $this->input("pagos.{$index}.monto_ajustado");
+                    $montoTope = $montoAjustado !== null ? (float) $montoAjustado : $linea->monto_ajustado;
+                    $saldo = max($montoTope - $linea->monto_abonado, 0);
                     if ((float) $value > $saldo + 0.001) {
                         $fail("El monto ingresado (\${$value}) excede el saldo pendiente del módulo. Máximo permitido: \${$saldo}.");
                     }
                 },
             ],
+            'pagos.*.monto_ajustado' => 'nullable|numeric|min:0',
+            'pagos.*.motivo_ajuste' => 'required_with:pagos.*.monto_ajustado|nullable|string|max:255',
             'pagos.*.metodo_pago' => 'required|string|in:efectivo,transferencia,deposito,tarjeta,otro',
             'pagos.*.fecha_pago' => 'nullable|date',
             'pagos.*.comprobante_url' => 'nullable|url',

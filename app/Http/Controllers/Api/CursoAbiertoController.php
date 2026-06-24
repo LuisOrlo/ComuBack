@@ -142,6 +142,7 @@ class CursoAbiertoController extends Controller
         }
 
         // Crear módulos si se enviaron en el request, sino usar default del catálogo
+        $precioBase = $data['precio_base'] ?? 0;
         $modulosRecibidos = $request->input('modulos', []);
         if (!empty($modulosRecibidos)) {
             foreach ($modulosRecibidos as $i => $mod) {
@@ -151,6 +152,7 @@ class CursoAbiertoController extends Controller
                     'numero_orden' => $i + 1,
                     'fecha_inicio' => $mod['fecha_inicio'] ?? null,
                     'fecha_fin' => $mod['fecha_fin'] ?? null,
+                    'precio_base' => $mod['precio_base'] ?? $precioBase,
                 ]);
             }
         } else {
@@ -160,6 +162,7 @@ class CursoAbiertoController extends Controller
                     'curso_abierto_id' => $curso->id,
                     'nombre_modulo' => 'Módulo ' . $i,
                     'numero_orden' => $i,
+                    'precio_base' => $precioBase,
                 ]);
             }
         }
@@ -276,11 +279,13 @@ class CursoAbiertoController extends Controller
 
                 foreach ($modulosRecibidos as $i => $mod) {
                     $modId = $mod['id'] ?? null;
+                    $cursoPrecio = $data['precio_base'] ?? $curso->precio_base;
                     $modData = [
                         'nombre_modulo' => $mod['nombre'] ?? ('Módulo ' . ($i + 1)),
                         'numero_orden' => $i + 1,
                         'fecha_inicio' => $mod['fecha_inicio'] ?? null,
                         'fecha_fin' => $mod['fecha_fin'] ?? null,
+                        'precio_base' => $mod['precio_base'] ?? $cursoPrecio,
                     ];
 
                     if ($modId && in_array($modId, $existingIds)) {

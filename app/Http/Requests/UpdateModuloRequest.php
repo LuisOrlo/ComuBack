@@ -19,6 +19,7 @@ class UpdateModuloRequest extends FormRequest
             'semana_inicio' => 'sometimes|required|integer|min:1|max:52',
             'semana_fin' => 'sometimes|required|integer|min:1|max:52|gte:semana_inicio',
             'ponderacion' => 'sometimes|required|numeric|min:0.1|max:100',
+            'precio_base' => 'nullable|numeric|min:0',
         ];
     }
 

@@ -229,7 +229,9 @@ class CuentaPorCobrar extends Model
             return 'taller';
         }
 
-        if ($this->reserva_aula_id || $this->reserva_podcast_id || $this->alquiler_equipo_id || $this->reserva_radio_id) {
+        if ($this->reserva_aula_id || $this->reserva_podcast_id || $this->alquiler_equipo_id
+            || $this->servicio_streaming_id || $this->servicio_produccion_id || $this->edicion_video_id
+            || $this->clase_extra_id || $this->asesoria_id || $this->reserva_radio_id) {
             return 'servicio';
         }
 

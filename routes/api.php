@@ -606,7 +606,12 @@ Route::prefix('reports')->group(function () {
         Route::post('pagos', [FinanceController::class, 'registrarPago'])->name('finanzas.pagos');
         Route::post('pagos-iniciales', [FinanceController::class, 'registrarPagosIniciales'])->name('finanzas.pagos-iniciales');
         Route::get('transacciones', [FinanceController::class, 'getTransacciones'])->name('finanzas.transacciones');
+        Route::get('historial', [FinanceController::class, 'getHistorial'])->name('finanzas.historial');
+        Route::get('transacciones/{id}/detalle', [FinanceController::class, 'getTransaccionDetalle'])->name('finanzas.transacciones.detalle');
         Route::post('transacciones/{id}/verificar', [FinanceController::class, 'verificarTransaccion'])->name('finanzas.transacciones.verificar');
+        Route::get('cursos/{id}/financiero', [FinanceController::class, 'getCursoFinanciero'])->name('finanzas.cursos.financiero');
+        Route::get('talleres/{id}/financiero', [FinanceController::class, 'getTallerFinanciero'])->name('finanzas.talleres.financiero');
+        Route::get('talleres/{tallerId}/participante/{participanteId}', [FinanceController::class, 'getHistorialParticipanteTaller'])->name('finanzas.talleres.participante');
     });
 
     // ========================================================================
