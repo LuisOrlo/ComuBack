@@ -47,6 +47,14 @@ class InstructorPortalController extends Controller
             ->with(['catalogo', 'horario.diasSemana', 'modulos', 'matriculas.estudiante'])
             ->firstOrFail();
 
+        $curso->modulos->map(function ($modulo) use ($curso) {
+            if (is_null($modulo->ponderacion) || $modulo->ponderacion <= 0) {
+                $total = $curso->modulos->count();
+                $modulo->ponderacion = $total > 0 ? round(100 / $total, 2) : 0;
+            }
+            return $modulo;
+        });
+
         return response()->json([
             'datos' => $curso
         ]);

@@ -336,10 +336,9 @@ class EstadisticasService
     public function modalidadComparativa(): array
     {
         return Cache::remember($this->cacheKey('mod'), now()->addMinutes(15), function () {
-            $cursos = CursoAbierto::whereBetween('fecha_inicio', [$this->desde, $this->rangoHasta()])
-                ->withCount('matriculas')
-                ->get()
-                ->groupBy('modalidad');
+            $cursos = CursoAbierto::withCount(['matriculas' => function ($q) {
+                $q->whereBetween('fecha_inscripcion', [$this->desde, $this->rangoHasta()]);
+            }])->get()->groupBy('modalidad');
 
             $presencial = $cursos->get('presencial', collect());
             $virtual = $cursos->get('virtual', collect());
@@ -348,8 +347,9 @@ class EstadisticasService
             $virtualCursoIds = $virtual->pluck('id')->toArray();
 
             $ingresosPresencial = !empty($presencialCursoIds)
-                ? (float) TransaccionIngreso::whereHas('cuentaPorCobrar', function ($q) use ($presencialCursoIds) {
-                    $q->whereHas('matricula', fn($mq) => $mq->whereIn('curso_abierto_id', $presencialCursoIds));
+                ? (float) TransaccionIngreso::where(function ($q) use ($presencialCursoIds) {
+                    $q->whereHas('cuentaPorCobrar', fn($cq) => $cq->whereHas('matricula', fn($mq) => $mq->whereIn('curso_abierto_id', $presencialCursoIds)))
+                      ->orWhereHas('lineaPagoModulo.matricula', fn($mq) => $mq->whereIn('curso_abierto_id', $presencialCursoIds));
                 })->where('fecha_pago', '>=', $this->desde)
                   ->where('fecha_pago', '<=', $this->rangoHasta())
                   ->where('estado_verificacion', 'aprobado')
@@ -357,24 +357,38 @@ class EstadisticasService
                 : 0;
 
             $ingresosVirtual = !empty($virtualCursoIds)
-                ? (float) TransaccionIngreso::whereHas('cuentaPorCobrar', function ($q) use ($virtualCursoIds) {
-                    $q->whereHas('matricula', fn($mq) => $mq->whereIn('curso_abierto_id', $virtualCursoIds));
+                ? (float) TransaccionIngreso::where(function ($q) use ($virtualCursoIds) {
+                    $q->whereHas('cuentaPorCobrar', fn($cq) => $cq->whereHas('matricula', fn($mq) => $mq->whereIn('curso_abierto_id', $virtualCursoIds)))
+                      ->orWhereHas('lineaPagoModulo.matricula', fn($mq) => $mq->whereIn('curso_abierto_id', $virtualCursoIds));
                 })->where('fecha_pago', '>=', $this->desde)
                   ->where('fecha_pago', '<=', $this->rangoHasta())
                   ->where('estado_verificacion', 'aprobado')
                   ->sum('monto')
                 : 0;
 
+            $totalEgresosPeriodo = (float) DB::table('finance.transacciones_egreso')
+                ->where('fecha_pago', '>=', $this->desde)
+                ->where('fecha_pago', '<=', $this->rangoHasta())
+                ->sum('monto');
+
+            $totalIngresos = $ingresosPresencial + $ingresosVirtual;
+            $egresosPresencial = $totalIngresos > 0
+                ? round($totalEgresosPeriodo * ($ingresosPresencial / $totalIngresos), 2)
+                : 0;
+            $egresosVirtual = $totalIngresos > 0
+                ? round($totalEgresosPeriodo * ($ingresosVirtual / $totalIngresos), 2)
+                : 0;
+
             return [
                 'presencial' => [
                     'ingresos' => round($ingresosPresencial, 2),
-                    'egresos' => 0,
+                    'egresos' => $egresosPresencial,
                     'estudiantes' => $presencial->sum('matriculas_count'),
                     'cursos' => $presencial->count(),
                 ],
                 'virtual' => [
                     'ingresos' => round($ingresosVirtual, 2),
-                    'egresos' => 0,
+                    'egresos' => $egresosVirtual,
                     'estudiantes' => $virtual->sum('matriculas_count'),
                     'cursos' => $virtual->count(),
                 ],

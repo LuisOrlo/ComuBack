@@ -11,6 +11,7 @@ use App\Models\Services\ReservaPodcast;
 use App\Models\Services\ReservaRadio;
 use App\Models\Services\AlquilerEquipo;
 use App\Models\Services\TrabajoEdicion;
+use App\Models\TransaccionEgreso;
 use App\Models\TransaccionIngreso;
 use App\Models\Finance\LineaPagoModulo;
 use App\Http\Requests\StorePagoInicialRequest;
@@ -867,7 +868,8 @@ class FinanceController extends Controller
 
     public function getHistorial(Request $request): JsonResponse
     {
-        $query = TransaccionIngreso::with([
+        // ── Ingresos ─────────────────────────────────────────────────────────
+        $ingresosQuery = TransaccionIngreso::with([
             'lineaPagoModulo.modulo',
             'lineaPagoModulo.matricula.estudiante',
             'lineaPagoModulo.matricula.solicitudInscripcion.estudiante',
@@ -886,45 +888,93 @@ class FinanceController extends Controller
             'cuentaPorCobrar.alquilerEquipo.persona',
             'cuentaPorCobrar.alquilerEquipo.equipo',
             'registrador',
-        ])->orderBy('fecha_pago', 'desc');
+        ]);
 
-        if ($request->has('estado_verificacion')) {
-            $query->where('estado_verificacion', $request->estado_verificacion);
-        }
+        // ── Egresos ──────────────────────────────────────────────────────────
+        $egresosQuery = TransaccionEgreso::with(['categoria', 'registrador']);
 
+        // ── Filtros compartidos ──────────────────────────────────────────────
         if ($fechaDesde = $request->get('fecha_desde')) {
-            $query->where('fecha_pago', '>=', $fechaDesde);
+            $ingresosQuery->where('fecha_pago', '>=', $fechaDesde);
+            $egresosQuery->where('fecha_pago', '>=', $fechaDesde);
         }
         if ($fechaHasta = $request->get('fecha_hasta')) {
-            $query->where('fecha_pago', '<=', $fechaHasta . ' 23:59:59');
+            $ingresosQuery->where('fecha_pago', '<=', $fechaHasta . ' 23:59:59');
+            $egresosQuery->where('fecha_pago', '<=', $fechaHasta . ' 23:59:59');
         }
 
         if ($search = $request->get('search')) {
-            $query->where(function ($q) use ($search) {
+            $ingresosQuery->where(function ($q) use ($search) {
                 $q->where('monto', 'ilike', "%{$search}%")
                   ->orWhere('metodo_pago', 'ilike', "%{$search}%")
                   ->orWhere('estado_verificacion', 'ilike', "%{$search}%")
                   ->orWhere('referencia_pago', 'ilike', "%{$search}%");
             });
+            $egresosQuery->where(function ($q) use ($search) {
+                $q->where('monto', 'ilike', "%{$search}%")
+                  ->orWhere('metodo_pago', 'ilike', "%{$search}%")
+                  ->orWhere('descripcion', 'ilike', "%{$search}%")
+                  ->orWhere('proveedor_beneficiario', 'ilike', "%{$search}%");
+            });
         }
 
-        $perPage = (int) $request->get('per_page', 30);
-        $transacciones = $query->paginate($perPage);
+        $ingresos = $ingresosQuery->orderBy('fecha_pago', 'desc')->get();
+        $egresos = $egresosQuery->orderBy('fecha_pago', 'desc')->get();
 
-        $rawItems = collect($transacciones->items())->map(function ($t) {
+        $ek = $egresos->keyBy(fn($e, $k) => "e_{$e->id}");
+        $ik = $ingresos->keyBy(fn($i, $k) => "i_{$i->id}");
+
+        $sortedKeys = $ik->union($ek)->sortByDesc(fn($m, $key) => $m->fecha_pago?->timestamp ?? 0)->keys()->values();
+
+        $total = $sortedKeys->count();
+        $perPage = (int) $request->get('per_page', 200);
+        $currentPage = (int) $request->get('page', 1);
+        $offset = ($currentPage - 1) * $perPage;
+        $pageKeys = $sortedKeys->slice($offset, $perPage);
+
+        // ── Map items → response shape ────────────────────────────────────────
+        $data = $pageKeys->map(function ($key) use ($ek, $ik) {
+            $m = str_starts_with($key, 'e_') ? ($ek[$key] ?? null) : ($ik[$key] ?? null);
+            if (!$m) return null;
+
+            if (str_starts_with($key, 'e_')) {
+                return [
+                    'id' => $m->id,
+                    'tipo_movimiento' => 'egreso',
+                    'tipo' => 'individual',
+                    'referencia_pago' => null,
+                    'monto' => (float) $m->monto,
+                    'monto_total' => (float) $m->monto,
+                    'metodo_pago' => $m->metodo_pago,
+                    'fecha_pago' => $m->fecha_pago?->toISOString(),
+                    'estado_verificacion' => 'aprobado',
+                    'comprobante_url' => $m->comprobante_url,
+                    'observaciones' => $m->notas,
+                    'estudiante_nombre' => $m->proveedor_beneficiario,
+                    'estudiante_cedula' => null,
+                    'curso_nombre' => $m->descripcion,
+                    'categoria_nombre' => $m->categoria?->nombre,
+                    'modulo_nombre' => null,
+                    'modulos_count' => 0,
+                    'modulos_detalle' => [],
+                    'cuenta_por_cobrar' => null,
+                ];
+            }
+
+            // ── Ingreso (existing mapping) ─────────────────────────────────
             $estudiante = null;
             $cursoNombre = null;
             $moduloNombre = null;
 
-            if ($t->lineaPagoModulo) {
-                $mat = $t->lineaPagoModulo->matricula;
+            if ($m->lineaPagoModulo) {
+                $mat = $m->lineaPagoModulo->matricula;
                 $estudiante = $mat?->estudiante
                     ?? $mat?->solicitudInscripcion?->estudiante
                     ?? $mat?->solicitudInscripcion?->participanteExterno;
                 $cursoNombre = $mat?->cursoAbierto?->catalogo?->nombre;
-                $moduloNombre = $t->lineaPagoModulo->modulo?->nombre_modulo;
-            } elseif ($t->cuentaPorCobrar) {
-                $cp = $t->cuentaPorCobrar;
+                $moduloNombre = $m->lineaPagoModulo->modulo?->nombre_modulo;
+            } elseif ($m->cuentaPorCobrar) {
+                $cp = $m->cuentaPorCobrar;
                 $estudiante = $cp->matricula?->estudiante
                     ?? $cp->inscripcionTaller?->participanteExterno
                     ?? $cp->reservaPodcast?->persona
@@ -941,83 +991,39 @@ class FinanceController extends Controller
                     ?? $cp->alquilerEquipo?->equipo?->nombre;
             }
 
-            return [
-                'id' => $t->id,
-                'referencia_pago' => $t->referencia_pago,
-                'monto' => (float) $t->monto,
-                'metodo_pago' => $t->metodo_pago,
-                'fecha_pago' => $t->fecha_pago?->toISOString(),
-                'estado_verificacion' => $t->estado_verificacion,
-                'comprobante_url' => $t->comprobante_url,
-                'observaciones' => $t->observaciones,
+            $base = [
+                'id' => $m->id,
+                'tipo_movimiento' => 'ingreso',
+                'referencia_pago' => $m->referencia_pago,
+                'monto' => (float) $m->monto,
+                'metodo_pago' => $m->metodo_pago,
+                'fecha_pago' => $m->fecha_pago?->toISOString(),
+                'estado_verificacion' => $m->estado_verificacion,
+                'comprobante_url' => $m->comprobante_url,
+                'observaciones' => $m->observaciones,
                 'estudiante_nombre' => $estudiante ? trim(($estudiante->nombres ?? '') . ' ' . ($estudiante->apellidos ?? '')) : null,
                 'estudiante_cedula' => $estudiante?->cedula ?? null,
                 'curso_nombre' => $cursoNombre,
                 'modulo_nombre' => $moduloNombre,
-                'cuenta_por_cobrar' => $t->cuentaPorCobrar,
+                'cuenta_por_cobrar' => $m->cuentaPorCobrar,
             ];
+
+            return array_merge($base, [
+                'tipo' => $base['modulo_nombre'] ? 'individual' : 'individual',
+                'monto_total' => $base['monto'],
+                'modulos_count' => $base['modulo_nombre'] ? 1 : 0,
+                'modulos_detalle' => $base['modulo_nombre']
+                    ? [['id' => $base['id'], 'modulo_nombre' => $base['modulo_nombre'], 'monto' => $base['monto']]]
+                    : [],
+            ]);
         });
-
-        $grouped = [];
-        foreach ($rawItems as $item) {
-            $ref = $item['referencia_pago'];
-            if ($ref) {
-                if (!isset($grouped[$ref])) {
-                    $grouped[$ref] = [];
-                }
-                $grouped[$ref][] = $item;
-            } else {
-                $grouped[] = [$item];
-            }
-        }
-
-        $data = [];
-        foreach ($grouped as $key => $grupo) {
-            if (is_string($key) && count($grupo) > 1) {
-                $modulosDetalle = collect($grupo)->map(fn($t) => [
-                    'id' => $t['id'],
-                    'modulo_nombre' => $t['modulo_nombre'],
-                    'monto' => $t['monto'],
-                ])->values()->toArray();
-
-                $first = $grupo[0];
-                $primerId = $first['id'];
-                $data[] = [
-                    'id' => $primerId,
-                    'tipo' => 'grupo',
-                    'referencia_pago' => $key,
-                    'estudiante_nombre' => $first['estudiante_nombre'],
-                    'estudiante_cedula' => $first['estudiante_cedula'] ?? null,
-                    'curso_nombre' => $first['curso_nombre'],
-                    'monto' => collect($grupo)->sum('monto'),
-                    'monto_total' => collect($grupo)->sum('monto'),
-                    'metodo_pago' => $first['metodo_pago'],
-                    'fecha_pago' => $first['fecha_pago'],
-                    'estado_verificacion' => $first['estado_verificacion'],
-                    'comprobante_url' => $first['comprobante_url'],
-                    'observaciones' => $first['observaciones'],
-                    'modulos_count' => count($grupo),
-                    'modulos_detalle' => $modulosDetalle,
-                ];
-            } else {
-                $single = is_string($key) ? $grupo[0] : $grupo[0];
-                $data[] = array_merge($single, [
-                    'tipo' => 'individual',
-                    'monto_total' => $single['monto'],
-                    'modulos_count' => $single['modulo_nombre'] ? 1 : 0,
-                    'modulos_detalle' => $single['modulo_nombre']
-                        ? [['id' => $single['id'], 'modulo_nombre' => $single['modulo_nombre'], 'monto' => $single['monto']]]
-                        : [],
-                ]);
-            }
-        }
 
         return response()->json([
             'data' => $data,
-            'current_page' => $transacciones->currentPage(),
-            'per_page' => $transacciones->perPage(),
-            'total' => $transacciones->total(),
-            'last_page' => $transacciones->lastPage(),
+            'current_page' => $currentPage,
+            'per_page' => $perPage,
+            'total' => $total,
+            'last_page' => (int) ceil($total / $perPage),
         ]);
     }
 
@@ -1625,6 +1631,23 @@ class FinanceController extends Controller
         $totales['servicios'] = (float) $serviciosTotal;
         $totales['otros'] = max(0, $totales['total'] - $totales['cursos'] - $totales['talleres'] - $totales['servicios']);
 
+        // ── Egresos totals ──────────────────────────────────────────────────
+        $egresoQuery = TransaccionEgreso::with('categoria')
+            ->when($desde, fn($q) => $q->where('fecha_pago', '>=', $desde))
+            ->when($hasta, fn($q) => $q->where('fecha_pago', '<=', $hasta . ' 23:59:59'))
+            ->when($metodo, fn($q) => $q->where('metodo_pago', $metodo));
+
+        if ($search = $request->get('search')) {
+            $egresoQuery->where(function ($q) use ($search) {
+                $q->where('descripcion', 'ilike', "%{$search}%")
+                  ->orWhere('proveedor_beneficiario', 'ilike', "%{$search}%");
+            });
+        }
+
+        $egresosTotal = (float) (clone $egresoQuery)->sum('monto');
+        $totales['egresos'] = $egresosTotal;
+        $totales['balance'] = round($totales['total'] - $egresosTotal, 2);
+
         $grafico = TransaccionIngreso::selectRaw("to_char(fecha_pago, 'YYYY-MM') as mes, SUM(monto) as total")
             ->when($desde, fn($q) => $q->where('fecha_pago', '>=', $desde))
             ->when($hasta, fn($q) => $q->where('fecha_pago', '<=', $hasta . ' 23:59:59'))
@@ -1637,10 +1660,11 @@ class FinanceController extends Controller
         $sortCol = $allowed[$orderBy] ?? 'fecha_pago';
         $sortDir = $orderDir === 'asc' ? 'asc' : 'desc';
 
-        $items = $query->orderBy($sortCol, $sortDir)
-            ->paginate($request->get('per_page', 25));
+        // ── Fetch all ingresos + egresos, merge, sort, paginate ──────────────
+        $ingresoModels = $query->orderBy($sortCol, $sortDir)->get();
+        $egresoModels = $egresoQuery->orderBy('fecha_pago', $sortDir)->get();
 
-        $data = $items->map(function ($t) {
+        $ingresoMapped = $ingresoModels->map(function ($t) {
             $cp = $t->cuentaPorCobrar;
             $cat = 'Otros';
             if ($cp) {
@@ -1680,6 +1704,7 @@ class FinanceController extends Controller
 
             return [
                 'id' => $t->id,
+                'tipo_movimiento' => 'ingreso',
                 'fecha_pago' => $t->fecha_pago?->format('Y-m-d'),
                 'concepto' => $concepto,
                 'estudiante_nombre' => $estudiante ? trim(($estudiante->nombres ?? '') . ' ' . ($estudiante->apellidos ?? '')) : null,
@@ -1690,6 +1715,32 @@ class FinanceController extends Controller
                 'estado_verificacion' => $t->estado_verificacion,
             ];
         });
+
+        $egresoMapped = $egresoModels->map(function ($e) {
+            return [
+                'id' => $e->id,
+                'tipo_movimiento' => 'egreso',
+                'fecha_pago' => $e->fecha_pago?->format('Y-m-d'),
+                'concepto' => $e->descripcion,
+                'estudiante_nombre' => $e->proveedor_beneficiario,
+                'categoria' => $e->categoria?->nombre ?? '—',
+                'monto' => (float) $e->monto,
+                'metodo_pago' => $e->metodo_pago,
+                'comprobante_url' => $e->comprobante_url,
+                'estado_verificacion' => 'aprobado',
+            ];
+        });
+
+        $allItems = $ingresoMapped->concat($egresoMapped)
+            ->sortByDesc(fn($i) => $i['fecha_pago'] ?? '')
+            ->values();
+
+        $perPage = (int) $request->get('per_page', 25);
+        $page = (int) $request->get('page', 1);
+        $offset = ($page - 1) * $perPage;
+        $data = $allItems->slice($offset, $perPage);
+        $totalAll = $allItems->count();
+        $lastPage = (int) ceil($totalAll / $perPage);
 
         $graficoCategorias = (clone $query)->get()->groupBy(function ($t) {
             $cp = $t->cuentaPorCobrar;
@@ -1754,11 +1805,11 @@ class FinanceController extends Controller
             'top_estudiantes' => $estTop,
             'analytics' => $analytics,
             'grafico_categorias' => $graficoCategorias,
-            'data' => $data->values(),
-            'current_page' => $items->currentPage(),
-            'per_page' => $items->perPage(),
-            'total' => $items->total(),
-            'last_page' => $items->lastPage(),
+            'data' => $data,
+            'current_page' => $page,
+            'per_page' => $perPage,
+            'total' => $totalAll,
+            'last_page' => $lastPage,
         ]);
     }
 

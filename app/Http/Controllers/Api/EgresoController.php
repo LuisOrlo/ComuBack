@@ -210,4 +210,20 @@ class EgresoController extends Controller
         $cats = \App\Models\CategoriaEgreso::orderBy('id')->get();
         return response()->json(['data' => $cats]);
     }
+
+    public function personalDisponible(): JsonResponse
+    {
+        $staff = \App\Models\Persona::whereIn('tipo', ['instructor', 'staff', 'secretaria', 'admin'])
+            ->where('es_activo', true)
+            ->select('id', 'nombres', 'apellidos', 'tipo')
+            ->orderBy('nombres')
+            ->get()
+            ->map(fn($p) => [
+                'id' => $p->id,
+                'nombre_completo' => trim("{$p->nombres} {$p->apellidos}"),
+                'tipo' => $p->tipo,
+            ]);
+
+        return response()->json(['data' => $staff]);
+    }
 }

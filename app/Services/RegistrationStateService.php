@@ -293,8 +293,49 @@ class RegistrationStateService
         try {
             $curso = $solicitud->cursoAbierto;
 
+            $estudianteId = $solicitud->persona_id;
+
+            if (!$estudianteId && $solicitud->participante_externo_id) {
+                $externo = $solicitud->participanteExterno;
+                if ($externo) {
+                    $persona = \App\Models\Persona::firstOrCreate(
+                        ['cedula' => $externo->cedula ?: null],
+                        [
+                            'tipo' => 'estudiante',
+                            'nombres' => $externo->nombres,
+                            'apellidos' => $externo->apellidos ?? '',
+                            'correo' => $externo->correo,
+                            'celular' => $externo->celular,
+                            'ciudad' => $externo->ciudad,
+                        ]
+                    );
+                    $persona->update([
+                        'correo' => $persona->correo ?? $externo->correo,
+                        'celular' => $persona->celular ?? $externo->celular,
+                        'ciudad' => $persona->ciudad ?? $externo->ciudad,
+                    ]);
+                    \App\Models\PerfilEstudiante::firstOrCreate(
+                        ['persona_id' => $persona->id],
+                        [
+                            'direccion' => $externo->direccion,
+                            'ocupacion' => $externo->ocupacion,
+                            'estado_civil' => $externo->estado_civil,
+                            'edad' => $externo->edad,
+                            'fecha_nacimiento' => $externo->fecha_nacimiento,
+                            'ciudad' => $externo->ciudad,
+                        ]
+                    );
+                    $estudianteId = $persona->id;
+                    $solicitud->update([
+                        'persona_id' => $persona->id,
+                        'participante_externo_id' => null,
+                        'es_participante_externo' => false,
+                    ]);
+                }
+            }
+
             $matricula = Matricula::create([
-                'estudiante_id' => $solicitud->persona_id ?: null,
+                'estudiante_id' => $estudianteId,
                 'curso_abierto_id' => $solicitud->curso_abierto_id,
                 'tipo_pago' => $solicitud->tipo_pago,
                 'voucher_url' => $solicitud->archivo_comprobante_url,

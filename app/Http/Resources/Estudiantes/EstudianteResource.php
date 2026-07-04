@@ -18,11 +18,11 @@ class EstudianteResource extends JsonResource
             'apellidos' => $this->apellidos,
             'correo' => $this->correo,
             'celular' => $this->celular,
-            'ciudad' => $this->ciudad ? [
-                'id' => $this->ciudad->id,
-                'nombre' => $this->ciudad->nombre,
-                'pais' => $this->ciudad->pais,
-            ] : null,
+            'ciudad' => $this->ciudad ? (
+                is_string($this->ciudad)
+                    ? ['nombre' => $this->ciudad]
+                    : ['id' => $this->ciudad->id, 'nombre' => $this->ciudad->nombre, 'pais' => $this->ciudad->pais]
+            ) : null,
             'cedula_photo_url' => $this->cedula_photo_url,
             'ficha_registro_url' => $this->ficha_registro_url,
             'es_activo' => $this->es_activo,

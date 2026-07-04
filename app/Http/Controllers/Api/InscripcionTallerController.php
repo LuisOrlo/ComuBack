@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\InscripcionTaller;
 use App\Models\Taller;
+use App\Models\Persona;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -297,5 +299,44 @@ class InscripcionTallerController extends Controller
             'filename' => "participantes_{$taller->nombre}.csv",
             'total' => $inscripciones->count(),
         ]);
+    }
+
+    public function inscribirDesdePerfil(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'estudiante_id' => 'required|uuid|exists:people.personas,id',
+            'taller_id' => 'required|uuid|exists:academic.talleres,id',
+            'monto_pagado' => 'required|numeric|min:0',
+            'metodo_pago' => 'nullable|string|max:50',
+        ]);
+
+        $persona = Persona::findOrFail($validated['estudiante_id']);
+        $taller = Taller::findOrFail($validated['taller_id']);
+
+        $inscripcion = DB::transaction(function () use ($validated, $persona, $taller) {
+            $inscripcion = InscripcionTaller::create([
+                'taller_id' => $validated['taller_id'],
+                'persona_id' => $persona->id,
+                'nombres' => $persona->nombres,
+                'apellidos' => $persona->apellidos,
+                'cedula' => $persona->cedula,
+                'correo' => $persona->correo,
+                'celular' => $persona->celular,
+                'precio_pagado' => $validated['monto_pagado'],
+                'monto_pagado' => $validated['monto_pagado'],
+                'tipo_pago' => $validated['monto_pagado'] >= ($taller->precio ?? 0) ? 'completo' : 'abono',
+                'metodo_pago' => $validated['metodo_pago'] ?? 'efectivo',
+                'fecha_pago' => now()->toDateString(),
+                'estado' => 'activo',
+                'pago_verificado' => true,
+            ]);
+
+            return $inscripcion;
+        });
+
+        return response()->json([
+            'mensaje' => 'Estudiante inscrito exitosamente al taller',
+            'data' => $inscripcion,
+        ], 201);
     }
 }

@@ -51,6 +51,7 @@ use App\Http\Controllers\Api\SecretariaDashboardController;
 use App\Http\Controllers\Api\SecretariaFinanceController;
 use App\Http\Controllers\Api\AgendaController;
 use App\Http\Controllers\Api\NotificationController;
+use App\Http\Controllers\Api\TareaStaffController;
 use Illuminate\Support\Facades\Route;
 
 
@@ -147,7 +148,7 @@ use Illuminate\Support\Facades\Route;
         });
     });
 
-    Route::middleware(['auth:sanctum', 'role:Administrador'])->prefix('personas/estudiantes')->group(function () {
+    Route::middleware(['auth:sanctum', 'role:Administrador|Secretaria'])->prefix('personas/estudiantes')->group(function () {
         Route::get('/', [EstudianteController::class, 'index'])->name('estudiantes.index');
         Route::post('/', [EstudianteController::class, 'store'])->name('estudiantes.store');
 
@@ -167,6 +168,7 @@ use Illuminate\Support\Facades\Route;
         // ========================================================================
         // RUTAS PARAMETRIZADAS POR ESTUDIANTE
         // ========================================================================
+        Route::get('{estudiante}/asistencias', [EstudianteController::class, 'detalleAsistencias'])->name('estudiantes.asistencias');
         Route::get('{estudiante}/academic-profile', [EstudianteController::class, 'academicProfile'])->name('estudiantes.academic-profile');
         Route::get('{estudiante}/financial-profile', [EstudianteController::class, 'financialProfile'])->name('estudiantes.financial-profile');
         Route::get('{estudiante}', [EstudianteController::class, 'show'])->name('estudiantes.show');
@@ -178,7 +180,7 @@ use Illuminate\Support\Facades\Route;
     // ACADEMIC MODULE - CURSOS REGULARES (FASE 3)
     // ========================================================================
 
-    Route::middleware(['auth:sanctum', 'role:Administrador'])->prefix('academic')->group(function () {
+    Route::middleware(['auth:sanctum', 'role:Administrador|Secretaria'])->prefix('academic')->group(function () {
 
         // CIUDADES (CRUD COMPLETO)
         Route::prefix('ciudades')->group(function () {
@@ -242,6 +244,16 @@ use Illuminate\Support\Facades\Route;
             Route::put('{id}', [AsistenciaStaffController::class, 'update'])->name('asistencia-staff.update');
             Route::delete('{id}', [AsistenciaStaffController::class, 'destroy'])->name('asistencia-staff.destroy');
         });
+
+        // CONTROL DE TAREAS STAFF
+        Route::prefix('ops/tareas')->group(function () {
+            Route::get('/', [TareaStaffController::class, 'index']);
+            Route::post('/', [TareaStaffController::class, 'store']);
+            Route::put('{id}', [TareaStaffController::class, 'update']);
+            Route::patch('{id}/estado', [TareaStaffController::class, 'cambiarEstado']);
+            Route::delete('{id}', [TareaStaffController::class, 'destroy']);
+        });
+        Route::get('ops/staff-disponible', [TareaStaffController::class, 'staffDisponible']);
 
         // HORAS INSTRUCTOR
         Route::prefix('horas-instructor')->group(function () {
@@ -410,6 +422,7 @@ use Illuminate\Support\Facades\Route;
             Route::get('{id}/cambios-horario', [MatriculaController::class, 'cambiosHorario'])->name('matriculas.cambios-horario');
             Route::get('{id}/alternativos', [CourseTransferController::class, 'alternativos'])->name('matriculas.alternativos');
             Route::post('{id}/transferir', [CourseTransferController::class, 'transferir'])->name('matriculas.transferir');
+            Route::post('inscribir-desde-perfil', [MatriculaController::class, 'inscribirDesdePerfil'])->name('matriculas.inscribir-desde-perfil');
         });
 
         // NOTAS
@@ -482,6 +495,7 @@ use Illuminate\Support\Facades\Route;
 
         Route::prefix('inscripciones-talleres')->group(function () {
             Route::get('/', [InscripcionTallerController::class, 'listarPendientes'])->name('inscripciones-talleres.index');
+            Route::post('inscribir-desde-perfil', [InscripcionTallerController::class, 'inscribirDesdePerfil'])->name('inscripciones-talleres.inscribir-desde-perfil');
             Route::get('{id}', [InscripcionTallerController::class, 'show'])->name('inscripciones-talleres.show');
             Route::put('{id}', [InscripcionTallerController::class, 'update'])->name('inscripciones-talleres.update');
             Route::put('{id}/estado', [InscripcionTallerController::class, 'updateEstado'])->name('inscripciones-talleres.update-estado');
@@ -601,7 +615,7 @@ Route::prefix('reports')->group(function () {
     // ========================================================================
     // FINANZAS (ADMIN)
     // ========================================================================
-    Route::middleware(['auth:sanctum', 'role:Administrador'])->prefix('finanzas')->group(function () {
+    Route::middleware(['auth:sanctum', 'role:Administrador|Secretaria'])->prefix('finanzas')->group(function () {
         Route::get('resumen', [FinanceController::class, 'getResumen'])->name('finanzas.resumen');
         Route::get('cuentas', [FinanceController::class, 'getCuentas'])->name('finanzas.cuentas');
         Route::get('cuentas/{id}', [FinanceController::class, 'getCuentaDetalle'])->name('finanzas.cuentas.detalle');
@@ -628,6 +642,7 @@ Route::prefix('reports')->group(function () {
             Route::get('/', [EgresoController::class, 'index'])->name('finanzas.egresos.index');
             Route::post('/', [EgresoController::class, 'store'])->name('finanzas.egresos.store');
             Route::get('categorias', [EgresoController::class, 'categorias'])->name('finanzas.egresos.categorias');
+            Route::get('personal-disponible', [EgresoController::class, 'personalDisponible'])->name('finanzas.egresos.personal-disponible');
             Route::get('{id}', [EgresoController::class, 'show'])->name('finanzas.egresos.show');
             Route::put('{id}', [EgresoController::class, 'update'])->name('finanzas.egresos.update');
             Route::delete('{id}', [EgresoController::class, 'destroy'])->name('finanzas.egresos.destroy');
@@ -646,7 +661,7 @@ Route::prefix('reports')->group(function () {
     // ========================================================================
     // TALLERES (compartido Admin + Instructor)
     // ========================================================================
-    Route::middleware(['auth:sanctum', 'role:Administrador|Instructor'])->prefix('academic/talleres')->group(function () {
+    Route::middleware(['auth:sanctum', 'role:Administrador|Instructor|Secretaria'])->prefix('academic/talleres')->group(function () {
         Route::get('/', [TallerController::class, 'index']);
         Route::get('{id}', [TallerController::class, 'show']);
         Route::get('{id}/estadisticas', [TallerController::class, 'estadisticas']);
@@ -798,12 +813,6 @@ Route::prefix('reports')->group(function () {
             Route::post('{id}/rechazar', [StaffRegistrationController::class, 'reject'])->name('secretaria.solicitudes-inscripcion.reject');
             Route::post('{id}/cancelar', [StaffRegistrationController::class, 'cancel'])->name('secretaria.solicitudes-inscripcion.cancel');
             Route::patch('{id}/actualizar-pago', [StaffRegistrationController::class, 'updatePago'])->name('secretaria.solicitudes-inscripcion.update-pago');
-        });
-
-        // Asistencia staff
-        Route::prefix('asistencia')->group(function () {
-            Route::get('/', [AsistenciaStaffController::class, 'index'])->name('secretaria.asistencia.index');
-            Route::post('/', [AsistenciaStaffController::class, 'store'])->name('secretaria.asistencia.store');
         });
 
         // Clientes externos

@@ -68,7 +68,7 @@ class EstudianteController extends Controller
                     'cedula' => $p->cedula,
                     'correo' => $p->correo,
                     'celular' => $p->celular,
-                    'ciudad' => $p->ciudad ? ['nombre' => $p->ciudad->nombre] : null,
+                    'ciudad' => $p->ciudad ? (is_string($p->ciudad) ? ['nombre' => $p->ciudad] : ['nombre' => $p->ciudad->nombre]) : null,
                     'es_activo' => $p->es_activo,
                     'total_cursos' => $p->matriculas->count(),
                     'estado_pago' => $estadoPago,
@@ -248,6 +248,18 @@ class EstudianteController extends Controller
         if ($request->filled('estado_pago')) {
             $estado = $request->estado_pago;
             $todos = $todos->filter(fn ($e) => $e['estado_pago'] === $estado);
+        }
+
+        if ($request->filled('con_faltas') && $request->boolean('con_faltas')) {
+            $personaIds = $todos->pluck('id')->toArray();
+            $estudianteIdsConFaltas = DB::table('academic.asistencias')
+                ->join('academic.matriculas', 'asistencias.matricula_id', '=', 'matriculas.id')
+                ->whereIn('asistencias.estado', ['ausente', 'tardanza'])
+                ->whereIn('matriculas.estudiante_id', $personaIds)
+                ->select('matriculas.estudiante_id')
+                ->distinct()
+                ->pluck('estudiante_id');
+            $todos = $todos->filter(fn($e) => $estudianteIdsConFaltas->contains($e['id']));
         }
 
         if ($request->filled('ordenar_por')) {
@@ -520,6 +532,74 @@ class EstudianteController extends Controller
                 'estudiante' => $datosEstudiante,
                 'matriculas' => $matriculasAcademica
             ]
+        ]);
+    }
+
+    public function detalleAsistencias(string $id): JsonResponse
+    {
+        $estudiante = Persona::query()->estudiantes()->find($id);
+        $matriculasRaw = collect();
+
+        if ($estudiante) {
+            $matriculasRaw = $estudiante->matriculas;
+        } else {
+            $cliente = ClienteExterno::query()
+                ->with(['solicitudesInscripcion.matricula'])
+                ->find($id);
+
+            if (!$cliente) {
+                return response()->json(['datos' => ['estudiante_id' => $id, 'matriculas' => []]]);
+            }
+
+            $matriculasRaw = $cliente->solicitudesInscripcion
+                ->map(fn($s) => $s->matricula)
+                ->filter()
+                ->values();
+        }
+
+        $matriculasData = $matriculasRaw->map(function ($matricula) {
+            $asistencias = Asistencia::where('matricula_id', $matricula->id)
+                ->with(['clase:id,fecha_clase,hora_inicio,hora_fin,modulo_id',
+                        'clase.modulo:id,nombre_modulo'])
+                ->get();
+
+            if ($asistencias->isEmpty()) {
+                return null;
+            }
+
+            $porModulo = $asistencias->groupBy(fn($a) => $a->clase->modulo_id);
+
+            return [
+                'matricula_id' => $matricula->id,
+                'curso' => $matricula->cursoAbierto
+                    ? ($matricula->cursoAbierto->catalogo->nombre ?? 'Sin nombre') . ' (' . $matricula->cursoAbierto->nombre_instancia . ')'
+                    : 'Curso no encontrado',
+                'total_ausencias' => $asistencias->where('estado', 'ausente')->count(),
+                'total_tardanzas' => $asistencias->where('estado', 'tardanza')->count(),
+                'total_justificados' => $asistencias->where('estado', 'justificado')->count(),
+                'modulos' => $porModulo->map(fn($items, $moduloId) => [
+                    'modulo_id' => $moduloId,
+                    'modulo_nombre' => $items->first()->clase->modulo->nombre_modulo,
+                    'registros' => $items->map(fn($a) => [
+                        'fecha' => $a->clase->fecha_clase?->format('Y-m-d'),
+                        'hora_inicio' => $a->clase->hora_inicio,
+                        'hora_fin' => $a->clase->hora_fin,
+                        'estado' => $a->estado,
+                        'asistio' => $a->asistio,
+                        'observaciones' => $a->observaciones,
+                    ]),
+                    'total_ausencias' => $items->where('estado', 'ausente')->count(),
+                    'total_tardanzas' => $items->where('estado', 'tardanza')->count(),
+                    'total_justificados' => $items->where('estado', 'justificado')->count(),
+                ])->values(),
+            ];
+        })->filter()->values();
+
+        return response()->json([
+            'datos' => [
+                'estudiante_id' => $id,
+                'matriculas' => $matriculasData,
+            ],
         ]);
     }
 
@@ -1430,7 +1510,7 @@ class EstudianteController extends Controller
             ->with('ciudad')
             ->get()
             ->map(fn($p) => [
-                'ciudad' => $p->ciudad->nombre ?? 'Sin ciudad',
+                'ciudad' => is_string($p->ciudad) ? $p->ciudad : ($p->ciudad->nombre ?? 'Sin ciudad'),
                 'total' => $p->total,
             ]);
 
@@ -1565,13 +1645,42 @@ class EstudianteController extends Controller
                 ];
             });
 
-        $resultado = $internos->filter(function ($e) use ($criterios) {
+        $asistenciaStats = [];
+        if (isset($criterios['ausencias_min']) || isset($criterios['tardanzas_min'])) {
+            $estIds = $internos->pluck('id')->filter();
+            $matriculas = Matricula::whereIn('estudiante_id', $estIds)
+                ->get(['id', 'estudiante_id']);
+            $matIdToEstId = $matriculas->pluck('estudiante_id', 'id');
+
+            $rows = DB::table('academic.asistencias')
+                ->whereIn('matricula_id', $matIdToEstId->keys())
+                ->whereIn('estado', ['ausente', 'tardanza'])
+                ->select('matricula_id', 'estado')
+                ->get();
+
+            foreach ($rows as $row) {
+                $estId = $matIdToEstId[$row->matricula_id] ?? null;
+                if (!$estId) continue;
+                if (!isset($asistenciaStats[$estId])) {
+                    $asistenciaStats[$estId] = ['ausencias' => 0, 'tardanzas' => 0];
+                }
+                if ($row->estado === 'ausente') $asistenciaStats[$estId]['ausencias']++;
+                if ($row->estado === 'tardanza') $asistenciaStats[$estId]['tardanzas']++;
+            }
+        }
+
+        $resultado = $internos->filter(function ($e) use ($criterios, $asistenciaStats) {
             if (isset($criterios['estado_pago']) && $criterios['estado_pago'] !== 'todos') {
                 if ($e['estado_pago'] !== $criterios['estado_pago']) return false;
             }
             if (isset($criterios['cursos_min']) && $e['total_cursos'] < $criterios['cursos_min']) return false;
             if (isset($criterios['cursos_max']) && $e['total_cursos'] > $criterios['cursos_max']) return false;
             if (isset($criterios['promedio_min']) && $e['promedio'] < $criterios['promedio_min']) return false;
+            if (isset($criterios['ausencias_min']) || isset($criterios['tardanzas_min'])) {
+                $stats = $asistenciaStats[$e['id']] ?? ['ausencias' => 0, 'tardanzas' => 0];
+                if (isset($criterios['ausencias_min']) && $stats['ausencias'] < $criterios['ausencias_min']) return false;
+                if (isset($criterios['tardanzas_min']) && $stats['tardanzas'] < $criterios['tardanzas_min']) return false;
+            }
             return true;
         })->values();
 

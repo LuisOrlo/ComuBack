@@ -4,10 +4,14 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Matricula;
+use App\Models\SolicitudInscripcion;
+use App\Models\CursoAbierto;
+use App\Services\RegistrationStateService;
 use App\Http\Requests\StoreMatriculaRequest;
 use App\Http\Requests\UpdateMatriculaRequest;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Illuminate\Support\Facades\DB;
 
 class MatriculaController extends Controller
 {
@@ -99,5 +103,57 @@ class MatriculaController extends Controller
     {
         $cambios = Matricula::findOrFail($id)->cambiosHorario()->with(['cursoAbiertoAntiguo', 'cursoAbiertoNuevo'])->paginate(15);
         return response()->json(['data' => $cambios->items(), 'meta' => ['total' => $cambios->total()]]);
+    }
+
+    public function inscribirDesdePerfil(Request $request)
+    {
+        $request->validate([
+            'estudiante_id' => 'required|uuid|exists:people.personas,id',
+            'curso_abierto_id' => 'required|uuid|exists:academic.cursos_abiertos,id',
+            'pagos' => 'required|array|min:1',
+            'pagos.*.modulo_id' => 'required|uuid|exists:academic.modulos,id',
+            'pagos.*.monto' => 'required|numeric|min:0.01',
+            'pagos.*.monto_ajustado' => 'nullable|numeric|min:0',
+            'pagos.*.motivo_ajuste' => 'nullable|string|max:255',
+            'metodo_pago' => 'required|string|in:efectivo,transferencia,deposito,tarjeta,otro',
+        ]);
+
+        $curso = CursoAbierto::findOrFail($request->curso_abierto_id);
+
+        $solicitud = DB::transaction(function () use ($request, $curso) {
+            $solicitud = SolicitudInscripcion::create([
+                'persona_id' => $request->estudiante_id,
+                'curso_abierto_id' => $request->curso_abierto_id,
+                'monto_solicitado' => collect($request->pagos)->sum('monto'),
+                'tipo_pago' => count($request->pagos) > 1 || $request->pagos[0]['monto'] < ($curso->precio_base ?? 0) ? 'abono' : 'completo',
+                'estado' => 'pendiente_validacion',
+                'es_participante_externo' => false,
+            ]);
+
+            $stateService = app(RegistrationStateService::class);
+            $resultado = $stateService->approve(
+                $solicitud,
+                auth()->user()->persona_id ?? null,
+                null,
+                $request->pagos,
+                $request->metodo_pago
+            );
+
+            if (!$resultado['exito']) {
+                throw new \Exception($resultado['mensaje']);
+            }
+
+            return $solicitud;
+        });
+
+        $matricula = Matricula::where('solicitud_inscripcion_id', $solicitud->id)->first();
+
+        return response()->json([
+            'mensaje' => 'Estudiante inscrito exitosamente',
+            'data' => [
+                'solicitud_id' => $solicitud->id,
+                'matricula_id' => $matricula?->id,
+            ],
+        ], Response::HTTP_CREATED);
     }
 }
