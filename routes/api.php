@@ -203,6 +203,7 @@ use Illuminate\Support\Facades\Route;
             Route::delete('{id}', [PersonaController::class, 'destroy'])->name('personas.destroy');
             Route::post('{id}/cuenta', [PersonaController::class, 'crearCuenta'])->name('personas.crear-cuenta');
             Route::put('{id}/cuenta', [PersonaController::class, 'actualizarCuenta'])->name('personas.actualizar-cuenta');
+            Route::delete('{id}/archivo', [PersonaController::class, 'deleteArchivo'])->name('personas.delete-archivo');
         });
 
         // INSTRUCTORES
@@ -227,6 +228,7 @@ use Illuminate\Support\Facades\Route;
             Route::patch('{id}/actualizar-curso', [StaffRegistrationController::class, 'updateCurso'])->name('solicitudes-inscripcion.update-curso');
             Route::post('{id}/cedula', [StaffRegistrationController::class, 'uploadCedula'])->name('solicitudes-inscripcion.cedula');
             Route::post('{id}/comprobante', [StaffRegistrationController::class, 'uploadComprobante'])->name('solicitudes-inscripcion.comprobante');
+            Route::delete('{id}/archivo', [StaffRegistrationController::class, 'deleteArchivo'])->name('solicitudes-inscripcion.delete-archivo');
         });
 
         // STAFF
@@ -345,6 +347,7 @@ use Illuminate\Support\Facades\Route;
             Route::get('{id}', [EquipoController::class, 'show'])->name('equipos.show');
             Route::match(['put', 'post'], '{id}', [EquipoController::class, 'update'])->name('equipos.update');
             Route::delete('{id}', [EquipoController::class, 'destroy'])->name('equipos.destroy');
+            Route::delete('{id}/archivo', [EquipoController::class, 'deleteArchivo'])->name('equipos.delete-archivo');
         });
 
         // SERVICIOS - ALQUILERES DE EQUIPOS
@@ -423,6 +426,7 @@ use Illuminate\Support\Facades\Route;
             Route::get('{id}/alternativos', [CourseTransferController::class, 'alternativos'])->name('matriculas.alternativos');
             Route::post('{id}/transferir', [CourseTransferController::class, 'transferir'])->name('matriculas.transferir');
             Route::post('inscribir-desde-perfil', [MatriculaController::class, 'inscribirDesdePerfil'])->name('matriculas.inscribir-desde-perfil');
+            Route::delete('{id}/archivo', [MatriculaController::class, 'deleteArchivo'])->name('matriculas.delete-archivo');
         });
 
         // NOTAS
@@ -504,6 +508,7 @@ use Illuminate\Support\Facades\Route;
             Route::post('{id}/verificar-pago', [InscripcionTallerController::class, 'verificarPago'])->name('inscripciones-talleres.verificar-pago');
             Route::get('{id}/exportar', [InscripcionTallerController::class, 'exportar'])->name('inscripciones-talleres.exportar');
             Route::delete('{id}', [InscripcionTallerController::class, 'destroy'])->name('inscripciones-talleres.destroy');
+            Route::delete('{id}/archivo', [InscripcionTallerController::class, 'deleteArchivo'])->name('inscripciones-talleres.delete-archivo');
         });
 
         // Exportar participantes de un taller (ruta alternativa)
@@ -595,6 +600,7 @@ Route::prefix('reports')->group(function () {
             Route::patch('{id}/entregar', [CertificadoController::class, 'marcarEntregado'])->name('certificados.marcar-entregado');
             Route::get('{id}/historial', [CertificadoController::class, 'historial'])->name('certificados.historial');
             Route::delete('{id}', [CertificadoController::class, 'destroy'])->name('certificados.destroy');
+            Route::delete('{id}/archivo', [CertificadoController::class, 'deleteArchivo'])->name('certificados.delete-archivo');
         });
     }); // FIN PREFIX ACADEMIC
 
@@ -637,6 +643,9 @@ Route::prefix('reports')->group(function () {
         Route::get('estadisticas', [EstadisticasController::class, 'getEstadisticas'])->name('finanzas.estadisticas');
         Route::get('estadisticas/catalogo/{id}', [EstadisticasController::class, 'getCatalogoDetalle'])->name('finanzas.estadisticas.catalogo');
         Route::get('estadisticas/estudiante/{id}', [EstadisticasController::class, 'getEstudianteDetalle'])->name('finanzas.estadisticas.estudiante');
+
+        Route::delete('transacciones-ingreso/{id}/archivo', [FinanceController::class, 'deleteArchivoIngreso'])->name('finanzas.transacciones-ingreso.delete-archivo');
+        Route::delete('transacciones-egreso/{id}/archivo', [FinanceController::class, 'deleteArchivoEgreso'])->name('finanzas.transacciones-egreso.delete-archivo');
 
         Route::prefix('egresos')->group(function () {
             Route::get('/', [EgresoController::class, 'index'])->name('finanzas.egresos.index');

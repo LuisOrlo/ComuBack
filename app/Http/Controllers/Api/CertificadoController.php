@@ -4,8 +4,10 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreCertificadoRequest;
+use App\Models\ArchivoEliminado;
 use App\Models\Certificado;
 use App\Models\Persona;
+use App\Services\StorageCleanupService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Http\Request;
@@ -200,6 +202,12 @@ class CertificadoController extends Controller
             'modulo',
         ])->findOrFail($id);
 
+        $certificado->archivo_purgado = ArchivoEliminado::archivoFueEliminado(
+            Certificado::class,
+            $certificado->id,
+            'archivo_pdf_url'
+        );
+
         return response()->json(['data' => $certificado]);
     }
 
@@ -210,6 +218,7 @@ class CertificadoController extends Controller
         ]);
 
         $certificado = Certificado::findOrFail($id);
+        $service = app(StorageCleanupService::class);
 
         if ($certificado->estaBorrado()) {
             return response()->json([
@@ -218,9 +227,10 @@ class CertificadoController extends Controller
         }
 
         if ($certificado->archivo_pdf_url) {
-            $oldPath = str_replace('/storage/', '', $certificado->archivo_pdf_url);
-            Storage::disk('public')->delete($oldPath);
+            $service->deleteFilePhysically($certificado, 'archivo_pdf_url');
         }
+
+        $service->reviveFileField($certificado, 'archivo_pdf_url');
 
         $file = $request->file('pdf');
         $filename = Str::uuid() . '.pdf';
@@ -241,19 +251,21 @@ class CertificadoController extends Controller
     {
         $certificado = Certificado::findOrFail($id);
 
-        if ($certificado->archivo_pdf_url) {
-            $oldPath = str_replace('/storage/', '', $certificado->archivo_pdf_url);
-            Storage::disk('public')->delete($oldPath);
+        $eliminadoPor = auth()->id() ?? auth()->user()?->persona_id ?? null;
+        $service = app(StorageCleanupService::class);
+
+        $resultado = $service->deleteFile($certificado, 'archivo_pdf_url', $eliminadoPor);
+
+        if (!$resultado['eliminado']) {
+            return response()->json([
+                'message' => $resultado['mensaje'],
+                'data' => $certificado->load(['estudiante', 'catalogoCurso', 'cursoAbierto']),
+            ], Response::HTTP_CONFLICT);
         }
 
-        $certificado->update([
-            'archivo_pdf_url' => null,
-            'estado' => Certificado::ESTADO_BORRADO,
-        ]);
-
         return response()->json([
-            'data' => $certificado,
-            'message' => 'PDF eliminado, el registro del certificado se conserva',
+            'data' => $certificado->load(['estudiante', 'catalogoCurso', 'cursoAbierto']),
+            'message' => 'PDF eliminado del almacenamiento. El registro del certificado se conserva como constancia histórica.',
         ]);
     }
 
@@ -276,11 +288,15 @@ class CertificadoController extends Controller
     public function destroy(string $id): JsonResponse
     {
         $certificado = Certificado::findOrFail($id);
+        $eliminadoPor = auth()->id() ?? auth()->user()?->persona_id ?? null;
+
         $certificado->update([
             'fecha_borrado' => now(),
-            'borrado_por' => auth()->id() ?? auth()->user()?->persona_id ?? null,
+            'borrado_por' => $eliminadoPor,
         ]);
         $certificado->delete();
+
+        app(StorageCleanupService::class)->deleteRecordFiles($certificado, $eliminadoPor);
 
         return response()->json(['message' => 'Certificado eliminado correctamente']);
     }
@@ -360,6 +376,19 @@ class CertificadoController extends Controller
                 'academic.certificados.codigo_certificado',
                 'academic.certificados.estado as estado_certificado',
                 'academic.certificados.archivo_pdf_url',
+                DB::raw("(EXISTS (
+                    SELECT 1 FROM archivos_eliminados ae
+                    WHERE ae.model_type = 'App\\Models\\Certificado'
+                    AND ae.model_id = academic.certificados.id
+                    AND ae.field_name = 'archivo_pdf_url'
+                    AND ae.accion IN ('borrado_archivo', 'borrado_registro')
+                    AND ae.created_at = (
+                        SELECT MAX(ae2.created_at) FROM archivos_eliminados ae2
+                        WHERE ae2.model_type = 'App\\Models\\Certificado'
+                        AND ae2.model_id = academic.certificados.id
+                        AND ae2.field_name = 'archivo_pdf_url'
+                    )
+                )) as archivo_purgado"),
             ])
             ->orderByRaw('COALESCE(people.personas.apellidos, people.clientes_externos.apellidos)')
             ->orderByRaw('COALESCE(people.personas.nombres, people.clientes_externos.nombres)')
@@ -484,6 +513,14 @@ class CertificadoController extends Controller
             ->orderBy('fecha_emision', 'desc')
             ->get();
 
+        $certificados->each(function ($certificado) {
+            $certificado->archivo_purgado = ArchivoEliminado::archivoFueEliminado(
+                Certificado::class,
+                $certificado->id,
+                'archivo_pdf_url'
+            );
+        });
+
         return response()->json(['data' => $certificados]);
     }
 
@@ -509,13 +546,25 @@ class CertificadoController extends Controller
     {
         $certificado = Certificado::with(['estudiante', 'catalogoCurso'])->findOrFail($id);
 
-        if (!$certificado->tienePdf() || $certificado->estaBorrado()) {
+        if ($certificado->estaBorrado()) {
+            return response()->json([
+                'message' => 'El certificado fue eliminado',
+            ], Response::HTTP_NOT_FOUND);
+        }
+
+        if (!$certificado->tienePdf()) {
             return response()->json([
                 'message' => 'El PDF del certificado no está disponible',
             ], Response::HTTP_NOT_FOUND);
         }
 
         $path = str_replace('/storage/', '', $certificado->archivo_pdf_url);
+
+        if (ArchivoEliminado::archivoFueEliminado(Certificado::class, $certificado->id, 'archivo_pdf_url')) {
+            return response()->json([
+                'message' => 'El archivo PDF fue eliminado del almacenamiento. El registro se conserva como constancia histórica.',
+            ], Response::HTTP_NOT_FOUND);
+        }
 
         if (!Storage::disk('public')->exists($path)) {
             return response()->json([
@@ -579,6 +628,63 @@ class CertificadoController extends Controller
             ];
         }
 
+        $archivosEliminados = ArchivoEliminado::where('model_type', Certificado::class)
+            ->where('model_id', $certificado->id)
+            ->orderBy('created_at', 'desc')
+            ->get();
+
+        foreach ($archivosEliminados as $ae) {
+            $nombre = null;
+            if ($ae->eliminado_por) {
+                $p = \App\Models\Persona::find($ae->eliminado_por);
+                $nombre = $p ? trim(($p->nombres ?? '') . ' ' . ($p->apellidos ?? '')) : null;
+            }
+
+            if ($ae->accion === ArchivoEliminado::ACCION_RESTAURADO) {
+                $eventos[] = [
+                    'accion' => 'Archivo restaurado',
+                    'fecha' => $ae->created_at->format('Y-m-d H:i'),
+                    'usuario' => $nombre ?? 'Sistema',
+                    'detalle' => 'PDF re-subido al almacenamiento',
+                ];
+            } elseif ($ae->accion === ArchivoEliminado::ACCION_BORRADO_REGISTRO) {
+                $eventos[] = [
+                    'accion' => 'Archivo eliminado (por borrado de registro)',
+                    'fecha' => $ae->created_at->format('Y-m-d H:i'),
+                    'usuario' => $nombre ?? 'Sistema',
+                    'detalle' => 'PDF eliminado del almacenamiento — ' . $ae->file_path,
+                ];
+            } else {
+                $eventos[] = [
+                    'accion' => 'Archivo eliminado',
+                    'fecha' => $ae->created_at->format('Y-m-d H:i'),
+                    'usuario' => $nombre ?? 'Sistema',
+                    'detalle' => 'PDF eliminado del almacenamiento — ' . $ae->file_path,
+                ];
+            }
+        }
+
         return response()->json(['data' => $eventos]);
+    }
+
+    public function deleteArchivo(Request $request, string $id): JsonResponse
+    {
+        $request->validate([
+            'campo' => 'required|string|in:archivo_pdf_url',
+        ]);
+
+        $certificado = Certificado::findOrFail($id);
+        $eliminadoPor = auth()->id() ?? auth()->user()?->persona_id ?? null;
+        $service = app(StorageCleanupService::class);
+
+        $resultado = $service->deleteFile($certificado, $request->campo, $eliminadoPor);
+
+        if (!$resultado['eliminado']) {
+            return response()->json(['message' => $resultado['mensaje']], Response::HTTP_CONFLICT);
+        }
+
+        return response()->json([
+            'message' => 'Archivo eliminado del almacenamiento. El registro se conserva como constancia histórica.',
+        ]);
     }
 }

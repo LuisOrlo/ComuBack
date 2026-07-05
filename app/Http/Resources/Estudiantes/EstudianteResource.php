@@ -5,6 +5,7 @@ namespace App\Http\Resources\Estudiantes;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Carbon;
+use App\Models\ArchivoEliminado;
 
 class EstudianteResource extends JsonResource
 {
@@ -23,7 +24,9 @@ class EstudianteResource extends JsonResource
                     ? ['nombre' => $this->ciudad]
                     : ['id' => $this->ciudad->id, 'nombre' => $this->ciudad->nombre, 'pais' => $this->ciudad->pais]
             ) : null,
-            'cedula_photo_url' => $this->cedula_photo_url,
+            'cedula_photo_url' => $this->cedula_photo_url
+                ?: $this->resolveCedulaFromSolicitudes(),
+            'cedula_purgado' => $this->isCedulaPurgado(),
             'ficha_registro_url' => $this->ficha_registro_url,
             'es_activo' => $this->es_activo,
             'total_cursos' => $this->relationLoaded('matriculas') ? $this->matriculas->count() : ($this->perfilEstudiante?->total_cursos ?? 0),
@@ -68,5 +71,57 @@ class EstudianteResource extends JsonResource
             'creado_en' => $this->created_at->toIso8601String(),
             'actualizado_en' => $this->updated_at->toIso8601String(),
         ];
+    }
+
+    private function resolveCedulaFromSolicitudes(): ?string
+    {
+        $solicitud = \App\Models\SolicitudInscripcion::where('persona_id', $this->id)
+            ->whereNotNull('archivo_cedula_url')
+            ->orderBy('created_at', 'desc')
+            ->first();
+
+        if ($solicitud?->archivo_cedula_url) {
+            return $solicitud->archivo_cedula_url;
+        }
+
+        $inscripcion = \App\Models\InscripcionTaller::where('persona_id', $this->id)
+            ->whereNotNull('cedula_url')
+            ->orderBy('fecha_inscripcion', 'desc')
+            ->first();
+
+        return $inscripcion?->cedula_url;
+    }
+
+    private function isCedulaPurgado(): bool
+    {
+        if ($this->cedula_photo_url) {
+            return ArchivoEliminado::archivoFueEliminado(
+                \App\Models\Persona::class, $this->id, 'cedula_photo_url'
+            );
+        }
+
+        $solicitud = \App\Models\SolicitudInscripcion::where('persona_id', $this->id)
+            ->whereNotNull('archivo_cedula_url')
+            ->orderBy('created_at', 'desc')
+            ->first();
+
+        if ($solicitud) {
+            return ArchivoEliminado::archivoFueEliminado(
+                \App\Models\SolicitudInscripcion::class, $solicitud->id, 'archivo_cedula_url'
+            );
+        }
+
+        $inscripcion = \App\Models\InscripcionTaller::where('persona_id', $this->id)
+            ->whereNotNull('cedula_url')
+            ->orderBy('fecha_inscripcion', 'desc')
+            ->first();
+
+        if ($inscripcion) {
+            return ArchivoEliminado::archivoFueEliminado(
+                \App\Models\InscripcionTaller::class, $inscripcion->id, 'cedula_url'
+            );
+        }
+
+        return false;
     }
 }

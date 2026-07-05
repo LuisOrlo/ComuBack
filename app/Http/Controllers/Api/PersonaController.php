@@ -5,12 +5,15 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Persona;
 use App\Models\CuentaSistema;
+use App\Models\ArchivoEliminado;
+use App\Services\StorageCleanupService;
 use App\Http\Requests\StorePersonaRequest;
 use App\Http\Requests\UpdatePersonaRequest;
 use App\Http\Requests\StoreCuentaSistemaRequest;
 use App\Http\Requests\UpdateCuentaSistemaRequest;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Spatie\Permission\Models\Role;
@@ -249,5 +252,58 @@ class PersonaController extends Controller
 
         $rol = Role::firstOrCreate(['name' => $nombreRol]);
         $cuenta->assignRole($rol);
+    }
+
+    public function deleteArchivo(Request $request, string $id): JsonResponse
+    {
+        $request->validate([
+            'campo' => 'required|string|in:cedula_photo_url',
+        ]);
+
+        $persona = Persona::findOrFail($id);
+        $eliminadoPor = auth()->id() ?? auth()->user()?->persona_id ?? null;
+        $service = app(StorageCleanupService::class);
+
+        $eliminado = false;
+
+        if (!empty($persona->cedula_photo_url)) {
+            $resultado = $service->deleteFile($persona, 'cedula_photo_url', $eliminadoPor);
+            if ($resultado['eliminado']) {
+                $eliminado = true;
+            }
+        }
+
+        $solicitudes = \App\Models\SolicitudInscripcion::where('persona_id', $persona->id)
+            ->whereNotNull('archivo_cedula_url')
+            ->where('archivo_cedula_url', '!=', '')
+            ->get();
+
+        foreach ($solicitudes as $solicitud) {
+            $resultado = $service->deleteFile($solicitud, 'archivo_cedula_url', $eliminadoPor);
+            if ($resultado['eliminado']) {
+                $eliminado = true;
+            }
+        }
+
+        $talleres = \App\Models\InscripcionTaller::where('persona_id', $persona->id)
+            ->whereNotNull('cedula_url')
+            ->where('cedula_url', '!=', '')
+            ->get();
+
+        foreach ($talleres as $taller) {
+            $resultado = $service->deleteFile($taller, 'cedula_url', $eliminadoPor);
+            if ($resultado['eliminado']) {
+                $eliminado = true;
+            }
+        }
+
+        if (!$eliminado) {
+            return response()->json([
+                'message' => 'No se encontraron fotos de cédula para eliminar',
+                'eliminado' => false,
+            ]);
+        }
+
+        return response()->json(['message' => 'Cédula(s) eliminada(s) del almacenamiento', 'eliminado' => true]);
     }
 }

@@ -6,9 +6,12 @@ use App\Http\Controllers\Controller;
 use App\Models\InscripcionTaller;
 use App\Models\Taller;
 use App\Models\Persona;
+use App\Models\ArchivoEliminado;
+use App\Services\StorageCleanupService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
@@ -151,12 +154,18 @@ class InscripcionTallerController extends Controller
         ]);
 
         $inscripcion = InscripcionTaller::findOrFail($id);
+        $service = app(StorageCleanupService::class);
+
+        if ($inscripcion->comprobante_url) {
+            $service->deleteFilePhysically($inscripcion, 'comprobante_url');
+        }
 
         $file = $request->file('archivo');
         $filename = Str::uuid() . '.' . $file->getClientOriginalExtension();
         $path = $file->storeAs('comprobantes-talleres', $filename, 'public');
 
         $inscripcion->update(['comprobante_url' => '/storage/' . $path]);
+        $service->reviveFileField($inscripcion, 'comprobante_url');
 
         return response()->json([
             'mensaje' => 'Comprobante subido correctamente',
@@ -182,12 +191,18 @@ class InscripcionTallerController extends Controller
         ]);
 
         $inscripcion = InscripcionTaller::findOrFail($id);
+        $service = app(StorageCleanupService::class);
+
+        if ($inscripcion->cedula_url) {
+            $service->deleteFilePhysically($inscripcion, 'cedula_url');
+        }
 
         $file = $request->file('archivo');
         $filename = \Illuminate\Support\Str::uuid() . '.' . $file->getClientOriginalExtension();
         $path = $file->storeAs('cedulas-talleres', $filename, 'public');
 
         $inscripcion->update(['cedula_url' => '/storage/' . $path]);
+        $service->reviveFileField($inscripcion, 'cedula_url');
 
         return response()->json([
             'mensaje' => 'Cédula subida correctamente',
@@ -246,8 +261,33 @@ class InscripcionTallerController extends Controller
     public function destroy(string $id): JsonResponse
     {
         $inscripcion = InscripcionTaller::findOrFail($id);
+        $eliminadoPor = auth()->id() ?? auth()->user()?->persona_id ?? null;
         $inscripcion->delete();
+
+        app(StorageCleanupService::class)->deleteRecordFiles($inscripcion, $eliminadoPor);
+
         return response()->json(['mensaje' => 'Inscripción eliminada']);
+    }
+
+    public function deleteArchivo(Request $request, string $id): JsonResponse
+    {
+        $request->validate([
+            'campo' => 'required|string|in:comprobante_url,cedula_url',
+        ]);
+
+        $inscripcion = InscripcionTaller::findOrFail($id);
+        $eliminadoPor = auth()->id() ?? auth()->user()?->persona_id ?? null;
+        $service = app(StorageCleanupService::class);
+
+        $resultado = $service->deleteFile($inscripcion, $request->campo, $eliminadoPor);
+
+        if (!$resultado['eliminado']) {
+            return response()->json(['mensaje' => $resultado['mensaje']], Response::HTTP_CONFLICT);
+        }
+
+        return response()->json([
+            'mensaje' => 'Archivo eliminado del almacenamiento. El registro se conserva como constancia histórica.',
+        ]);
     }
 
     public function exportar(string $tallerId, Request $request)

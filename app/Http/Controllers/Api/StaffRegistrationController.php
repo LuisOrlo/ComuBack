@@ -8,6 +8,7 @@ use App\Http\Requests\RejectRegistrationRequest;
 use App\Models\SolicitudInscripcion;
 use App\Models\Persona;
 use App\Services\RegistrationStateService;
+use App\Services\StorageCleanupService;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 
@@ -289,6 +290,14 @@ class StaffRegistrationController extends Controller
                     'url' => $solicitud->archivo_comprobante_url,
                     'cedula_url' => $solicitud->archivo_cedula_url,
                     'fecha_pago_declarada' => $solicitud->fecha_pago_declarada,
+                    'comprobante_purgado' => $solicitud->archivo_comprobante_url
+                        ? \App\Models\ArchivoEliminado::archivoFueEliminado(
+                            \App\Models\SolicitudInscripcion::class, $solicitud->id, 'archivo_comprobante_url'
+                        ) : false,
+                    'cedula_purgado' => $solicitud->archivo_cedula_url
+                        ? \App\Models\ArchivoEliminado::archivoFueEliminado(
+                            \App\Models\SolicitudInscripcion::class, $solicitud->id, 'archivo_cedula_url'
+                        ) : false,
                 ],
             ],
             'lineas_pago' => $lineasPago,
@@ -319,10 +328,17 @@ class StaffRegistrationController extends Controller
     {
         $request->validate(['archivo' => 'required|file|image|max:5120']);
         $solicitud = SolicitudInscripcion::findOrFail($id);
+        $service = app(StorageCleanupService::class);
+
+        if ($solicitud->archivo_cedula_url) {
+            $service->deleteFilePhysically($solicitud, 'archivo_cedula_url');
+        }
+
         $file = $request->file('archivo');
         $filename = \Illuminate\Support\Str::uuid() . '.' . $file->getClientOriginalExtension();
         $path = $file->storeAs('comprobantes', $filename, 'public');
         $solicitud->update(['archivo_cedula_url' => '/storage/' . $path]);
+        $service->reviveFileField($solicitud, 'archivo_cedula_url');
         return response()->json(['data' => ['cedula_url' => '/storage/' . $path], 'message' => 'Cédula subida']);
     }
 
@@ -522,13 +538,41 @@ class StaffRegistrationController extends Controller
     {
         $request->validate(['archivo' => 'required|file|image|max:5120']);
         $solicitud = SolicitudInscripcion::findOrFail($id);
+        $service = app(StorageCleanupService::class);
+
+        if ($solicitud->archivo_comprobante_url) {
+            $service->deleteFilePhysically($solicitud, 'archivo_comprobante_url');
+        }
+
         $file = $request->file('archivo');
         $filename = \Illuminate\Support\Str::uuid() . '.' . $file->getClientOriginalExtension();
         $path = $file->storeAs('comprobantes', $filename, 'public');
         $solicitud->update(['archivo_comprobante_url' => '/storage/' . $path]);
+        $service->reviveFileField($solicitud, 'archivo_comprobante_url');
         return response()->json([
             'data' => ['comprobante_url' => '/storage/' . $path],
             'mensaje' => 'Comprobante subido correctamente',
+        ]);
+    }
+
+    public function deleteArchivo(Request $request, string $id): \Illuminate\Http\JsonResponse
+    {
+        $request->validate([
+            'campo' => 'required|string|in:archivo_comprobante_url,archivo_cedula_url',
+        ]);
+
+        $solicitud = SolicitudInscripcion::findOrFail($id);
+        $eliminadoPor = auth()->id() ?? auth()->user()?->persona_id ?? null;
+        $service = app(StorageCleanupService::class);
+
+        $resultado = $service->deleteFile($solicitud, $request->campo, $eliminadoPor);
+
+        if (!$resultado['eliminado']) {
+            return response()->json(['mensaje' => $resultado['mensaje']], Response::HTTP_CONFLICT);
+        }
+
+        return response()->json([
+            'mensaje' => 'Archivo eliminado del almacenamiento. El registro se conserva como constancia histórica.',
         ]);
     }
 }

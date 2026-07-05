@@ -5,7 +5,7 @@
 -- Dumped from database version 16.13
 -- Dumped by pg_dump version 16.13
 
--- Started on 2026-06-21 17:11:11 -05
+-- Started on 2026-07-05 17:27:37 -05
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -19,7 +19,7 @@ SET client_min_messages = warning;
 SET row_security = off;
 
 --
--- TOC entry 9 (class 2615 OID 27809)
+-- TOC entry 9 (class 2615 OID 32898)
 -- Name: academic; Type: SCHEMA; Schema: -; Owner: postgres
 --
 
@@ -29,7 +29,7 @@ CREATE SCHEMA academic;
 ALTER SCHEMA academic OWNER TO postgres;
 
 --
--- TOC entry 10 (class 2615 OID 27810)
+-- TOC entry 10 (class 2615 OID 32899)
 -- Name: audit; Type: SCHEMA; Schema: -; Owner: postgres
 --
 
@@ -39,7 +39,7 @@ CREATE SCHEMA audit;
 ALTER SCHEMA audit OWNER TO postgres;
 
 --
--- TOC entry 11 (class 2615 OID 27811)
+-- TOC entry 11 (class 2615 OID 32900)
 -- Name: core; Type: SCHEMA; Schema: -; Owner: postgres
 --
 
@@ -49,7 +49,7 @@ CREATE SCHEMA core;
 ALTER SCHEMA core OWNER TO postgres;
 
 --
--- TOC entry 12 (class 2615 OID 27812)
+-- TOC entry 12 (class 2615 OID 32901)
 -- Name: finance; Type: SCHEMA; Schema: -; Owner: postgres
 --
 
@@ -59,7 +59,7 @@ CREATE SCHEMA finance;
 ALTER SCHEMA finance OWNER TO postgres;
 
 --
--- TOC entry 13 (class 2615 OID 27813)
+-- TOC entry 13 (class 2615 OID 32902)
 -- Name: ops; Type: SCHEMA; Schema: -; Owner: postgres
 --
 
@@ -69,7 +69,7 @@ CREATE SCHEMA ops;
 ALTER SCHEMA ops OWNER TO postgres;
 
 --
--- TOC entry 14 (class 2615 OID 27814)
+-- TOC entry 14 (class 2615 OID 32903)
 -- Name: people; Type: SCHEMA; Schema: -; Owner: postgres
 --
 
@@ -79,7 +79,7 @@ CREATE SCHEMA people;
 ALTER SCHEMA people OWNER TO postgres;
 
 --
--- TOC entry 15 (class 2615 OID 27815)
+-- TOC entry 15 (class 2615 OID 32904)
 -- Name: services; Type: SCHEMA; Schema: -; Owner: postgres
 --
 
@@ -89,7 +89,7 @@ CREATE SCHEMA services;
 ALTER SCHEMA services OWNER TO postgres;
 
 --
--- TOC entry 2 (class 3079 OID 27816)
+-- TOC entry 2 (class 3079 OID 29375)
 -- Name: pg_trgm; Type: EXTENSION; Schema: -; Owner: -
 --
 
@@ -97,7 +97,7 @@ CREATE EXTENSION IF NOT EXISTS pg_trgm WITH SCHEMA public;
 
 
 --
--- TOC entry 5418 (class 0 OID 0)
+-- TOC entry 5544 (class 0 OID 0)
 -- Dependencies: 2
 -- Name: EXTENSION pg_trgm; Type: COMMENT; Schema: -; Owner: 
 --
@@ -106,7 +106,7 @@ COMMENT ON EXTENSION pg_trgm IS 'text similarity measurement and index searching
 
 
 --
--- TOC entry 3 (class 3079 OID 27897)
+-- TOC entry 3 (class 3079 OID 29456)
 -- Name: unaccent; Type: EXTENSION; Schema: -; Owner: -
 --
 
@@ -114,7 +114,7 @@ CREATE EXTENSION IF NOT EXISTS unaccent WITH SCHEMA public;
 
 
 --
--- TOC entry 5419 (class 0 OID 0)
+-- TOC entry 5545 (class 0 OID 0)
 -- Dependencies: 3
 -- Name: EXTENSION unaccent; Type: COMMENT; Schema: -; Owner: 
 --
@@ -123,7 +123,7 @@ COMMENT ON EXTENSION unaccent IS 'text search dictionary that removes accents';
 
 
 --
--- TOC entry 4 (class 3079 OID 27904)
+-- TOC entry 4 (class 3079 OID 29463)
 -- Name: uuid-ossp; Type: EXTENSION; Schema: -; Owner: -
 --
 
@@ -131,7 +131,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp" WITH SCHEMA public;
 
 
 --
--- TOC entry 5420 (class 0 OID 0)
+-- TOC entry 5546 (class 0 OID 0)
 -- Dependencies: 4
 -- Name: EXTENSION "uuid-ossp"; Type: COMMENT; Schema: -; Owner: 
 --
@@ -140,7 +140,7 @@ COMMENT ON EXTENSION "uuid-ossp" IS 'generate universally unique identifiers (UU
 
 
 --
--- TOC entry 997 (class 1247 OID 27916)
+-- TOC entry 1008 (class 1247 OID 32906)
 -- Name: t_estado_matricula; Type: TYPE; Schema: academic; Owner: postgres
 --
 
@@ -155,7 +155,7 @@ CREATE TYPE academic.t_estado_matricula AS ENUM (
 ALTER TYPE academic.t_estado_matricula OWNER TO postgres;
 
 --
--- TOC entry 1000 (class 1247 OID 27926)
+-- TOC entry 1011 (class 1247 OID 32916)
 -- Name: t_estado_oferta; Type: TYPE; Schema: academic; Owner: postgres
 --
 
@@ -171,7 +171,7 @@ CREATE TYPE academic.t_estado_oferta AS ENUM (
 ALTER TYPE academic.t_estado_oferta OWNER TO postgres;
 
 --
--- TOC entry 1003 (class 1247 OID 27938)
+-- TOC entry 1014 (class 1247 OID 32928)
 -- Name: t_estado_pago; Type: TYPE; Schema: finance; Owner: postgres
 --
 
@@ -186,7 +186,7 @@ CREATE TYPE finance.t_estado_pago AS ENUM (
 ALTER TYPE finance.t_estado_pago OWNER TO postgres;
 
 --
--- TOC entry 1006 (class 1247 OID 27948)
+-- TOC entry 1017 (class 1247 OID 32938)
 -- Name: t_estado_verificacion; Type: TYPE; Schema: finance; Owner: postgres
 --
 
@@ -200,7 +200,7 @@ CREATE TYPE finance.t_estado_verificacion AS ENUM (
 ALTER TYPE finance.t_estado_verificacion OWNER TO postgres;
 
 --
--- TOC entry 1009 (class 1247 OID 27956)
+-- TOC entry 1020 (class 1247 OID 32946)
 -- Name: t_metodo_pago; Type: TYPE; Schema: finance; Owner: postgres
 --
 
@@ -216,7 +216,7 @@ CREATE TYPE finance.t_metodo_pago AS ENUM (
 ALTER TYPE finance.t_metodo_pago OWNER TO postgres;
 
 --
--- TOC entry 1012 (class 1247 OID 27968)
+-- TOC entry 1023 (class 1247 OID 32958)
 -- Name: t_estado_reserva; Type: TYPE; Schema: services; Owner: postgres
 --
 
@@ -232,7 +232,7 @@ CREATE TYPE services.t_estado_reserva AS ENUM (
 ALTER TYPE services.t_estado_reserva OWNER TO postgres;
 
 --
--- TOC entry 365 (class 1255 OID 27979)
+-- TOC entry 386 (class 1255 OID 32969)
 -- Name: fn_actualizar_perfil_estudiante(); Type: FUNCTION; Schema: academic; Owner: postgres
 --
 
@@ -259,7 +259,7 @@ $$;
 ALTER FUNCTION academic.fn_actualizar_perfil_estudiante() OWNER TO postgres;
 
 --
--- TOC entry 366 (class 1255 OID 27980)
+-- TOC entry 330 (class 1255 OID 32970)
 -- Name: fn_actualizar_resumen_curso(); Type: FUNCTION; Schema: academic; Owner: postgres
 --
 
@@ -296,7 +296,94 @@ $$;
 ALTER FUNCTION academic.fn_actualizar_resumen_curso() OWNER TO postgres;
 
 --
--- TOC entry 367 (class 1255 OID 27981)
+-- TOC entry 341 (class 1255 OID 34301)
+-- Name: fn_validar_capacidad_curso(); Type: FUNCTION; Schema: academic; Owner: postgres
+--
+
+CREATE FUNCTION academic.fn_validar_capacidad_curso() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+            DECLARE
+                v_capacidad SMALLINT;
+                v_inscritos INT;
+            BEGIN
+                -- Obtener capacidad del curso
+                SELECT capacidad_maxima INTO v_capacidad
+                FROM academic.cursos_abiertos
+                WHERE id = NEW.curso_abierto_id;
+                
+                -- Contar matrículas activas (no retiradas/reprobadas)
+                SELECT COUNT(*) INTO v_inscritos
+                FROM academic.matriculas
+                WHERE curso_abierto_id = NEW.curso_abierto_id 
+                  AND estado IN ('activo', 'completado')
+                  AND deleted_at IS NULL;
+                
+                -- Validar que no exceda capacidad
+                IF v_inscritos >= v_capacidad THEN
+                    RAISE EXCEPTION 'Capacidad máxima (%) del curso alcanzada. Inscritos actuales: %', 
+                        v_capacidad, v_inscritos;
+                END IF;
+                
+                RETURN NEW;
+            END;
+            $$;
+
+
+ALTER FUNCTION academic.fn_validar_capacidad_curso() OWNER TO postgres;
+
+--
+-- TOC entry 374 (class 1255 OID 34333)
+-- Name: fn_auditar_cambios_horario(); Type: FUNCTION; Schema: audit; Owner: postgres
+--
+
+CREATE FUNCTION audit.fn_auditar_cambios_horario() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+            DECLARE
+                v_datos_anteriores JSON;
+                v_datos_nuevos JSON;
+                v_accion VARCHAR;
+            BEGIN
+                IF TG_OP = 'INSERT' THEN
+                    v_accion := 'INSERT';
+                    v_datos_anteriores := NULL;
+                    v_datos_nuevos := ROW_TO_JSON(NEW);
+                ELSIF TG_OP = 'UPDATE' THEN
+                    v_accion := 'UPDATE';
+                    v_datos_anteriores := ROW_TO_JSON(OLD);
+                    v_datos_nuevos := ROW_TO_JSON(NEW);
+                ELSIF TG_OP = 'DELETE' THEN
+                    v_accion := 'DELETE';
+                    v_datos_anteriores := ROW_TO_JSON(OLD);
+                    v_datos_nuevos := NULL;
+                END IF;
+
+                INSERT INTO audit.cambios_horario_auditoria 
+                    (cambio_horario_id, matricula_origen_id, curso_abierto_antiguo_id, 
+                     curso_abierto_nuevo_id, motivo, estado, accion, usuario_id, 
+                     datos_anteriores, datos_nuevos)
+                VALUES 
+                    (COALESCE(NEW.id, OLD.id),
+                     COALESCE(NEW.matricula_origen_id, OLD.matricula_origen_id),
+                     COALESCE(NEW.curso_abierto_antiguo_id, OLD.curso_abierto_antiguo_id),
+                     COALESCE(NEW.curso_abierto_nuevo_id, OLD.curso_abierto_nuevo_id),
+                     COALESCE(NEW.motivo, OLD.motivo),
+                     COALESCE(NEW.estado, OLD.estado),
+                     v_accion,
+                     CURRENT_USER,
+                     v_datos_anteriores,
+                     v_datos_nuevos);
+
+                RETURN COALESCE(NEW, OLD);
+            END;
+            $$;
+
+
+ALTER FUNCTION audit.fn_auditar_cambios_horario() OWNER TO postgres;
+
+--
+-- TOC entry 363 (class 1255 OID 32971)
 -- Name: fn_set_updated_at(); Type: FUNCTION; Schema: core; Owner: postgres
 --
 
@@ -313,7 +400,7 @@ $$;
 ALTER FUNCTION core.fn_set_updated_at() OWNER TO postgres;
 
 --
--- TOC entry 372 (class 1255 OID 27982)
+-- TOC entry 384 (class 1255 OID 32972)
 -- Name: fn_actualizar_cuenta_cobrar(); Type: FUNCTION; Schema: finance; Owner: postgres
 --
 
@@ -354,7 +441,7 @@ $$;
 ALTER FUNCTION finance.fn_actualizar_cuenta_cobrar() OWNER TO postgres;
 
 --
--- TOC entry 380 (class 1255 OID 27983)
+-- TOC entry 346 (class 1255 OID 32973)
 -- Name: fn_registrar_movimiento_caja(); Type: FUNCTION; Schema: finance; Owner: postgres
 --
 
@@ -421,7 +508,7 @@ SET default_tablespace = '';
 SET default_table_access_method = heap;
 
 --
--- TOC entry 225 (class 1259 OID 27984)
+-- TOC entry 237 (class 1259 OID 32974)
 -- Name: asesorias; Type: TABLE; Schema: academic; Owner: postgres
 --
 
@@ -448,7 +535,7 @@ CREATE TABLE academic.asesorias (
 ALTER TABLE academic.asesorias OWNER TO postgres;
 
 --
--- TOC entry 226 (class 1259 OID 27995)
+-- TOC entry 238 (class 1259 OID 32985)
 -- Name: asistencias; Type: TABLE; Schema: academic; Owner: postgres
 --
 
@@ -465,7 +552,7 @@ CREATE TABLE academic.asistencias (
 ALTER TABLE academic.asistencias OWNER TO postgres;
 
 --
--- TOC entry 227 (class 1259 OID 28002)
+-- TOC entry 239 (class 1259 OID 32992)
 -- Name: asistencias_talleres; Type: TABLE; Schema: academic; Owner: postgres
 --
 
@@ -485,7 +572,7 @@ CREATE TABLE academic.asistencias_talleres (
 ALTER TABLE academic.asistencias_talleres OWNER TO postgres;
 
 --
--- TOC entry 228 (class 1259 OID 28009)
+-- TOC entry 240 (class 1259 OID 32999)
 -- Name: cambios_horario; Type: TABLE; Schema: academic; Owner: postgres
 --
 
@@ -502,7 +589,7 @@ CREATE TABLE academic.cambios_horario (
 ALTER TABLE academic.cambios_horario OWNER TO postgres;
 
 --
--- TOC entry 229 (class 1259 OID 28016)
+-- TOC entry 241 (class 1259 OID 33006)
 -- Name: catalogo_cursos; Type: TABLE; Schema: academic; Owner: postgres
 --
 
@@ -522,14 +609,16 @@ CREATE TABLE academic.catalogo_cursos (
     deleted_at timestamp(0) without time zone,
     imagen character varying(500),
     color character varying(7),
-    CONSTRAINT catalogo_cursos_categoria_check CHECK (((categoria)::text = ANY (ARRAY[('regular'::character varying)::text, ('personalizado'::character varying)::text, ('taller'::character varying)::text])))
+    codigo character varying(50),
+    requisitos_previos text,
+    CONSTRAINT catalogo_cursos_categoria_check CHECK (((categoria)::text = ANY ((ARRAY['regular'::character varying, 'personalizado'::character varying, 'taller'::character varying])::text[])))
 );
 
 
 ALTER TABLE academic.catalogo_cursos OWNER TO postgres;
 
 --
--- TOC entry 230 (class 1259 OID 28027)
+-- TOC entry 242 (class 1259 OID 33017)
 -- Name: certificados; Type: TABLE; Schema: academic; Owner: postgres
 --
 
@@ -549,14 +638,19 @@ CREATE TABLE academic.certificados (
     verificaciones_count integer DEFAULT 0 NOT NULL,
     created_at timestamp(0) without time zone,
     updated_at timestamp(0) without time zone,
-    deleted_at timestamp(0) without time zone
+    deleted_at timestamp(0) without time zone,
+    fecha_emitido timestamp without time zone,
+    fecha_borrado timestamp without time zone,
+    emitido_por uuid,
+    borrado_por uuid,
+    metodo_entrega character varying(50)
 );
 
 
 ALTER TABLE academic.certificados OWNER TO postgres;
 
 --
--- TOC entry 231 (class 1259 OID 28037)
+-- TOC entry 243 (class 1259 OID 33027)
 -- Name: clases; Type: TABLE; Schema: academic; Owner: postgres
 --
 
@@ -574,7 +668,7 @@ CREATE TABLE academic.clases (
 ALTER TABLE academic.clases OWNER TO postgres;
 
 --
--- TOC entry 232 (class 1259 OID 28043)
+-- TOC entry 244 (class 1259 OID 33033)
 -- Name: clases_extras; Type: TABLE; Schema: academic; Owner: postgres
 --
 
@@ -595,7 +689,7 @@ CREATE TABLE academic.clases_extras (
 ALTER TABLE academic.clases_extras OWNER TO postgres;
 
 --
--- TOC entry 233 (class 1259 OID 28051)
+-- TOC entry 245 (class 1259 OID 33041)
 -- Name: comentarios_curso; Type: TABLE; Schema: academic; Owner: postgres
 --
 
@@ -614,7 +708,7 @@ CREATE TABLE academic.comentarios_curso (
 ALTER TABLE academic.comentarios_curso OWNER TO postgres;
 
 --
--- TOC entry 234 (class 1259 OID 28060)
+-- TOC entry 246 (class 1259 OID 33050)
 -- Name: cursos_abiertos; Type: TABLE; Schema: academic; Owner: postgres
 --
 
@@ -647,7 +741,7 @@ CREATE TABLE academic.cursos_abiertos (
 ALTER TABLE academic.cursos_abiertos OWNER TO postgres;
 
 --
--- TOC entry 235 (class 1259 OID 28073)
+-- TOC entry 247 (class 1259 OID 33063)
 -- Name: horarios; Type: TABLE; Schema: academic; Owner: postgres
 --
 
@@ -664,7 +758,7 @@ CREATE TABLE academic.horarios (
 ALTER TABLE academic.horarios OWNER TO postgres;
 
 --
--- TOC entry 236 (class 1259 OID 28080)
+-- TOC entry 248 (class 1259 OID 33070)
 -- Name: horarios_dias; Type: TABLE; Schema: academic; Owner: postgres
 --
 
@@ -678,8 +772,8 @@ CREATE TABLE academic.horarios_dias (
 ALTER TABLE academic.horarios_dias OWNER TO postgres;
 
 --
--- TOC entry 5421 (class 0 OID 0)
--- Dependencies: 236
+-- TOC entry 5547 (class 0 OID 0)
+-- Dependencies: 248
 -- Name: COLUMN horarios_dias.dia_semana; Type: COMMENT; Schema: academic; Owner: postgres
 --
 
@@ -687,7 +781,7 @@ COMMENT ON COLUMN academic.horarios_dias.dia_semana IS '1=Lunes, 2=Martes, ..., 
 
 
 --
--- TOC entry 237 (class 1259 OID 28083)
+-- TOC entry 249 (class 1259 OID 33073)
 -- Name: horarios_dias_id_seq; Type: SEQUENCE; Schema: academic; Owner: postgres
 --
 
@@ -702,8 +796,8 @@ CREATE SEQUENCE academic.horarios_dias_id_seq
 ALTER SEQUENCE academic.horarios_dias_id_seq OWNER TO postgres;
 
 --
--- TOC entry 5422 (class 0 OID 0)
--- Dependencies: 237
+-- TOC entry 5548 (class 0 OID 0)
+-- Dependencies: 249
 -- Name: horarios_dias_id_seq; Type: SEQUENCE OWNED BY; Schema: academic; Owner: postgres
 --
 
@@ -711,7 +805,48 @@ ALTER SEQUENCE academic.horarios_dias_id_seq OWNED BY academic.horarios_dias.id;
 
 
 --
--- TOC entry 238 (class 1259 OID 28084)
+-- TOC entry 323 (class 1259 OID 34350)
+-- Name: horarios_talleres; Type: TABLE; Schema: academic; Owner: postgres
+--
+
+CREATE TABLE academic.horarios_talleres (
+    id uuid NOT NULL,
+    taller_id uuid NOT NULL,
+    dia_semana integer NOT NULL,
+    hora_inicio time(0) without time zone NOT NULL,
+    hora_fin time(0) without time zone NOT NULL,
+    aula character varying(255),
+    capacidad integer NOT NULL,
+    created_at timestamp(0) without time zone,
+    updated_at timestamp(0) without time zone,
+    deleted_at timestamp(0) without time zone
+);
+
+
+ALTER TABLE academic.horarios_talleres OWNER TO postgres;
+
+--
+-- TOC entry 326 (class 1259 OID 34394)
+-- Name: inscripciones_externos_talleres; Type: TABLE; Schema: academic; Owner: postgres
+--
+
+CREATE TABLE academic.inscripciones_externos_talleres (
+    id uuid NOT NULL,
+    taller_id uuid NOT NULL,
+    participante_externo_id uuid NOT NULL,
+    fecha_inscripcion date NOT NULL,
+    estado character varying(255) DEFAULT 'inscrito'::character varying NOT NULL,
+    created_at timestamp(0) without time zone,
+    updated_at timestamp(0) without time zone,
+    deleted_at timestamp(0) without time zone,
+    CONSTRAINT inscripciones_externos_talleres_estado_check CHECK (((estado)::text = ANY ((ARRAY['inscrito'::character varying, 'completado'::character varying, 'retirado'::character varying])::text[])))
+);
+
+
+ALTER TABLE academic.inscripciones_externos_talleres OWNER TO postgres;
+
+--
+-- TOC entry 250 (class 1259 OID 33074)
 -- Name: inscripciones_taller; Type: TABLE; Schema: academic; Owner: postgres
 --
 
@@ -746,7 +881,27 @@ CREATE TABLE academic.inscripciones_taller (
 ALTER TABLE academic.inscripciones_taller OWNER TO postgres;
 
 --
--- TOC entry 239 (class 1259 OID 28093)
+-- TOC entry 324 (class 1259 OID 34362)
+-- Name: inscripciones_talleres; Type: TABLE; Schema: academic; Owner: postgres
+--
+
+CREATE TABLE academic.inscripciones_talleres (
+    id uuid NOT NULL,
+    taller_id uuid NOT NULL,
+    estudiante_id uuid NOT NULL,
+    fecha_inscripcion date NOT NULL,
+    estado character varying(255) DEFAULT 'inscrito'::character varying NOT NULL,
+    created_at timestamp(0) without time zone,
+    updated_at timestamp(0) without time zone,
+    deleted_at timestamp(0) without time zone,
+    CONSTRAINT inscripciones_talleres_estado_check CHECK (((estado)::text = ANY ((ARRAY['inscrito'::character varying, 'completado'::character varying, 'retirado'::character varying])::text[])))
+);
+
+
+ALTER TABLE academic.inscripciones_talleres OWNER TO postgres;
+
+--
+-- TOC entry 251 (class 1259 OID 33083)
 -- Name: matriculas; Type: TABLE; Schema: academic; Owner: postgres
 --
 
@@ -768,7 +923,7 @@ CREATE TABLE academic.matriculas (
 ALTER TABLE academic.matriculas OWNER TO postgres;
 
 --
--- TOC entry 240 (class 1259 OID 28103)
+-- TOC entry 252 (class 1259 OID 33093)
 -- Name: modulos; Type: TABLE; Schema: academic; Owner: postgres
 --
 
@@ -786,7 +941,7 @@ CREATE TABLE academic.modulos (
 ALTER TABLE academic.modulos OWNER TO postgres;
 
 --
--- TOC entry 241 (class 1259 OID 28107)
+-- TOC entry 253 (class 1259 OID 33097)
 -- Name: notas; Type: TABLE; Schema: academic; Owner: postgres
 --
 
@@ -804,7 +959,48 @@ CREATE TABLE academic.notas (
 ALTER TABLE academic.notas OWNER TO postgres;
 
 --
--- TOC entry 242 (class 1259 OID 28114)
+-- TOC entry 327 (class 1259 OID 34416)
+-- Name: participantes_cursos_personalizados; Type: TABLE; Schema: academic; Owner: postgres
+--
+
+CREATE TABLE academic.participantes_cursos_personalizados (
+    id uuid NOT NULL,
+    curso_personalizado_id uuid NOT NULL,
+    participante_externo_id uuid NOT NULL,
+    fecha_inscripcion date NOT NULL,
+    estado character varying(255) DEFAULT 'inscrito'::character varying NOT NULL,
+    created_at timestamp(0) without time zone,
+    updated_at timestamp(0) without time zone,
+    deleted_at timestamp(0) without time zone,
+    CONSTRAINT participantes_cursos_personalizados_estado_check CHECK (((estado)::text = ANY ((ARRAY['inscrito'::character varying, 'completado'::character varying, 'retirado'::character varying])::text[])))
+);
+
+
+ALTER TABLE academic.participantes_cursos_personalizados OWNER TO postgres;
+
+--
+-- TOC entry 325 (class 1259 OID 34383)
+-- Name: participantes_externos; Type: TABLE; Schema: academic; Owner: postgres
+--
+
+CREATE TABLE academic.participantes_externos (
+    id uuid NOT NULL,
+    nombre character varying(255) NOT NULL,
+    email character varying(255),
+    telefono character varying(255),
+    institucion character varying(255),
+    tipo character varying(255) DEFAULT 'persona_externa'::character varying NOT NULL,
+    created_at timestamp(0) without time zone,
+    updated_at timestamp(0) without time zone,
+    deleted_at timestamp(0) without time zone,
+    CONSTRAINT participantes_externos_tipo_check CHECK (((tipo)::text = ANY ((ARRAY['persona_externa'::character varying, 'profesional'::character varying, 'estudiante_externo'::character varying])::text[])))
+);
+
+
+ALTER TABLE academic.participantes_externos OWNER TO postgres;
+
+--
+-- TOC entry 254 (class 1259 OID 33104)
 -- Name: solicitudes_inscripcion; Type: TABLE; Schema: academic; Owner: postgres
 --
 
@@ -845,7 +1041,7 @@ END) = 1)),
 ALTER TABLE academic.solicitudes_inscripcion OWNER TO postgres;
 
 --
--- TOC entry 243 (class 1259 OID 28126)
+-- TOC entry 255 (class 1259 OID 33116)
 -- Name: talleres; Type: TABLE; Schema: academic; Owner: postgres
 --
 
@@ -872,7 +1068,7 @@ CREATE TABLE academic.talleres (
 ALTER TABLE academic.talleres OWNER TO postgres;
 
 --
--- TOC entry 244 (class 1259 OID 28137)
+-- TOC entry 256 (class 1259 OID 33127)
 -- Name: traslados_modulo; Type: TABLE; Schema: academic; Owner: postgres
 --
 
@@ -891,7 +1087,7 @@ CREATE TABLE academic.traslados_modulo (
 ALTER TABLE academic.traslados_modulo OWNER TO postgres;
 
 --
--- TOC entry 245 (class 1259 OID 28144)
+-- TOC entry 257 (class 1259 OID 33134)
 -- Name: v_horarios_con_dias; Type: VIEW; Schema: academic; Owner: postgres
 --
 
@@ -910,7 +1106,7 @@ CREATE VIEW academic.v_horarios_con_dias AS
 ALTER VIEW academic.v_horarios_con_dias OWNER TO postgres;
 
 --
--- TOC entry 318 (class 1259 OID 29331)
+-- TOC entry 258 (class 1259 OID 33139)
 -- Name: lineas_pago_modulo; Type: TABLE; Schema: finance; Owner: postgres
 --
 
@@ -934,7 +1130,7 @@ CREATE TABLE finance.lineas_pago_modulo (
 ALTER TABLE finance.lineas_pago_modulo OWNER TO postgres;
 
 --
--- TOC entry 319 (class 1259 OID 29362)
+-- TOC entry 259 (class 1259 OID 33145)
 -- Name: vista_cursos_finanzas; Type: VIEW; Schema: academic; Owner: postgres
 --
 
@@ -959,7 +1155,55 @@ CREATE VIEW academic.vista_cursos_finanzas AS
 ALTER VIEW academic.vista_cursos_finanzas OWNER TO postgres;
 
 --
--- TOC entry 246 (class 1259 OID 28154)
+-- TOC entry 322 (class 1259 OID 34319)
+-- Name: cambios_horario_auditoria; Type: TABLE; Schema: audit; Owner: postgres
+--
+
+CREATE TABLE audit.cambios_horario_auditoria (
+    id bigint NOT NULL,
+    cambio_horario_id uuid,
+    matricula_origen_id uuid,
+    curso_abierto_antiguo_id uuid,
+    curso_abierto_nuevo_id uuid,
+    motivo character varying(255),
+    estado character varying(255) DEFAULT 'pendiente'::character varying NOT NULL,
+    accion character varying(50) NOT NULL,
+    usuario_id character varying(255),
+    datos_anteriores json,
+    datos_nuevos json,
+    fecha_cambio timestamp(0) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    CONSTRAINT cambios_horario_auditoria_estado_check CHECK (((estado)::text = ANY ((ARRAY['pendiente'::character varying, 'aprobado'::character varying, 'rechazado'::character varying, 'completado'::character varying])::text[])))
+);
+
+
+ALTER TABLE audit.cambios_horario_auditoria OWNER TO postgres;
+
+--
+-- TOC entry 321 (class 1259 OID 34318)
+-- Name: cambios_horario_auditoria_id_seq; Type: SEQUENCE; Schema: audit; Owner: postgres
+--
+
+CREATE SEQUENCE audit.cambios_horario_auditoria_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE audit.cambios_horario_auditoria_id_seq OWNER TO postgres;
+
+--
+-- TOC entry 5549 (class 0 OID 0)
+-- Dependencies: 321
+-- Name: cambios_horario_auditoria_id_seq; Type: SEQUENCE OWNED BY; Schema: audit; Owner: postgres
+--
+
+ALTER SEQUENCE audit.cambios_horario_auditoria_id_seq OWNED BY audit.cambios_horario_auditoria.id;
+
+
+--
+-- TOC entry 260 (class 1259 OID 33150)
 -- Name: eventos_financieros; Type: TABLE; Schema: audit; Owner: postgres
 --
 
@@ -981,7 +1225,7 @@ CREATE TABLE audit.eventos_financieros (
 ALTER TABLE audit.eventos_financieros OWNER TO postgres;
 
 --
--- TOC entry 247 (class 1259 OID 28164)
+-- TOC entry 261 (class 1259 OID 33160)
 -- Name: inicios_sesion; Type: TABLE; Schema: audit; Owner: postgres
 --
 
@@ -1001,7 +1245,26 @@ CREATE TABLE audit.inicios_sesion (
 ALTER TABLE audit.inicios_sesion OWNER TO postgres;
 
 --
--- TOC entry 248 (class 1259 OID 28172)
+-- TOC entry 328 (class 1259 OID 34446)
+-- Name: archivos_eliminados; Type: TABLE; Schema: core; Owner: postgres
+--
+
+CREATE TABLE core.archivos_eliminados (
+    id uuid NOT NULL,
+    model_type character varying(255) NOT NULL,
+    model_id uuid NOT NULL,
+    field_name character varying(100) NOT NULL,
+    file_path character varying(500) NOT NULL,
+    accion character varying(20) NOT NULL,
+    eliminado_por uuid,
+    created_at timestamp(0) with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+
+ALTER TABLE core.archivos_eliminados OWNER TO postgres;
+
+--
+-- TOC entry 262 (class 1259 OID 33168)
 -- Name: cache; Type: TABLE; Schema: core; Owner: postgres
 --
 
@@ -1015,7 +1278,7 @@ CREATE TABLE core.cache (
 ALTER TABLE core.cache OWNER TO postgres;
 
 --
--- TOC entry 249 (class 1259 OID 28177)
+-- TOC entry 263 (class 1259 OID 33173)
 -- Name: cache_locks; Type: TABLE; Schema: core; Owner: postgres
 --
 
@@ -1029,20 +1292,21 @@ CREATE TABLE core.cache_locks (
 ALTER TABLE core.cache_locks OWNER TO postgres;
 
 --
--- TOC entry 250 (class 1259 OID 28182)
+-- TOC entry 264 (class 1259 OID 33178)
 -- Name: ciudades; Type: TABLE; Schema: core; Owner: postgres
 --
 
 CREATE TABLE core.ciudades (
     id bigint NOT NULL,
-    nombre character varying(100) NOT NULL
+    nombre character varying(100) NOT NULL,
+    deleted_at timestamp with time zone
 );
 
 
 ALTER TABLE core.ciudades OWNER TO postgres;
 
 --
--- TOC entry 251 (class 1259 OID 28185)
+-- TOC entry 265 (class 1259 OID 33181)
 -- Name: ciudades_id_seq; Type: SEQUENCE; Schema: core; Owner: postgres
 --
 
@@ -1057,8 +1321,8 @@ CREATE SEQUENCE core.ciudades_id_seq
 ALTER SEQUENCE core.ciudades_id_seq OWNER TO postgres;
 
 --
--- TOC entry 5423 (class 0 OID 0)
--- Dependencies: 251
+-- TOC entry 5550 (class 0 OID 0)
+-- Dependencies: 265
 -- Name: ciudades_id_seq; Type: SEQUENCE OWNED BY; Schema: core; Owner: postgres
 --
 
@@ -1066,7 +1330,7 @@ ALTER SEQUENCE core.ciudades_id_seq OWNED BY core.ciudades.id;
 
 
 --
--- TOC entry 252 (class 1259 OID 28186)
+-- TOC entry 266 (class 1259 OID 33182)
 -- Name: estudiante_segmentos; Type: TABLE; Schema: core; Owner: postgres
 --
 
@@ -1083,7 +1347,7 @@ CREATE TABLE core.estudiante_segmentos (
 ALTER TABLE core.estudiante_segmentos OWNER TO postgres;
 
 --
--- TOC entry 253 (class 1259 OID 28191)
+-- TOC entry 267 (class 1259 OID 33187)
 -- Name: failed_jobs; Type: TABLE; Schema: core; Owner: postgres
 --
 
@@ -1101,7 +1365,7 @@ CREATE TABLE core.failed_jobs (
 ALTER TABLE core.failed_jobs OWNER TO postgres;
 
 --
--- TOC entry 254 (class 1259 OID 28197)
+-- TOC entry 268 (class 1259 OID 33193)
 -- Name: failed_jobs_id_seq; Type: SEQUENCE; Schema: core; Owner: postgres
 --
 
@@ -1116,8 +1380,8 @@ CREATE SEQUENCE core.failed_jobs_id_seq
 ALTER SEQUENCE core.failed_jobs_id_seq OWNER TO postgres;
 
 --
--- TOC entry 5424 (class 0 OID 0)
--- Dependencies: 254
+-- TOC entry 5551 (class 0 OID 0)
+-- Dependencies: 268
 -- Name: failed_jobs_id_seq; Type: SEQUENCE OWNED BY; Schema: core; Owner: postgres
 --
 
@@ -1125,7 +1389,7 @@ ALTER SEQUENCE core.failed_jobs_id_seq OWNED BY core.failed_jobs.id;
 
 
 --
--- TOC entry 255 (class 1259 OID 28198)
+-- TOC entry 269 (class 1259 OID 33194)
 -- Name: job_batches; Type: TABLE; Schema: core; Owner: postgres
 --
 
@@ -1146,7 +1410,7 @@ CREATE TABLE core.job_batches (
 ALTER TABLE core.job_batches OWNER TO postgres;
 
 --
--- TOC entry 256 (class 1259 OID 28203)
+-- TOC entry 270 (class 1259 OID 33199)
 -- Name: jobs; Type: TABLE; Schema: core; Owner: postgres
 --
 
@@ -1164,7 +1428,7 @@ CREATE TABLE core.jobs (
 ALTER TABLE core.jobs OWNER TO postgres;
 
 --
--- TOC entry 257 (class 1259 OID 28208)
+-- TOC entry 271 (class 1259 OID 33204)
 -- Name: jobs_id_seq; Type: SEQUENCE; Schema: core; Owner: postgres
 --
 
@@ -1179,8 +1443,8 @@ CREATE SEQUENCE core.jobs_id_seq
 ALTER SEQUENCE core.jobs_id_seq OWNER TO postgres;
 
 --
--- TOC entry 5425 (class 0 OID 0)
--- Dependencies: 257
+-- TOC entry 5552 (class 0 OID 0)
+-- Dependencies: 271
 -- Name: jobs_id_seq; Type: SEQUENCE OWNED BY; Schema: core; Owner: postgres
 --
 
@@ -1188,7 +1452,7 @@ ALTER SEQUENCE core.jobs_id_seq OWNED BY core.jobs.id;
 
 
 --
--- TOC entry 258 (class 1259 OID 28209)
+-- TOC entry 272 (class 1259 OID 33205)
 -- Name: migrations; Type: TABLE; Schema: core; Owner: postgres
 --
 
@@ -1202,7 +1466,7 @@ CREATE TABLE core.migrations (
 ALTER TABLE core.migrations OWNER TO postgres;
 
 --
--- TOC entry 259 (class 1259 OID 28212)
+-- TOC entry 273 (class 1259 OID 33208)
 -- Name: migrations_id_seq; Type: SEQUENCE; Schema: core; Owner: postgres
 --
 
@@ -1218,8 +1482,8 @@ CREATE SEQUENCE core.migrations_id_seq
 ALTER SEQUENCE core.migrations_id_seq OWNER TO postgres;
 
 --
--- TOC entry 5426 (class 0 OID 0)
--- Dependencies: 259
+-- TOC entry 5553 (class 0 OID 0)
+-- Dependencies: 273
 -- Name: migrations_id_seq; Type: SEQUENCE OWNED BY; Schema: core; Owner: postgres
 --
 
@@ -1227,7 +1491,7 @@ ALTER SEQUENCE core.migrations_id_seq OWNED BY core.migrations.id;
 
 
 --
--- TOC entry 260 (class 1259 OID 28213)
+-- TOC entry 274 (class 1259 OID 33209)
 -- Name: model_has_permissions; Type: TABLE; Schema: core; Owner: postgres
 --
 
@@ -1241,7 +1505,7 @@ CREATE TABLE core.model_has_permissions (
 ALTER TABLE core.model_has_permissions OWNER TO postgres;
 
 --
--- TOC entry 261 (class 1259 OID 28216)
+-- TOC entry 275 (class 1259 OID 33212)
 -- Name: model_has_roles; Type: TABLE; Schema: core; Owner: postgres
 --
 
@@ -1255,7 +1519,7 @@ CREATE TABLE core.model_has_roles (
 ALTER TABLE core.model_has_roles OWNER TO postgres;
 
 --
--- TOC entry 262 (class 1259 OID 28219)
+-- TOC entry 276 (class 1259 OID 33215)
 -- Name: password_reset_tokens; Type: TABLE; Schema: core; Owner: postgres
 --
 
@@ -1269,7 +1533,7 @@ CREATE TABLE core.password_reset_tokens (
 ALTER TABLE core.password_reset_tokens OWNER TO postgres;
 
 --
--- TOC entry 263 (class 1259 OID 28224)
+-- TOC entry 277 (class 1259 OID 33220)
 -- Name: permissions; Type: TABLE; Schema: core; Owner: postgres
 --
 
@@ -1285,7 +1549,7 @@ CREATE TABLE core.permissions (
 ALTER TABLE core.permissions OWNER TO postgres;
 
 --
--- TOC entry 264 (class 1259 OID 28229)
+-- TOC entry 278 (class 1259 OID 33225)
 -- Name: permissions_id_seq; Type: SEQUENCE; Schema: core; Owner: postgres
 --
 
@@ -1300,8 +1564,8 @@ CREATE SEQUENCE core.permissions_id_seq
 ALTER SEQUENCE core.permissions_id_seq OWNER TO postgres;
 
 --
--- TOC entry 5427 (class 0 OID 0)
--- Dependencies: 264
+-- TOC entry 5554 (class 0 OID 0)
+-- Dependencies: 278
 -- Name: permissions_id_seq; Type: SEQUENCE OWNED BY; Schema: core; Owner: postgres
 --
 
@@ -1309,7 +1573,7 @@ ALTER SEQUENCE core.permissions_id_seq OWNED BY core.permissions.id;
 
 
 --
--- TOC entry 265 (class 1259 OID 28230)
+-- TOC entry 279 (class 1259 OID 33226)
 -- Name: role_has_permissions; Type: TABLE; Schema: core; Owner: postgres
 --
 
@@ -1322,7 +1586,7 @@ CREATE TABLE core.role_has_permissions (
 ALTER TABLE core.role_has_permissions OWNER TO postgres;
 
 --
--- TOC entry 266 (class 1259 OID 28233)
+-- TOC entry 280 (class 1259 OID 33229)
 -- Name: roles; Type: TABLE; Schema: core; Owner: postgres
 --
 
@@ -1338,7 +1602,7 @@ CREATE TABLE core.roles (
 ALTER TABLE core.roles OWNER TO postgres;
 
 --
--- TOC entry 267 (class 1259 OID 28238)
+-- TOC entry 281 (class 1259 OID 33234)
 -- Name: roles_id_seq; Type: SEQUENCE; Schema: core; Owner: postgres
 --
 
@@ -1353,8 +1617,8 @@ CREATE SEQUENCE core.roles_id_seq
 ALTER SEQUENCE core.roles_id_seq OWNER TO postgres;
 
 --
--- TOC entry 5428 (class 0 OID 0)
--- Dependencies: 267
+-- TOC entry 5555 (class 0 OID 0)
+-- Dependencies: 281
 -- Name: roles_id_seq; Type: SEQUENCE OWNED BY; Schema: core; Owner: postgres
 --
 
@@ -1362,7 +1626,7 @@ ALTER SEQUENCE core.roles_id_seq OWNED BY core.roles.id;
 
 
 --
--- TOC entry 268 (class 1259 OID 28239)
+-- TOC entry 282 (class 1259 OID 33235)
 -- Name: sessions; Type: TABLE; Schema: core; Owner: postgres
 --
 
@@ -1379,7 +1643,7 @@ CREATE TABLE core.sessions (
 ALTER TABLE core.sessions OWNER TO postgres;
 
 --
--- TOC entry 269 (class 1259 OID 28244)
+-- TOC entry 283 (class 1259 OID 33240)
 -- Name: users; Type: TABLE; Schema: core; Owner: postgres
 --
 
@@ -1398,7 +1662,7 @@ CREATE TABLE core.users (
 ALTER TABLE core.users OWNER TO postgres;
 
 --
--- TOC entry 270 (class 1259 OID 28249)
+-- TOC entry 284 (class 1259 OID 33245)
 -- Name: users_id_seq; Type: SEQUENCE; Schema: core; Owner: postgres
 --
 
@@ -1413,8 +1677,8 @@ CREATE SEQUENCE core.users_id_seq
 ALTER SEQUENCE core.users_id_seq OWNER TO postgres;
 
 --
--- TOC entry 5429 (class 0 OID 0)
--- Dependencies: 270
+-- TOC entry 5556 (class 0 OID 0)
+-- Dependencies: 284
 -- Name: users_id_seq; Type: SEQUENCE OWNED BY; Schema: core; Owner: postgres
 --
 
@@ -1422,7 +1686,7 @@ ALTER SEQUENCE core.users_id_seq OWNED BY core.users.id;
 
 
 --
--- TOC entry 271 (class 1259 OID 28250)
+-- TOC entry 285 (class 1259 OID 33246)
 -- Name: categorias_egreso; Type: TABLE; Schema: finance; Owner: postgres
 --
 
@@ -1436,7 +1700,7 @@ CREATE TABLE finance.categorias_egreso (
 ALTER TABLE finance.categorias_egreso OWNER TO postgres;
 
 --
--- TOC entry 272 (class 1259 OID 28253)
+-- TOC entry 286 (class 1259 OID 33249)
 -- Name: categorias_egreso_id_seq; Type: SEQUENCE; Schema: finance; Owner: postgres
 --
 
@@ -1452,8 +1716,8 @@ CREATE SEQUENCE finance.categorias_egreso_id_seq
 ALTER SEQUENCE finance.categorias_egreso_id_seq OWNER TO postgres;
 
 --
--- TOC entry 5430 (class 0 OID 0)
--- Dependencies: 272
+-- TOC entry 5557 (class 0 OID 0)
+-- Dependencies: 286
 -- Name: categorias_egreso_id_seq; Type: SEQUENCE OWNED BY; Schema: finance; Owner: postgres
 --
 
@@ -1461,7 +1725,7 @@ ALTER SEQUENCE finance.categorias_egreso_id_seq OWNED BY finance.categorias_egre
 
 
 --
--- TOC entry 273 (class 1259 OID 28254)
+-- TOC entry 287 (class 1259 OID 33250)
 -- Name: cuentas_por_cobrar; Type: TABLE; Schema: finance; Owner: postgres
 --
 
@@ -1493,7 +1757,7 @@ CREATE TABLE finance.cuentas_por_cobrar (
 ALTER TABLE finance.cuentas_por_cobrar OWNER TO postgres;
 
 --
--- TOC entry 274 (class 1259 OID 28264)
+-- TOC entry 288 (class 1259 OID 33261)
 -- Name: horas_instructor; Type: TABLE; Schema: finance; Owner: postgres
 --
 
@@ -1515,7 +1779,7 @@ CREATE TABLE finance.horas_instructor (
 ALTER TABLE finance.horas_instructor OWNER TO postgres;
 
 --
--- TOC entry 275 (class 1259 OID 28271)
+-- TOC entry 289 (class 1259 OID 33268)
 -- Name: resumen_caja; Type: TABLE; Schema: finance; Owner: postgres
 --
 
@@ -1532,7 +1796,7 @@ CREATE TABLE finance.resumen_caja (
 ALTER TABLE finance.resumen_caja OWNER TO postgres;
 
 --
--- TOC entry 276 (class 1259 OID 28280)
+-- TOC entry 290 (class 1259 OID 33277)
 -- Name: transacciones_egreso; Type: TABLE; Schema: finance; Owner: postgres
 --
 
@@ -1544,6 +1808,10 @@ CREATE TABLE finance.transacciones_egreso (
     comprobante_url text,
     fecha_pago timestamp with time zone DEFAULT now(),
     registrado_por uuid,
+    subcategoria character varying(100),
+    proveedor_beneficiario character varying(200),
+    metodo_pago character varying(50) DEFAULT 'transferencia'::character varying,
+    notas text,
     CONSTRAINT transacciones_egreso_monto_check CHECK ((monto > (0)::numeric))
 );
 
@@ -1551,13 +1819,13 @@ CREATE TABLE finance.transacciones_egreso (
 ALTER TABLE finance.transacciones_egreso OWNER TO postgres;
 
 --
--- TOC entry 277 (class 1259 OID 28288)
+-- TOC entry 291 (class 1259 OID 33285)
 -- Name: transacciones_ingreso; Type: TABLE; Schema: finance; Owner: postgres
 --
 
 CREATE TABLE finance.transacciones_ingreso (
     id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
-    cuenta_cobrar_id uuid NOT NULL,
+    cuenta_cobrar_id uuid,
     monto numeric(10,2) NOT NULL,
     metodo_pago finance.t_metodo_pago NOT NULL,
     comprobante_url text,
@@ -1569,6 +1837,7 @@ CREATE TABLE finance.transacciones_ingreso (
     fecha_verificacion timestamp(0) without time zone,
     motivo_rechazo text,
     linea_pago_modulo_id uuid,
+    referencia_pago character varying(100),
     CONSTRAINT transacciones_ingreso_monto_check CHECK ((monto > (0)::numeric))
 );
 
@@ -1576,7 +1845,7 @@ CREATE TABLE finance.transacciones_ingreso (
 ALTER TABLE finance.transacciones_ingreso OWNER TO postgres;
 
 --
--- TOC entry 278 (class 1259 OID 28297)
+-- TOC entry 292 (class 1259 OID 33294)
 -- Name: vista_balance_mensual; Type: VIEW; Schema: finance; Owner: postgres
 --
 
@@ -1599,7 +1868,7 @@ UNION ALL
 ALTER VIEW finance.vista_balance_mensual OWNER TO postgres;
 
 --
--- TOC entry 279 (class 1259 OID 28302)
+-- TOC entry 293 (class 1259 OID 33299)
 -- Name: personas; Type: TABLE; Schema: people; Owner: postgres
 --
 
@@ -1616,14 +1885,15 @@ CREATE TABLE people.personas (
     es_activo boolean DEFAULT true,
     created_at timestamp with time zone DEFAULT now(),
     updated_at timestamp with time zone DEFAULT now(),
-    deleted_at timestamp with time zone
+    deleted_at timestamp with time zone,
+    ciudad character varying(100)
 );
 
 
 ALTER TABLE people.personas OWNER TO postgres;
 
 --
--- TOC entry 280 (class 1259 OID 28311)
+-- TOC entry 294 (class 1259 OID 33308)
 -- Name: vista_horas_instructor; Type: VIEW; Schema: finance; Owner: postgres
 --
 
@@ -1642,7 +1912,7 @@ CREATE VIEW finance.vista_horas_instructor AS
 ALTER VIEW finance.vista_horas_instructor OWNER TO postgres;
 
 --
--- TOC entry 281 (class 1259 OID 28316)
+-- TOC entry 295 (class 1259 OID 33313)
 -- Name: vista_movimientos_caja; Type: VIEW; Schema: finance; Owner: postgres
 --
 
@@ -1662,7 +1932,7 @@ CREATE VIEW finance.vista_movimientos_caja AS
 ALTER VIEW finance.vista_movimientos_caja OWNER TO postgres;
 
 --
--- TOC entry 282 (class 1259 OID 28321)
+-- TOC entry 296 (class 1259 OID 33318)
 -- Name: registro_asistencia_staff; Type: TABLE; Schema: ops; Owner: postgres
 --
 
@@ -1682,7 +1952,30 @@ CREATE TABLE ops.registro_asistencia_staff (
 ALTER TABLE ops.registro_asistencia_staff OWNER TO postgres;
 
 --
--- TOC entry 283 (class 1259 OID 28328)
+-- TOC entry 320 (class 1259 OID 34286)
+-- Name: tareas_staff; Type: TABLE; Schema: ops; Owner: postgres
+--
+
+CREATE TABLE ops.tareas_staff (
+    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+    titulo character varying(200) NOT NULL,
+    descripcion text,
+    persona_id uuid NOT NULL,
+    fecha_inicio date NOT NULL,
+    fecha_fin date,
+    estado character varying(20) DEFAULT 'pendiente'::character varying NOT NULL,
+    created_by bigint,
+    created_at timestamp with time zone DEFAULT now(),
+    updated_at timestamp with time zone DEFAULT now(),
+    deleted_at timestamp with time zone,
+    CONSTRAINT tareas_staff_estado_check CHECK (((estado)::text = ANY (ARRAY[('pendiente'::character varying)::text, ('en_progreso'::character varying)::text, ('completada'::character varying)::text, ('cancelada'::character varying)::text])))
+);
+
+
+ALTER TABLE ops.tareas_staff OWNER TO postgres;
+
+--
+-- TOC entry 297 (class 1259 OID 33325)
 -- Name: clientes_externos; Type: TABLE; Schema: people; Owner: postgres
 --
 
@@ -1708,7 +2001,7 @@ CREATE TABLE people.clientes_externos (
 ALTER TABLE people.clientes_externos OWNER TO postgres;
 
 --
--- TOC entry 284 (class 1259 OID 28335)
+-- TOC entry 298 (class 1259 OID 33332)
 -- Name: aulas; Type: TABLE; Schema: services; Owner: postgres
 --
 
@@ -1724,7 +2017,7 @@ CREATE TABLE services.aulas (
 ALTER TABLE services.aulas OWNER TO postgres;
 
 --
--- TOC entry 285 (class 1259 OID 28341)
+-- TOC entry 299 (class 1259 OID 33338)
 -- Name: paquetes_podcast; Type: TABLE; Schema: services; Owner: postgres
 --
 
@@ -1740,7 +2033,7 @@ CREATE TABLE services.paquetes_podcast (
 ALTER TABLE services.paquetes_podcast OWNER TO postgres;
 
 --
--- TOC entry 286 (class 1259 OID 28347)
+-- TOC entry 300 (class 1259 OID 33344)
 -- Name: reservas_aulas; Type: TABLE; Schema: services; Owner: postgres
 --
 
@@ -1761,7 +2054,7 @@ CREATE TABLE services.reservas_aulas (
 ALTER TABLE services.reservas_aulas OWNER TO postgres;
 
 --
--- TOC entry 287 (class 1259 OID 28353)
+-- TOC entry 301 (class 1259 OID 33350)
 -- Name: reservas_podcast; Type: TABLE; Schema: services; Owner: postgres
 --
 
@@ -1776,6 +2069,7 @@ CREATE TABLE services.reservas_podcast (
     precio_total numeric(10,2) NOT NULL,
     observaciones text,
     estado services.t_estado_reserva DEFAULT 'reservado'::services.t_estado_reserva,
+    titulo character varying(255),
     CONSTRAINT chk_cliente_podcast CHECK ((num_nonnulls(persona_id, cliente_externo_id) = 1))
 );
 
@@ -1783,7 +2077,7 @@ CREATE TABLE services.reservas_podcast (
 ALTER TABLE services.reservas_podcast OWNER TO postgres;
 
 --
--- TOC entry 288 (class 1259 OID 28361)
+-- TOC entry 302 (class 1259 OID 33358)
 -- Name: servicios_streaming; Type: TABLE; Schema: services; Owner: postgres
 --
 
@@ -1806,7 +2100,7 @@ CREATE TABLE services.servicios_streaming (
 ALTER TABLE services.servicios_streaming OWNER TO postgres;
 
 --
--- TOC entry 289 (class 1259 OID 28370)
+-- TOC entry 303 (class 1259 OID 33367)
 -- Name: vista_agenda_unificada; Type: VIEW; Schema: ops; Owner: postgres
 --
 
@@ -1883,7 +2177,7 @@ UNION ALL
 ALTER VIEW ops.vista_agenda_unificada OWNER TO postgres;
 
 --
--- TOC entry 290 (class 1259 OID 28375)
+-- TOC entry 304 (class 1259 OID 33372)
 -- Name: cuentas_sistema; Type: TABLE; Schema: people; Owner: postgres
 --
 
@@ -1900,7 +2194,7 @@ CREATE TABLE people.cuentas_sistema (
 ALTER TABLE people.cuentas_sistema OWNER TO postgres;
 
 --
--- TOC entry 291 (class 1259 OID 28382)
+-- TOC entry 305 (class 1259 OID 33379)
 -- Name: perfil_estudiante; Type: TABLE; Schema: people; Owner: postgres
 --
 
@@ -1923,7 +2217,7 @@ CREATE TABLE people.perfil_estudiante (
 ALTER TABLE people.perfil_estudiante OWNER TO postgres;
 
 --
--- TOC entry 292 (class 1259 OID 28389)
+-- TOC entry 306 (class 1259 OID 33386)
 -- Name: perfil_instructor; Type: TABLE; Schema: people; Owner: postgres
 --
 
@@ -1938,7 +2232,7 @@ CREATE TABLE people.perfil_instructor (
 ALTER TABLE people.perfil_instructor OWNER TO postgres;
 
 --
--- TOC entry 293 (class 1259 OID 28395)
+-- TOC entry 307 (class 1259 OID 33392)
 -- Name: perfil_staff; Type: TABLE; Schema: people; Owner: postgres
 --
 
@@ -1955,7 +2249,7 @@ CREATE TABLE people.perfil_staff (
 ALTER TABLE people.perfil_staff OWNER TO postgres;
 
 --
--- TOC entry 294 (class 1259 OID 28400)
+-- TOC entry 225 (class 1259 OID 31882)
 -- Name: cache; Type: TABLE; Schema: public; Owner: postgres
 --
 
@@ -1969,7 +2263,7 @@ CREATE TABLE public.cache (
 ALTER TABLE public.cache OWNER TO postgres;
 
 --
--- TOC entry 295 (class 1259 OID 28405)
+-- TOC entry 226 (class 1259 OID 31887)
 -- Name: cache_locks; Type: TABLE; Schema: public; Owner: postgres
 --
 
@@ -1983,7 +2277,7 @@ CREATE TABLE public.cache_locks (
 ALTER TABLE public.cache_locks OWNER TO postgres;
 
 --
--- TOC entry 296 (class 1259 OID 28410)
+-- TOC entry 227 (class 1259 OID 31892)
 -- Name: failed_jobs; Type: TABLE; Schema: public; Owner: postgres
 --
 
@@ -2001,7 +2295,7 @@ CREATE TABLE public.failed_jobs (
 ALTER TABLE public.failed_jobs OWNER TO postgres;
 
 --
--- TOC entry 297 (class 1259 OID 28416)
+-- TOC entry 228 (class 1259 OID 31898)
 -- Name: failed_jobs_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
 --
 
@@ -2016,8 +2310,8 @@ CREATE SEQUENCE public.failed_jobs_id_seq
 ALTER SEQUENCE public.failed_jobs_id_seq OWNER TO postgres;
 
 --
--- TOC entry 5431 (class 0 OID 0)
--- Dependencies: 297
+-- TOC entry 5558 (class 0 OID 0)
+-- Dependencies: 228
 -- Name: failed_jobs_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
 --
 
@@ -2025,7 +2319,7 @@ ALTER SEQUENCE public.failed_jobs_id_seq OWNED BY public.failed_jobs.id;
 
 
 --
--- TOC entry 298 (class 1259 OID 28417)
+-- TOC entry 229 (class 1259 OID 31899)
 -- Name: job_batches; Type: TABLE; Schema: public; Owner: postgres
 --
 
@@ -2046,7 +2340,7 @@ CREATE TABLE public.job_batches (
 ALTER TABLE public.job_batches OWNER TO postgres;
 
 --
--- TOC entry 299 (class 1259 OID 28422)
+-- TOC entry 230 (class 1259 OID 31904)
 -- Name: jobs; Type: TABLE; Schema: public; Owner: postgres
 --
 
@@ -2064,7 +2358,7 @@ CREATE TABLE public.jobs (
 ALTER TABLE public.jobs OWNER TO postgres;
 
 --
--- TOC entry 300 (class 1259 OID 28427)
+-- TOC entry 231 (class 1259 OID 31909)
 -- Name: jobs_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
 --
 
@@ -2079,8 +2373,8 @@ CREATE SEQUENCE public.jobs_id_seq
 ALTER SEQUENCE public.jobs_id_seq OWNER TO postgres;
 
 --
--- TOC entry 5432 (class 0 OID 0)
--- Dependencies: 300
+-- TOC entry 5559 (class 0 OID 0)
+-- Dependencies: 231
 -- Name: jobs_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
 --
 
@@ -2088,7 +2382,7 @@ ALTER SEQUENCE public.jobs_id_seq OWNED BY public.jobs.id;
 
 
 --
--- TOC entry 301 (class 1259 OID 28428)
+-- TOC entry 232 (class 1259 OID 31910)
 -- Name: migrations; Type: TABLE; Schema: public; Owner: postgres
 --
 
@@ -2102,7 +2396,7 @@ CREATE TABLE public.migrations (
 ALTER TABLE public.migrations OWNER TO postgres;
 
 --
--- TOC entry 302 (class 1259 OID 28431)
+-- TOC entry 233 (class 1259 OID 31913)
 -- Name: migrations_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
 --
 
@@ -2118,8 +2412,8 @@ CREATE SEQUENCE public.migrations_id_seq
 ALTER SEQUENCE public.migrations_id_seq OWNER TO postgres;
 
 --
--- TOC entry 5433 (class 0 OID 0)
--- Dependencies: 302
+-- TOC entry 5560 (class 0 OID 0)
+-- Dependencies: 233
 -- Name: migrations_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
 --
 
@@ -2127,7 +2421,7 @@ ALTER SEQUENCE public.migrations_id_seq OWNED BY public.migrations.id;
 
 
 --
--- TOC entry 303 (class 1259 OID 28432)
+-- TOC entry 234 (class 1259 OID 31914)
 -- Name: personal_access_tokens; Type: TABLE; Schema: public; Owner: postgres
 --
 
@@ -2148,7 +2442,7 @@ CREATE TABLE public.personal_access_tokens (
 ALTER TABLE public.personal_access_tokens OWNER TO postgres;
 
 --
--- TOC entry 304 (class 1259 OID 28437)
+-- TOC entry 235 (class 1259 OID 31919)
 -- Name: personal_access_tokens_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
 --
 
@@ -2163,8 +2457,8 @@ CREATE SEQUENCE public.personal_access_tokens_id_seq
 ALTER SEQUENCE public.personal_access_tokens_id_seq OWNER TO postgres;
 
 --
--- TOC entry 5434 (class 0 OID 0)
--- Dependencies: 304
+-- TOC entry 5561 (class 0 OID 0)
+-- Dependencies: 235
 -- Name: personal_access_tokens_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
 --
 
@@ -2172,7 +2466,7 @@ ALTER SEQUENCE public.personal_access_tokens_id_seq OWNED BY public.personal_acc
 
 
 --
--- TOC entry 305 (class 1259 OID 28438)
+-- TOC entry 236 (class 1259 OID 31920)
 -- Name: sessions; Type: TABLE; Schema: public; Owner: postgres
 --
 
@@ -2189,7 +2483,7 @@ CREATE TABLE public.sessions (
 ALTER TABLE public.sessions OWNER TO postgres;
 
 --
--- TOC entry 306 (class 1259 OID 28443)
+-- TOC entry 308 (class 1259 OID 33397)
 -- Name: alquiler_equipos; Type: TABLE; Schema: services; Owner: postgres
 --
 
@@ -2216,7 +2510,7 @@ CREATE TABLE services.alquiler_equipos (
 ALTER TABLE services.alquiler_equipos OWNER TO postgres;
 
 --
--- TOC entry 307 (class 1259 OID 28452)
+-- TOC entry 309 (class 1259 OID 33406)
 -- Name: asignaciones_personal; Type: TABLE; Schema: services; Owner: postgres
 --
 
@@ -2236,7 +2530,7 @@ CREATE TABLE services.asignaciones_personal (
 ALTER TABLE services.asignaciones_personal OWNER TO postgres;
 
 --
--- TOC entry 308 (class 1259 OID 28457)
+-- TOC entry 310 (class 1259 OID 33411)
 -- Name: edicion_videos; Type: TABLE; Schema: services; Owner: postgres
 --
 
@@ -2257,7 +2551,7 @@ CREATE TABLE services.edicion_videos (
 ALTER TABLE services.edicion_videos OWNER TO postgres;
 
 --
--- TOC entry 309 (class 1259 OID 28466)
+-- TOC entry 311 (class 1259 OID 33420)
 -- Name: equipos; Type: TABLE; Schema: services; Owner: postgres
 --
 
@@ -2277,7 +2571,7 @@ CREATE TABLE services.equipos (
 ALTER TABLE services.equipos OWNER TO postgres;
 
 --
--- TOC entry 310 (class 1259 OID 28475)
+-- TOC entry 312 (class 1259 OID 33429)
 -- Name: items_paquete_podcast; Type: TABLE; Schema: services; Owner: postgres
 --
 
@@ -2291,7 +2585,7 @@ CREATE TABLE services.items_paquete_podcast (
 ALTER TABLE services.items_paquete_podcast OWNER TO postgres;
 
 --
--- TOC entry 311 (class 1259 OID 28478)
+-- TOC entry 313 (class 1259 OID 33432)
 -- Name: items_paquete_podcast_id_seq; Type: SEQUENCE; Schema: services; Owner: postgres
 --
 
@@ -2307,8 +2601,8 @@ CREATE SEQUENCE services.items_paquete_podcast_id_seq
 ALTER SEQUENCE services.items_paquete_podcast_id_seq OWNER TO postgres;
 
 --
--- TOC entry 5435 (class 0 OID 0)
--- Dependencies: 311
+-- TOC entry 5562 (class 0 OID 0)
+-- Dependencies: 313
 -- Name: items_paquete_podcast_id_seq; Type: SEQUENCE OWNED BY; Schema: services; Owner: postgres
 --
 
@@ -2316,7 +2610,7 @@ ALTER SEQUENCE services.items_paquete_podcast_id_seq OWNED BY services.items_paq
 
 
 --
--- TOC entry 312 (class 1259 OID 28479)
+-- TOC entry 314 (class 1259 OID 33433)
 -- Name: paquetes_podcast_id_seq; Type: SEQUENCE; Schema: services; Owner: postgres
 --
 
@@ -2332,8 +2626,8 @@ CREATE SEQUENCE services.paquetes_podcast_id_seq
 ALTER SEQUENCE services.paquetes_podcast_id_seq OWNER TO postgres;
 
 --
--- TOC entry 5436 (class 0 OID 0)
--- Dependencies: 312
+-- TOC entry 5563 (class 0 OID 0)
+-- Dependencies: 314
 -- Name: paquetes_podcast_id_seq; Type: SEQUENCE OWNED BY; Schema: services; Owner: postgres
 --
 
@@ -2341,7 +2635,7 @@ ALTER SEQUENCE services.paquetes_podcast_id_seq OWNED BY services.paquetes_podca
 
 
 --
--- TOC entry 313 (class 1259 OID 28480)
+-- TOC entry 315 (class 1259 OID 33434)
 -- Name: reservas_radio; Type: TABLE; Schema: services; Owner: postgres
 --
 
@@ -2368,7 +2662,7 @@ CREATE TABLE services.reservas_radio (
 ALTER TABLE services.reservas_radio OWNER TO postgres;
 
 --
--- TOC entry 314 (class 1259 OID 28491)
+-- TOC entry 316 (class 1259 OID 33445)
 -- Name: servicios_produccion; Type: TABLE; Schema: services; Owner: postgres
 --
 
@@ -2391,7 +2685,7 @@ CREATE TABLE services.servicios_produccion (
 ALTER TABLE services.servicios_produccion OWNER TO postgres;
 
 --
--- TOC entry 315 (class 1259 OID 28500)
+-- TOC entry 317 (class 1259 OID 33454)
 -- Name: tarifas_radio; Type: TABLE; Schema: services; Owner: postgres
 --
 
@@ -2408,7 +2702,7 @@ CREATE TABLE services.tarifas_radio (
 ALTER TABLE services.tarifas_radio OWNER TO postgres;
 
 --
--- TOC entry 316 (class 1259 OID 28508)
+-- TOC entry 318 (class 1259 OID 33462)
 -- Name: tarifas_radio_id_seq; Type: SEQUENCE; Schema: services; Owner: postgres
 --
 
@@ -2423,8 +2717,8 @@ CREATE SEQUENCE services.tarifas_radio_id_seq
 ALTER SEQUENCE services.tarifas_radio_id_seq OWNER TO postgres;
 
 --
--- TOC entry 5437 (class 0 OID 0)
--- Dependencies: 316
+-- TOC entry 5564 (class 0 OID 0)
+-- Dependencies: 318
 -- Name: tarifas_radio_id_seq; Type: SEQUENCE OWNED BY; Schema: services; Owner: postgres
 --
 
@@ -2432,7 +2726,7 @@ ALTER SEQUENCE services.tarifas_radio_id_seq OWNED BY services.tarifas_radio.id;
 
 
 --
--- TOC entry 317 (class 1259 OID 28509)
+-- TOC entry 319 (class 1259 OID 33463)
 -- Name: trabajos_edicion; Type: TABLE; Schema: services; Owner: postgres
 --
 
@@ -2460,7 +2754,7 @@ CREATE TABLE services.trabajos_edicion (
 ALTER TABLE services.trabajos_edicion OWNER TO postgres;
 
 --
--- TOC entry 4752 (class 2604 OID 28521)
+-- TOC entry 4792 (class 2604 OID 33475)
 -- Name: horarios_dias id; Type: DEFAULT; Schema: academic; Owner: postgres
 --
 
@@ -2468,7 +2762,15 @@ ALTER TABLE ONLY academic.horarios_dias ALTER COLUMN id SET DEFAULT nextval('aca
 
 
 --
--- TOC entry 4780 (class 2604 OID 28522)
+-- TOC entry 4908 (class 2604 OID 34322)
+-- Name: cambios_horario_auditoria id; Type: DEFAULT; Schema: audit; Owner: postgres
+--
+
+ALTER TABLE ONLY audit.cambios_horario_auditoria ALTER COLUMN id SET DEFAULT nextval('audit.cambios_horario_auditoria_id_seq'::regclass);
+
+
+--
+-- TOC entry 4823 (class 2604 OID 33476)
 -- Name: ciudades id; Type: DEFAULT; Schema: core; Owner: postgres
 --
 
@@ -2476,7 +2778,7 @@ ALTER TABLE ONLY core.ciudades ALTER COLUMN id SET DEFAULT nextval('core.ciudade
 
 
 --
--- TOC entry 4781 (class 2604 OID 28523)
+-- TOC entry 4824 (class 2604 OID 33477)
 -- Name: failed_jobs id; Type: DEFAULT; Schema: core; Owner: postgres
 --
 
@@ -2484,7 +2786,7 @@ ALTER TABLE ONLY core.failed_jobs ALTER COLUMN id SET DEFAULT nextval('core.fail
 
 
 --
--- TOC entry 4783 (class 2604 OID 28524)
+-- TOC entry 4826 (class 2604 OID 33478)
 -- Name: jobs id; Type: DEFAULT; Schema: core; Owner: postgres
 --
 
@@ -2492,7 +2794,7 @@ ALTER TABLE ONLY core.jobs ALTER COLUMN id SET DEFAULT nextval('core.jobs_id_seq
 
 
 --
--- TOC entry 4784 (class 2604 OID 28525)
+-- TOC entry 4827 (class 2604 OID 33479)
 -- Name: migrations id; Type: DEFAULT; Schema: core; Owner: postgres
 --
 
@@ -2500,7 +2802,7 @@ ALTER TABLE ONLY core.migrations ALTER COLUMN id SET DEFAULT nextval('core.migra
 
 
 --
--- TOC entry 4785 (class 2604 OID 28526)
+-- TOC entry 4828 (class 2604 OID 33480)
 -- Name: permissions id; Type: DEFAULT; Schema: core; Owner: postgres
 --
 
@@ -2508,7 +2810,7 @@ ALTER TABLE ONLY core.permissions ALTER COLUMN id SET DEFAULT nextval('core.perm
 
 
 --
--- TOC entry 4786 (class 2604 OID 28527)
+-- TOC entry 4829 (class 2604 OID 33481)
 -- Name: roles id; Type: DEFAULT; Schema: core; Owner: postgres
 --
 
@@ -2516,7 +2818,7 @@ ALTER TABLE ONLY core.roles ALTER COLUMN id SET DEFAULT nextval('core.roles_id_s
 
 
 --
--- TOC entry 4787 (class 2604 OID 28528)
+-- TOC entry 4830 (class 2604 OID 33482)
 -- Name: users id; Type: DEFAULT; Schema: core; Owner: postgres
 --
 
@@ -2524,7 +2826,7 @@ ALTER TABLE ONLY core.users ALTER COLUMN id SET DEFAULT nextval('core.users_id_s
 
 
 --
--- TOC entry 4788 (class 2604 OID 28529)
+-- TOC entry 4831 (class 2604 OID 33483)
 -- Name: categorias_egreso id; Type: DEFAULT; Schema: finance; Owner: postgres
 --
 
@@ -2532,7 +2834,7 @@ ALTER TABLE ONLY finance.categorias_egreso ALTER COLUMN id SET DEFAULT nextval('
 
 
 --
--- TOC entry 4834 (class 2604 OID 28530)
+-- TOC entry 4751 (class 2604 OID 33484)
 -- Name: failed_jobs id; Type: DEFAULT; Schema: public; Owner: postgres
 --
 
@@ -2540,7 +2842,7 @@ ALTER TABLE ONLY public.failed_jobs ALTER COLUMN id SET DEFAULT nextval('public.
 
 
 --
--- TOC entry 4836 (class 2604 OID 28531)
+-- TOC entry 4753 (class 2604 OID 33485)
 -- Name: jobs id; Type: DEFAULT; Schema: public; Owner: postgres
 --
 
@@ -2548,7 +2850,7 @@ ALTER TABLE ONLY public.jobs ALTER COLUMN id SET DEFAULT nextval('public.jobs_id
 
 
 --
--- TOC entry 4837 (class 2604 OID 28532)
+-- TOC entry 4754 (class 2604 OID 33486)
 -- Name: migrations id; Type: DEFAULT; Schema: public; Owner: postgres
 --
 
@@ -2556,7 +2858,7 @@ ALTER TABLE ONLY public.migrations ALTER COLUMN id SET DEFAULT nextval('public.m
 
 
 --
--- TOC entry 4838 (class 2604 OID 28533)
+-- TOC entry 4755 (class 2604 OID 33487)
 -- Name: personal_access_tokens id; Type: DEFAULT; Schema: public; Owner: postgres
 --
 
@@ -2564,7 +2866,7 @@ ALTER TABLE ONLY public.personal_access_tokens ALTER COLUMN id SET DEFAULT nextv
 
 
 --
--- TOC entry 4848 (class 2604 OID 28534)
+-- TOC entry 4887 (class 2604 OID 33488)
 -- Name: items_paquete_podcast id; Type: DEFAULT; Schema: services; Owner: postgres
 --
 
@@ -2572,7 +2874,7 @@ ALTER TABLE ONLY services.items_paquete_podcast ALTER COLUMN id SET DEFAULT next
 
 
 --
--- TOC entry 4818 (class 2604 OID 28535)
+-- TOC entry 4862 (class 2604 OID 33489)
 -- Name: paquetes_podcast id; Type: DEFAULT; Schema: services; Owner: postgres
 --
 
@@ -2580,7 +2882,7 @@ ALTER TABLE ONLY services.paquetes_podcast ALTER COLUMN id SET DEFAULT nextval('
 
 
 --
--- TOC entry 4856 (class 2604 OID 28536)
+-- TOC entry 4895 (class 2604 OID 33490)
 -- Name: tarifas_radio id; Type: DEFAULT; Schema: services; Owner: postgres
 --
 
@@ -2588,7 +2890,7 @@ ALTER TABLE ONLY services.tarifas_radio ALTER COLUMN id SET DEFAULT nextval('ser
 
 
 --
--- TOC entry 4908 (class 2606 OID 28538)
+-- TOC entry 4984 (class 2606 OID 33492)
 -- Name: asistencias_talleres academic_asistencias_talleres_taller_id_fecha_sesion_unique; Type: CONSTRAINT; Schema: academic; Owner: postgres
 --
 
@@ -2597,7 +2899,16 @@ ALTER TABLE ONLY academic.asistencias_talleres
 
 
 --
--- TOC entry 4937 (class 2606 OID 28540)
+-- TOC entry 4993 (class 2606 OID 34300)
+-- Name: catalogo_cursos academic_catalogo_cursos_codigo_unique; Type: CONSTRAINT; Schema: academic; Owner: postgres
+--
+
+ALTER TABLE ONLY academic.catalogo_cursos
+    ADD CONSTRAINT academic_catalogo_cursos_codigo_unique UNIQUE (codigo);
+
+
+--
+-- TOC entry 5024 (class 2606 OID 33494)
 -- Name: horarios_dias academic_horarios_dias_horario_id_dia_semana_unique; Type: CONSTRAINT; Schema: academic; Owner: postgres
 --
 
@@ -2606,7 +2917,25 @@ ALTER TABLE ONLY academic.horarios_dias
 
 
 --
--- TOC entry 4900 (class 2606 OID 28542)
+-- TOC entry 5249 (class 2606 OID 34412)
+-- Name: inscripciones_externos_talleres academic_inscripciones_externos_talleres_taller_id_participante; Type: CONSTRAINT; Schema: academic; Owner: postgres
+--
+
+ALTER TABLE ONLY academic.inscripciones_externos_talleres
+    ADD CONSTRAINT academic_inscripciones_externos_talleres_taller_id_participante UNIQUE (taller_id, participante_externo_id);
+
+
+--
+-- TOC entry 5238 (class 2606 OID 34380)
+-- Name: inscripciones_talleres academic_inscripciones_talleres_taller_id_estudiante_id_unique; Type: CONSTRAINT; Schema: academic; Owner: postgres
+--
+
+ALTER TABLE ONLY academic.inscripciones_talleres
+    ADD CONSTRAINT academic_inscripciones_talleres_taller_id_estudiante_id_unique UNIQUE (taller_id, estudiante_id);
+
+
+--
+-- TOC entry 4974 (class 2606 OID 33496)
 -- Name: asesorias asesorias_pkey; Type: CONSTRAINT; Schema: academic; Owner: postgres
 --
 
@@ -2615,7 +2944,7 @@ ALTER TABLE ONLY academic.asesorias
 
 
 --
--- TOC entry 4902 (class 2606 OID 28544)
+-- TOC entry 4976 (class 2606 OID 33498)
 -- Name: asistencias asistencias_pkey; Type: CONSTRAINT; Schema: academic; Owner: postgres
 --
 
@@ -2624,7 +2953,7 @@ ALTER TABLE ONLY academic.asistencias
 
 
 --
--- TOC entry 4911 (class 2606 OID 28546)
+-- TOC entry 4987 (class 2606 OID 33500)
 -- Name: asistencias_talleres asistencias_talleres_pkey; Type: CONSTRAINT; Schema: academic; Owner: postgres
 --
 
@@ -2633,7 +2962,7 @@ ALTER TABLE ONLY academic.asistencias_talleres
 
 
 --
--- TOC entry 4913 (class 2606 OID 28548)
+-- TOC entry 4989 (class 2606 OID 33502)
 -- Name: cambios_horario cambios_horario_pkey; Type: CONSTRAINT; Schema: academic; Owner: postgres
 --
 
@@ -2642,7 +2971,7 @@ ALTER TABLE ONLY academic.cambios_horario
 
 
 --
--- TOC entry 4915 (class 2606 OID 28550)
+-- TOC entry 4995 (class 2606 OID 33504)
 -- Name: catalogo_cursos catalogo_cursos_pkey; Type: CONSTRAINT; Schema: academic; Owner: postgres
 --
 
@@ -2651,7 +2980,7 @@ ALTER TABLE ONLY academic.catalogo_cursos
 
 
 --
--- TOC entry 4919 (class 2606 OID 28552)
+-- TOC entry 5001 (class 2606 OID 33506)
 -- Name: certificados certificados_codigo_certificado_key; Type: CONSTRAINT; Schema: academic; Owner: postgres
 --
 
@@ -2660,7 +2989,7 @@ ALTER TABLE ONLY academic.certificados
 
 
 --
--- TOC entry 4921 (class 2606 OID 28554)
+-- TOC entry 5003 (class 2606 OID 33508)
 -- Name: certificados certificados_pkey; Type: CONSTRAINT; Schema: academic; Owner: postgres
 --
 
@@ -2669,7 +2998,7 @@ ALTER TABLE ONLY academic.certificados
 
 
 --
--- TOC entry 4926 (class 2606 OID 28556)
+-- TOC entry 5011 (class 2606 OID 33510)
 -- Name: clases_extras clases_extras_pkey; Type: CONSTRAINT; Schema: academic; Owner: postgres
 --
 
@@ -2678,7 +3007,7 @@ ALTER TABLE ONLY academic.clases_extras
 
 
 --
--- TOC entry 4923 (class 2606 OID 28558)
+-- TOC entry 5007 (class 2606 OID 33512)
 -- Name: clases clases_pkey; Type: CONSTRAINT; Schema: academic; Owner: postgres
 --
 
@@ -2687,7 +3016,7 @@ ALTER TABLE ONLY academic.clases
 
 
 --
--- TOC entry 4928 (class 2606 OID 28560)
+-- TOC entry 5013 (class 2606 OID 33514)
 -- Name: comentarios_curso comentarios_curso_pkey; Type: CONSTRAINT; Schema: academic; Owner: postgres
 --
 
@@ -2696,7 +3025,7 @@ ALTER TABLE ONLY academic.comentarios_curso
 
 
 --
--- TOC entry 4930 (class 2606 OID 28562)
+-- TOC entry 5015 (class 2606 OID 33516)
 -- Name: cursos_abiertos cursos_abiertos_pkey; Type: CONSTRAINT; Schema: academic; Owner: postgres
 --
 
@@ -2705,7 +3034,7 @@ ALTER TABLE ONLY academic.cursos_abiertos
 
 
 --
--- TOC entry 4940 (class 2606 OID 28564)
+-- TOC entry 5027 (class 2606 OID 33518)
 -- Name: horarios_dias horarios_dias_pkey; Type: CONSTRAINT; Schema: academic; Owner: postgres
 --
 
@@ -2714,7 +3043,7 @@ ALTER TABLE ONLY academic.horarios_dias
 
 
 --
--- TOC entry 4934 (class 2606 OID 28566)
+-- TOC entry 5021 (class 2606 OID 33520)
 -- Name: horarios horarios_pkey; Type: CONSTRAINT; Schema: academic; Owner: postgres
 --
 
@@ -2723,7 +3052,25 @@ ALTER TABLE ONLY academic.horarios
 
 
 --
--- TOC entry 4942 (class 2606 OID 28568)
+-- TOC entry 5235 (class 2606 OID 34361)
+-- Name: horarios_talleres horarios_talleres_pkey; Type: CONSTRAINT; Schema: academic; Owner: postgres
+--
+
+ALTER TABLE ONLY academic.horarios_talleres
+    ADD CONSTRAINT horarios_talleres_pkey PRIMARY KEY (id);
+
+
+--
+-- TOC entry 5251 (class 2606 OID 34414)
+-- Name: inscripciones_externos_talleres inscripciones_externos_talleres_pkey; Type: CONSTRAINT; Schema: academic; Owner: postgres
+--
+
+ALTER TABLE ONLY academic.inscripciones_externos_talleres
+    ADD CONSTRAINT inscripciones_externos_talleres_pkey PRIMARY KEY (id);
+
+
+--
+-- TOC entry 5031 (class 2606 OID 33522)
 -- Name: inscripciones_taller inscripciones_taller_pkey; Type: CONSTRAINT; Schema: academic; Owner: postgres
 --
 
@@ -2732,7 +3079,16 @@ ALTER TABLE ONLY academic.inscripciones_taller
 
 
 --
--- TOC entry 4946 (class 2606 OID 28570)
+-- TOC entry 5241 (class 2606 OID 34382)
+-- Name: inscripciones_talleres inscripciones_talleres_pkey; Type: CONSTRAINT; Schema: academic; Owner: postgres
+--
+
+ALTER TABLE ONLY academic.inscripciones_talleres
+    ADD CONSTRAINT inscripciones_talleres_pkey PRIMARY KEY (id);
+
+
+--
+-- TOC entry 5042 (class 2606 OID 33524)
 -- Name: matriculas matriculas_pkey; Type: CONSTRAINT; Schema: academic; Owner: postgres
 --
 
@@ -2741,7 +3097,7 @@ ALTER TABLE ONLY academic.matriculas
 
 
 --
--- TOC entry 4950 (class 2606 OID 28572)
+-- TOC entry 5046 (class 2606 OID 33526)
 -- Name: modulos modulos_pkey; Type: CONSTRAINT; Schema: academic; Owner: postgres
 --
 
@@ -2750,7 +3106,7 @@ ALTER TABLE ONLY academic.modulos
 
 
 --
--- TOC entry 4952 (class 2606 OID 28574)
+-- TOC entry 5051 (class 2606 OID 33528)
 -- Name: notas notas_pkey; Type: CONSTRAINT; Schema: academic; Owner: postgres
 --
 
@@ -2759,7 +3115,34 @@ ALTER TABLE ONLY academic.notas
 
 
 --
--- TOC entry 4962 (class 2606 OID 28576)
+-- TOC entry 5255 (class 2606 OID 34436)
+-- Name: participantes_cursos_personalizados participantes_cursos_personalizados_pkey; Type: CONSTRAINT; Schema: academic; Owner: postgres
+--
+
+ALTER TABLE ONLY academic.participantes_cursos_personalizados
+    ADD CONSTRAINT participantes_cursos_personalizados_pkey PRIMARY KEY (id);
+
+
+--
+-- TOC entry 5245 (class 2606 OID 34393)
+-- Name: participantes_externos participantes_externos_pkey; Type: CONSTRAINT; Schema: academic; Owner: postgres
+--
+
+ALTER TABLE ONLY academic.participantes_externos
+    ADD CONSTRAINT participantes_externos_pkey PRIMARY KEY (id);
+
+
+--
+-- TOC entry 5257 (class 2606 OID 34434)
+-- Name: participantes_cursos_personalizados pcp_curso_part_unique; Type: CONSTRAINT; Schema: academic; Owner: postgres
+--
+
+ALTER TABLE ONLY academic.participantes_cursos_personalizados
+    ADD CONSTRAINT pcp_curso_part_unique UNIQUE (curso_personalizado_id, participante_externo_id);
+
+
+--
+-- TOC entry 5061 (class 2606 OID 33530)
 -- Name: solicitudes_inscripcion solicitudes_inscripcion_pkey; Type: CONSTRAINT; Schema: academic; Owner: postgres
 --
 
@@ -2768,7 +3151,7 @@ ALTER TABLE ONLY academic.solicitudes_inscripcion
 
 
 --
--- TOC entry 4964 (class 2606 OID 28578)
+-- TOC entry 5063 (class 2606 OID 33532)
 -- Name: talleres talleres_pkey; Type: CONSTRAINT; Schema: academic; Owner: postgres
 --
 
@@ -2777,7 +3160,7 @@ ALTER TABLE ONLY academic.talleres
 
 
 --
--- TOC entry 4966 (class 2606 OID 28580)
+-- TOC entry 5065 (class 2606 OID 33534)
 -- Name: traslados_modulo traslados_modulo_pkey; Type: CONSTRAINT; Schema: academic; Owner: postgres
 --
 
@@ -2786,7 +3169,7 @@ ALTER TABLE ONLY academic.traslados_modulo
 
 
 --
--- TOC entry 4905 (class 2606 OID 28582)
+-- TOC entry 4981 (class 2606 OID 33536)
 -- Name: asistencias uq_asistencia; Type: CONSTRAINT; Schema: academic; Owner: postgres
 --
 
@@ -2795,7 +3178,7 @@ ALTER TABLE ONLY academic.asistencias
 
 
 --
--- TOC entry 4948 (class 2606 OID 28584)
+-- TOC entry 5044 (class 2606 OID 33538)
 -- Name: matriculas uq_estudiante_curso; Type: CONSTRAINT; Schema: academic; Owner: postgres
 --
 
@@ -2804,7 +3187,7 @@ ALTER TABLE ONLY academic.matriculas
 
 
 --
--- TOC entry 4954 (class 2606 OID 28586)
+-- TOC entry 5053 (class 2606 OID 33540)
 -- Name: notas uq_nota_modulo; Type: CONSTRAINT; Schema: academic; Owner: postgres
 --
 
@@ -2813,7 +3196,16 @@ ALTER TABLE ONLY academic.notas
 
 
 --
--- TOC entry 4968 (class 2606 OID 28588)
+-- TOC entry 5231 (class 2606 OID 34329)
+-- Name: cambios_horario_auditoria cambios_horario_auditoria_pkey; Type: CONSTRAINT; Schema: audit; Owner: postgres
+--
+
+ALTER TABLE ONLY audit.cambios_horario_auditoria
+    ADD CONSTRAINT cambios_horario_auditoria_pkey PRIMARY KEY (id);
+
+
+--
+-- TOC entry 5071 (class 2606 OID 33542)
 -- Name: eventos_financieros eventos_financieros_pkey; Type: CONSTRAINT; Schema: audit; Owner: postgres
 --
 
@@ -2822,7 +3214,7 @@ ALTER TABLE ONLY audit.eventos_financieros
 
 
 --
--- TOC entry 4972 (class 2606 OID 28590)
+-- TOC entry 5075 (class 2606 OID 33544)
 -- Name: inicios_sesion inicios_sesion_pkey; Type: CONSTRAINT; Schema: audit; Owner: postgres
 --
 
@@ -2831,7 +3223,16 @@ ALTER TABLE ONLY audit.inicios_sesion
 
 
 --
--- TOC entry 4978 (class 2606 OID 28592)
+-- TOC entry 5262 (class 2606 OID 34456)
+-- Name: archivos_eliminados archivos_eliminados_pkey; Type: CONSTRAINT; Schema: core; Owner: postgres
+--
+
+ALTER TABLE ONLY core.archivos_eliminados
+    ADD CONSTRAINT archivos_eliminados_pkey PRIMARY KEY (id);
+
+
+--
+-- TOC entry 5081 (class 2606 OID 33546)
 -- Name: cache_locks cache_locks_pkey; Type: CONSTRAINT; Schema: core; Owner: postgres
 --
 
@@ -2840,7 +3241,7 @@ ALTER TABLE ONLY core.cache_locks
 
 
 --
--- TOC entry 4975 (class 2606 OID 28594)
+-- TOC entry 5078 (class 2606 OID 33548)
 -- Name: cache cache_pkey; Type: CONSTRAINT; Schema: core; Owner: postgres
 --
 
@@ -2849,7 +3250,7 @@ ALTER TABLE ONLY core.cache
 
 
 --
--- TOC entry 4980 (class 2606 OID 28596)
+-- TOC entry 5083 (class 2606 OID 33550)
 -- Name: ciudades ciudades_nombre_key; Type: CONSTRAINT; Schema: core; Owner: postgres
 --
 
@@ -2858,7 +3259,7 @@ ALTER TABLE ONLY core.ciudades
 
 
 --
--- TOC entry 4982 (class 2606 OID 28598)
+-- TOC entry 5085 (class 2606 OID 33552)
 -- Name: ciudades ciudades_pkey; Type: CONSTRAINT; Schema: core; Owner: postgres
 --
 
@@ -2867,7 +3268,7 @@ ALTER TABLE ONLY core.ciudades
 
 
 --
--- TOC entry 5006 (class 2606 OID 28600)
+-- TOC entry 5109 (class 2606 OID 33554)
 -- Name: permissions core_permissions_name_guard_name_unique; Type: CONSTRAINT; Schema: core; Owner: postgres
 --
 
@@ -2876,7 +3277,7 @@ ALTER TABLE ONLY core.permissions
 
 
 --
--- TOC entry 5012 (class 2606 OID 28602)
+-- TOC entry 5115 (class 2606 OID 33556)
 -- Name: roles core_roles_name_guard_name_unique; Type: CONSTRAINT; Schema: core; Owner: postgres
 --
 
@@ -2885,7 +3286,7 @@ ALTER TABLE ONLY core.roles
 
 
 --
--- TOC entry 4984 (class 2606 OID 28604)
+-- TOC entry 5087 (class 2606 OID 33558)
 -- Name: estudiante_segmentos estudiante_segmentos_pkey; Type: CONSTRAINT; Schema: core; Owner: postgres
 --
 
@@ -2894,7 +3295,7 @@ ALTER TABLE ONLY core.estudiante_segmentos
 
 
 --
--- TOC entry 4987 (class 2606 OID 28606)
+-- TOC entry 5090 (class 2606 OID 33560)
 -- Name: failed_jobs failed_jobs_pkey; Type: CONSTRAINT; Schema: core; Owner: postgres
 --
 
@@ -2903,7 +3304,7 @@ ALTER TABLE ONLY core.failed_jobs
 
 
 --
--- TOC entry 4989 (class 2606 OID 28608)
+-- TOC entry 5092 (class 2606 OID 33562)
 -- Name: failed_jobs failed_jobs_uuid_unique; Type: CONSTRAINT; Schema: core; Owner: postgres
 --
 
@@ -2912,7 +3313,7 @@ ALTER TABLE ONLY core.failed_jobs
 
 
 --
--- TOC entry 4991 (class 2606 OID 28610)
+-- TOC entry 5094 (class 2606 OID 33564)
 -- Name: job_batches job_batches_pkey; Type: CONSTRAINT; Schema: core; Owner: postgres
 --
 
@@ -2921,7 +3322,7 @@ ALTER TABLE ONLY core.job_batches
 
 
 --
--- TOC entry 4993 (class 2606 OID 28612)
+-- TOC entry 5096 (class 2606 OID 33566)
 -- Name: jobs jobs_pkey; Type: CONSTRAINT; Schema: core; Owner: postgres
 --
 
@@ -2930,7 +3331,7 @@ ALTER TABLE ONLY core.jobs
 
 
 --
--- TOC entry 4996 (class 2606 OID 28614)
+-- TOC entry 5099 (class 2606 OID 33568)
 -- Name: migrations migrations_pkey; Type: CONSTRAINT; Schema: core; Owner: postgres
 --
 
@@ -2939,7 +3340,7 @@ ALTER TABLE ONLY core.migrations
 
 
 --
--- TOC entry 4999 (class 2606 OID 28616)
+-- TOC entry 5102 (class 2606 OID 33570)
 -- Name: model_has_permissions model_has_permissions_pkey; Type: CONSTRAINT; Schema: core; Owner: postgres
 --
 
@@ -2948,7 +3349,7 @@ ALTER TABLE ONLY core.model_has_permissions
 
 
 --
--- TOC entry 5002 (class 2606 OID 28618)
+-- TOC entry 5105 (class 2606 OID 33572)
 -- Name: model_has_roles model_has_roles_pkey; Type: CONSTRAINT; Schema: core; Owner: postgres
 --
 
@@ -2957,7 +3358,7 @@ ALTER TABLE ONLY core.model_has_roles
 
 
 --
--- TOC entry 5004 (class 2606 OID 28620)
+-- TOC entry 5107 (class 2606 OID 33574)
 -- Name: password_reset_tokens password_reset_tokens_pkey; Type: CONSTRAINT; Schema: core; Owner: postgres
 --
 
@@ -2966,7 +3367,7 @@ ALTER TABLE ONLY core.password_reset_tokens
 
 
 --
--- TOC entry 5008 (class 2606 OID 28622)
+-- TOC entry 5111 (class 2606 OID 33576)
 -- Name: permissions permissions_pkey; Type: CONSTRAINT; Schema: core; Owner: postgres
 --
 
@@ -2975,7 +3376,7 @@ ALTER TABLE ONLY core.permissions
 
 
 --
--- TOC entry 5010 (class 2606 OID 28624)
+-- TOC entry 5113 (class 2606 OID 33578)
 -- Name: role_has_permissions role_has_permissions_pkey; Type: CONSTRAINT; Schema: core; Owner: postgres
 --
 
@@ -2984,7 +3385,7 @@ ALTER TABLE ONLY core.role_has_permissions
 
 
 --
--- TOC entry 5014 (class 2606 OID 28626)
+-- TOC entry 5117 (class 2606 OID 33580)
 -- Name: roles roles_pkey; Type: CONSTRAINT; Schema: core; Owner: postgres
 --
 
@@ -2993,7 +3394,7 @@ ALTER TABLE ONLY core.roles
 
 
 --
--- TOC entry 5017 (class 2606 OID 28628)
+-- TOC entry 5120 (class 2606 OID 33582)
 -- Name: sessions sessions_pkey; Type: CONSTRAINT; Schema: core; Owner: postgres
 --
 
@@ -3002,7 +3403,7 @@ ALTER TABLE ONLY core.sessions
 
 
 --
--- TOC entry 5020 (class 2606 OID 28630)
+-- TOC entry 5123 (class 2606 OID 33584)
 -- Name: users users_email_unique; Type: CONSTRAINT; Schema: core; Owner: postgres
 --
 
@@ -3011,7 +3412,7 @@ ALTER TABLE ONLY core.users
 
 
 --
--- TOC entry 5022 (class 2606 OID 28632)
+-- TOC entry 5125 (class 2606 OID 33586)
 -- Name: users users_pkey; Type: CONSTRAINT; Schema: core; Owner: postgres
 --
 
@@ -3020,7 +3421,7 @@ ALTER TABLE ONLY core.users
 
 
 --
--- TOC entry 5024 (class 2606 OID 28634)
+-- TOC entry 5127 (class 2606 OID 33588)
 -- Name: categorias_egreso categorias_egreso_nombre_key; Type: CONSTRAINT; Schema: finance; Owner: postgres
 --
 
@@ -3029,7 +3430,7 @@ ALTER TABLE ONLY finance.categorias_egreso
 
 
 --
--- TOC entry 5026 (class 2606 OID 28636)
+-- TOC entry 5129 (class 2606 OID 33590)
 -- Name: categorias_egreso categorias_egreso_pkey; Type: CONSTRAINT; Schema: finance; Owner: postgres
 --
 
@@ -3038,7 +3439,7 @@ ALTER TABLE ONLY finance.categorias_egreso
 
 
 --
--- TOC entry 5028 (class 2606 OID 28638)
+-- TOC entry 5131 (class 2606 OID 33592)
 -- Name: cuentas_por_cobrar cuentas_por_cobrar_pkey; Type: CONSTRAINT; Schema: finance; Owner: postgres
 --
 
@@ -3047,7 +3448,7 @@ ALTER TABLE ONLY finance.cuentas_por_cobrar
 
 
 --
--- TOC entry 5036 (class 2606 OID 28640)
+-- TOC entry 5139 (class 2606 OID 33594)
 -- Name: horas_instructor horas_instructor_pkey; Type: CONSTRAINT; Schema: finance; Owner: postgres
 --
 
@@ -3056,7 +3457,7 @@ ALTER TABLE ONLY finance.horas_instructor
 
 
 --
--- TOC entry 5145 (class 2606 OID 29355)
+-- TOC entry 5069 (class 2606 OID 33596)
 -- Name: lineas_pago_modulo lineas_pago_modulo_pkey; Type: CONSTRAINT; Schema: finance; Owner: postgres
 --
 
@@ -3065,7 +3466,7 @@ ALTER TABLE ONLY finance.lineas_pago_modulo
 
 
 --
--- TOC entry 5039 (class 2606 OID 28642)
+-- TOC entry 5142 (class 2606 OID 33598)
 -- Name: resumen_caja resumen_caja_pkey; Type: CONSTRAINT; Schema: finance; Owner: postgres
 --
 
@@ -3074,7 +3475,7 @@ ALTER TABLE ONLY finance.resumen_caja
 
 
 --
--- TOC entry 5042 (class 2606 OID 28644)
+-- TOC entry 5145 (class 2606 OID 33600)
 -- Name: transacciones_egreso transacciones_egreso_pkey; Type: CONSTRAINT; Schema: finance; Owner: postgres
 --
 
@@ -3083,7 +3484,7 @@ ALTER TABLE ONLY finance.transacciones_egreso
 
 
 --
--- TOC entry 5045 (class 2606 OID 28646)
+-- TOC entry 5148 (class 2606 OID 33602)
 -- Name: transacciones_ingreso transacciones_ingreso_pkey; Type: CONSTRAINT; Schema: finance; Owner: postgres
 --
 
@@ -3092,7 +3493,7 @@ ALTER TABLE ONLY finance.transacciones_ingreso
 
 
 --
--- TOC entry 5056 (class 2606 OID 28648)
+-- TOC entry 5159 (class 2606 OID 33604)
 -- Name: registro_asistencia_staff registro_asistencia_staff_pkey; Type: CONSTRAINT; Schema: ops; Owner: postgres
 --
 
@@ -3101,7 +3502,7 @@ ALTER TABLE ONLY ops.registro_asistencia_staff
 
 
 --
--- TOC entry 5058 (class 2606 OID 28650)
+-- TOC entry 5161 (class 2606 OID 33606)
 -- Name: registro_asistencia_staff uq_staff_dia; Type: CONSTRAINT; Schema: ops; Owner: postgres
 --
 
@@ -3110,7 +3511,7 @@ ALTER TABLE ONLY ops.registro_asistencia_staff
 
 
 --
--- TOC entry 5060 (class 2606 OID 28652)
+-- TOC entry 5163 (class 2606 OID 33608)
 -- Name: clientes_externos clientes_externos_pkey; Type: CONSTRAINT; Schema: people; Owner: postgres
 --
 
@@ -3119,7 +3520,7 @@ ALTER TABLE ONLY people.clientes_externos
 
 
 --
--- TOC entry 5079 (class 2606 OID 28654)
+-- TOC entry 5182 (class 2606 OID 33610)
 -- Name: cuentas_sistema cuentas_sistema_persona_id_key; Type: CONSTRAINT; Schema: people; Owner: postgres
 --
 
@@ -3128,7 +3529,7 @@ ALTER TABLE ONLY people.cuentas_sistema
 
 
 --
--- TOC entry 5081 (class 2606 OID 28656)
+-- TOC entry 5184 (class 2606 OID 33612)
 -- Name: cuentas_sistema cuentas_sistema_pkey; Type: CONSTRAINT; Schema: people; Owner: postgres
 --
 
@@ -3137,7 +3538,7 @@ ALTER TABLE ONLY people.cuentas_sistema
 
 
 --
--- TOC entry 5083 (class 2606 OID 28658)
+-- TOC entry 5186 (class 2606 OID 33614)
 -- Name: cuentas_sistema cuentas_sistema_username_key; Type: CONSTRAINT; Schema: people; Owner: postgres
 --
 
@@ -3146,7 +3547,7 @@ ALTER TABLE ONLY people.cuentas_sistema
 
 
 --
--- TOC entry 5085 (class 2606 OID 28660)
+-- TOC entry 5188 (class 2606 OID 33616)
 -- Name: perfil_estudiante perfil_estudiante_persona_id_key; Type: CONSTRAINT; Schema: people; Owner: postgres
 --
 
@@ -3155,7 +3556,7 @@ ALTER TABLE ONLY people.perfil_estudiante
 
 
 --
--- TOC entry 5087 (class 2606 OID 28662)
+-- TOC entry 5190 (class 2606 OID 33618)
 -- Name: perfil_estudiante perfil_estudiante_pkey; Type: CONSTRAINT; Schema: people; Owner: postgres
 --
 
@@ -3164,7 +3565,7 @@ ALTER TABLE ONLY people.perfil_estudiante
 
 
 --
--- TOC entry 5089 (class 2606 OID 28664)
+-- TOC entry 5192 (class 2606 OID 33620)
 -- Name: perfil_instructor perfil_instructor_persona_id_key; Type: CONSTRAINT; Schema: people; Owner: postgres
 --
 
@@ -3173,7 +3574,7 @@ ALTER TABLE ONLY people.perfil_instructor
 
 
 --
--- TOC entry 5091 (class 2606 OID 28666)
+-- TOC entry 5194 (class 2606 OID 33622)
 -- Name: perfil_instructor perfil_instructor_pkey; Type: CONSTRAINT; Schema: people; Owner: postgres
 --
 
@@ -3182,7 +3583,7 @@ ALTER TABLE ONLY people.perfil_instructor
 
 
 --
--- TOC entry 5093 (class 2606 OID 28668)
+-- TOC entry 5196 (class 2606 OID 33624)
 -- Name: perfil_staff perfil_staff_persona_id_key; Type: CONSTRAINT; Schema: people; Owner: postgres
 --
 
@@ -3191,7 +3592,7 @@ ALTER TABLE ONLY people.perfil_staff
 
 
 --
--- TOC entry 5095 (class 2606 OID 28670)
+-- TOC entry 5198 (class 2606 OID 33626)
 -- Name: perfil_staff perfil_staff_pkey; Type: CONSTRAINT; Schema: people; Owner: postgres
 --
 
@@ -3200,7 +3601,7 @@ ALTER TABLE ONLY people.perfil_staff
 
 
 --
--- TOC entry 5051 (class 2606 OID 28672)
+-- TOC entry 5154 (class 2606 OID 33628)
 -- Name: personas personas_cedula_key; Type: CONSTRAINT; Schema: people; Owner: postgres
 --
 
@@ -3209,7 +3610,7 @@ ALTER TABLE ONLY people.personas
 
 
 --
--- TOC entry 5053 (class 2606 OID 28674)
+-- TOC entry 5156 (class 2606 OID 33630)
 -- Name: personas personas_pkey; Type: CONSTRAINT; Schema: people; Owner: postgres
 --
 
@@ -3218,7 +3619,7 @@ ALTER TABLE ONLY people.personas
 
 
 --
--- TOC entry 5099 (class 2606 OID 28676)
+-- TOC entry 4956 (class 2606 OID 32157)
 -- Name: cache_locks cache_locks_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
@@ -3227,7 +3628,7 @@ ALTER TABLE ONLY public.cache_locks
 
 
 --
--- TOC entry 5097 (class 2606 OID 28678)
+-- TOC entry 4954 (class 2606 OID 32159)
 -- Name: cache cache_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
@@ -3236,7 +3637,7 @@ ALTER TABLE ONLY public.cache
 
 
 --
--- TOC entry 5101 (class 2606 OID 28680)
+-- TOC entry 4958 (class 2606 OID 32161)
 -- Name: failed_jobs failed_jobs_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
@@ -3245,7 +3646,7 @@ ALTER TABLE ONLY public.failed_jobs
 
 
 --
--- TOC entry 5103 (class 2606 OID 28682)
+-- TOC entry 4960 (class 2606 OID 32163)
 -- Name: failed_jobs failed_jobs_uuid_key; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
@@ -3254,7 +3655,7 @@ ALTER TABLE ONLY public.failed_jobs
 
 
 --
--- TOC entry 5105 (class 2606 OID 28684)
+-- TOC entry 4962 (class 2606 OID 32165)
 -- Name: job_batches job_batches_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
@@ -3263,7 +3664,7 @@ ALTER TABLE ONLY public.job_batches
 
 
 --
--- TOC entry 5107 (class 2606 OID 28686)
+-- TOC entry 4964 (class 2606 OID 32167)
 -- Name: jobs jobs_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
@@ -3272,7 +3673,7 @@ ALTER TABLE ONLY public.jobs
 
 
 --
--- TOC entry 5109 (class 2606 OID 28688)
+-- TOC entry 4966 (class 2606 OID 32169)
 -- Name: migrations migrations_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
@@ -3281,7 +3682,7 @@ ALTER TABLE ONLY public.migrations
 
 
 --
--- TOC entry 5111 (class 2606 OID 28690)
+-- TOC entry 4968 (class 2606 OID 32171)
 -- Name: personal_access_tokens personal_access_tokens_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
@@ -3290,7 +3691,7 @@ ALTER TABLE ONLY public.personal_access_tokens
 
 
 --
--- TOC entry 5113 (class 2606 OID 28692)
+-- TOC entry 4970 (class 2606 OID 32173)
 -- Name: personal_access_tokens personal_access_tokens_token_key; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
@@ -3299,7 +3700,7 @@ ALTER TABLE ONLY public.personal_access_tokens
 
 
 --
--- TOC entry 5115 (class 2606 OID 28694)
+-- TOC entry 4972 (class 2606 OID 32175)
 -- Name: sessions sessions_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
@@ -3308,7 +3709,7 @@ ALTER TABLE ONLY public.sessions
 
 
 --
--- TOC entry 5117 (class 2606 OID 28696)
+-- TOC entry 5200 (class 2606 OID 33632)
 -- Name: alquiler_equipos alquiler_equipos_pkey; Type: CONSTRAINT; Schema: services; Owner: postgres
 --
 
@@ -3317,7 +3718,7 @@ ALTER TABLE ONLY services.alquiler_equipos
 
 
 --
--- TOC entry 5121 (class 2606 OID 28698)
+-- TOC entry 5204 (class 2606 OID 33634)
 -- Name: asignaciones_personal asignaciones_personal_pkey; Type: CONSTRAINT; Schema: services; Owner: postgres
 --
 
@@ -3326,7 +3727,7 @@ ALTER TABLE ONLY services.asignaciones_personal
 
 
 --
--- TOC entry 5065 (class 2606 OID 28700)
+-- TOC entry 5168 (class 2606 OID 33636)
 -- Name: aulas aulas_nombre_key; Type: CONSTRAINT; Schema: services; Owner: postgres
 --
 
@@ -3335,7 +3736,7 @@ ALTER TABLE ONLY services.aulas
 
 
 --
--- TOC entry 5067 (class 2606 OID 28702)
+-- TOC entry 5170 (class 2606 OID 33638)
 -- Name: aulas aulas_pkey; Type: CONSTRAINT; Schema: services; Owner: postgres
 --
 
@@ -3344,7 +3745,7 @@ ALTER TABLE ONLY services.aulas
 
 
 --
--- TOC entry 5123 (class 2606 OID 28704)
+-- TOC entry 5206 (class 2606 OID 33640)
 -- Name: edicion_videos edicion_videos_pkey; Type: CONSTRAINT; Schema: services; Owner: postgres
 --
 
@@ -3353,7 +3754,7 @@ ALTER TABLE ONLY services.edicion_videos
 
 
 --
--- TOC entry 5125 (class 2606 OID 28706)
+-- TOC entry 5208 (class 2606 OID 33642)
 -- Name: equipos equipos_pkey; Type: CONSTRAINT; Schema: services; Owner: postgres
 --
 
@@ -3362,7 +3763,7 @@ ALTER TABLE ONLY services.equipos
 
 
 --
--- TOC entry 5127 (class 2606 OID 28708)
+-- TOC entry 5210 (class 2606 OID 33644)
 -- Name: items_paquete_podcast items_paquete_podcast_pkey; Type: CONSTRAINT; Schema: services; Owner: postgres
 --
 
@@ -3371,7 +3772,7 @@ ALTER TABLE ONLY services.items_paquete_podcast
 
 
 --
--- TOC entry 5069 (class 2606 OID 28710)
+-- TOC entry 5172 (class 2606 OID 33646)
 -- Name: paquetes_podcast paquetes_podcast_nombre_key; Type: CONSTRAINT; Schema: services; Owner: postgres
 --
 
@@ -3380,7 +3781,7 @@ ALTER TABLE ONLY services.paquetes_podcast
 
 
 --
--- TOC entry 5071 (class 2606 OID 28712)
+-- TOC entry 5174 (class 2606 OID 33648)
 -- Name: paquetes_podcast paquetes_podcast_pkey; Type: CONSTRAINT; Schema: services; Owner: postgres
 --
 
@@ -3389,7 +3790,7 @@ ALTER TABLE ONLY services.paquetes_podcast
 
 
 --
--- TOC entry 5073 (class 2606 OID 28714)
+-- TOC entry 5176 (class 2606 OID 33650)
 -- Name: reservas_aulas reservas_aulas_pkey; Type: CONSTRAINT; Schema: services; Owner: postgres
 --
 
@@ -3398,7 +3799,7 @@ ALTER TABLE ONLY services.reservas_aulas
 
 
 --
--- TOC entry 5075 (class 2606 OID 28716)
+-- TOC entry 5178 (class 2606 OID 33652)
 -- Name: reservas_podcast reservas_podcast_pkey; Type: CONSTRAINT; Schema: services; Owner: postgres
 --
 
@@ -3407,7 +3808,7 @@ ALTER TABLE ONLY services.reservas_podcast
 
 
 --
--- TOC entry 5129 (class 2606 OID 28718)
+-- TOC entry 5212 (class 2606 OID 33654)
 -- Name: reservas_radio reservas_radio_pkey; Type: CONSTRAINT; Schema: services; Owner: postgres
 --
 
@@ -3416,7 +3817,7 @@ ALTER TABLE ONLY services.reservas_radio
 
 
 --
--- TOC entry 5134 (class 2606 OID 28720)
+-- TOC entry 5217 (class 2606 OID 33656)
 -- Name: servicios_produccion servicios_produccion_pkey; Type: CONSTRAINT; Schema: services; Owner: postgres
 --
 
@@ -3425,7 +3826,7 @@ ALTER TABLE ONLY services.servicios_produccion
 
 
 --
--- TOC entry 5077 (class 2606 OID 28722)
+-- TOC entry 5180 (class 2606 OID 33658)
 -- Name: servicios_streaming servicios_streaming_pkey; Type: CONSTRAINT; Schema: services; Owner: postgres
 --
 
@@ -3434,7 +3835,7 @@ ALTER TABLE ONLY services.servicios_streaming
 
 
 --
--- TOC entry 5136 (class 2606 OID 28724)
+-- TOC entry 5219 (class 2606 OID 33660)
 -- Name: tarifas_radio tarifas_radio_pkey; Type: CONSTRAINT; Schema: services; Owner: postgres
 --
 
@@ -3443,7 +3844,7 @@ ALTER TABLE ONLY services.tarifas_radio
 
 
 --
--- TOC entry 5141 (class 2606 OID 28726)
+-- TOC entry 5224 (class 2606 OID 33662)
 -- Name: trabajos_edicion trabajos_edicion_pkey; Type: CONSTRAINT; Schema: services; Owner: postgres
 --
 
@@ -3452,7 +3853,7 @@ ALTER TABLE ONLY services.trabajos_edicion
 
 
 --
--- TOC entry 4906 (class 1259 OID 28727)
+-- TOC entry 4982 (class 1259 OID 33663)
 -- Name: academic_asistencias_talleres_fecha_sesion_index; Type: INDEX; Schema: academic; Owner: postgres
 --
 
@@ -3460,7 +3861,7 @@ CREATE INDEX academic_asistencias_talleres_fecha_sesion_index ON academic.asiste
 
 
 --
--- TOC entry 4909 (class 1259 OID 28728)
+-- TOC entry 4985 (class 1259 OID 33664)
 -- Name: academic_asistencias_talleres_taller_id_index; Type: INDEX; Schema: academic; Owner: postgres
 --
 
@@ -3468,7 +3869,15 @@ CREATE INDEX academic_asistencias_talleres_taller_id_index ON academic.asistenci
 
 
 --
--- TOC entry 4916 (class 1259 OID 28729)
+-- TOC entry 4991 (class 1259 OID 34415)
+-- Name: academic_catalogo_cursos_categoria_index; Type: INDEX; Schema: academic; Owner: postgres
+--
+
+CREATE INDEX academic_catalogo_cursos_categoria_index ON academic.catalogo_cursos USING btree (categoria);
+
+
+--
+-- TOC entry 4998 (class 1259 OID 33665)
 -- Name: academic_certificados_cedula_impresa_index; Type: INDEX; Schema: academic; Owner: postgres
 --
 
@@ -3476,7 +3885,7 @@ CREATE INDEX academic_certificados_cedula_impresa_index ON academic.certificados
 
 
 --
--- TOC entry 4917 (class 1259 OID 28730)
+-- TOC entry 4999 (class 1259 OID 33666)
 -- Name: academic_certificados_estado_index; Type: INDEX; Schema: academic; Owner: postgres
 --
 
@@ -3484,7 +3893,7 @@ CREATE INDEX academic_certificados_estado_index ON academic.certificados USING b
 
 
 --
--- TOC entry 4935 (class 1259 OID 28731)
+-- TOC entry 5022 (class 1259 OID 33667)
 -- Name: academic_horarios_dias_dia_semana_index; Type: INDEX; Schema: academic; Owner: postgres
 --
 
@@ -3492,7 +3901,7 @@ CREATE INDEX academic_horarios_dias_dia_semana_index ON academic.horarios_dias U
 
 
 --
--- TOC entry 4938 (class 1259 OID 28732)
+-- TOC entry 5025 (class 1259 OID 33668)
 -- Name: academic_horarios_dias_horario_id_index; Type: INDEX; Schema: academic; Owner: postgres
 --
 
@@ -3500,7 +3909,87 @@ CREATE INDEX academic_horarios_dias_horario_id_index ON academic.horarios_dias U
 
 
 --
--- TOC entry 4955 (class 1259 OID 28733)
+-- TOC entry 5232 (class 1259 OID 34359)
+-- Name: academic_horarios_talleres_dia_semana_index; Type: INDEX; Schema: academic; Owner: postgres
+--
+
+CREATE INDEX academic_horarios_talleres_dia_semana_index ON academic.horarios_talleres USING btree (dia_semana);
+
+
+--
+-- TOC entry 5233 (class 1259 OID 34358)
+-- Name: academic_horarios_talleres_taller_id_index; Type: INDEX; Schema: academic; Owner: postgres
+--
+
+CREATE INDEX academic_horarios_talleres_taller_id_index ON academic.horarios_talleres USING btree (taller_id);
+
+
+--
+-- TOC entry 5246 (class 1259 OID 34410)
+-- Name: academic_inscripciones_externos_talleres_participante_externo_i; Type: INDEX; Schema: academic; Owner: postgres
+--
+
+CREATE INDEX academic_inscripciones_externos_talleres_participante_externo_i ON academic.inscripciones_externos_talleres USING btree (participante_externo_id);
+
+
+--
+-- TOC entry 5247 (class 1259 OID 34409)
+-- Name: academic_inscripciones_externos_talleres_taller_id_index; Type: INDEX; Schema: academic; Owner: postgres
+--
+
+CREATE INDEX academic_inscripciones_externos_talleres_taller_id_index ON academic.inscripciones_externos_talleres USING btree (taller_id);
+
+
+--
+-- TOC entry 5236 (class 1259 OID 34378)
+-- Name: academic_inscripciones_talleres_estudiante_id_index; Type: INDEX; Schema: academic; Owner: postgres
+--
+
+CREATE INDEX academic_inscripciones_talleres_estudiante_id_index ON academic.inscripciones_talleres USING btree (estudiante_id);
+
+
+--
+-- TOC entry 5239 (class 1259 OID 34377)
+-- Name: academic_inscripciones_talleres_taller_id_index; Type: INDEX; Schema: academic; Owner: postgres
+--
+
+CREATE INDEX academic_inscripciones_talleres_taller_id_index ON academic.inscripciones_talleres USING btree (taller_id);
+
+
+--
+-- TOC entry 5252 (class 1259 OID 34431)
+-- Name: academic_participantes_cursos_personalizados_curso_personalizad; Type: INDEX; Schema: academic; Owner: postgres
+--
+
+CREATE INDEX academic_participantes_cursos_personalizados_curso_personalizad ON academic.participantes_cursos_personalizados USING btree (curso_personalizado_id);
+
+
+--
+-- TOC entry 5253 (class 1259 OID 34432)
+-- Name: academic_participantes_cursos_personalizados_participante_exter; Type: INDEX; Schema: academic; Owner: postgres
+--
+
+CREATE INDEX academic_participantes_cursos_personalizados_participante_exter ON academic.participantes_cursos_personalizados USING btree (participante_externo_id);
+
+
+--
+-- TOC entry 5242 (class 1259 OID 34390)
+-- Name: academic_participantes_externos_email_index; Type: INDEX; Schema: academic; Owner: postgres
+--
+
+CREATE INDEX academic_participantes_externos_email_index ON academic.participantes_externos USING btree (email);
+
+
+--
+-- TOC entry 5243 (class 1259 OID 34391)
+-- Name: academic_participantes_externos_tipo_index; Type: INDEX; Schema: academic; Owner: postgres
+--
+
+CREATE INDEX academic_participantes_externos_tipo_index ON academic.participantes_externos USING btree (tipo);
+
+
+--
+-- TOC entry 5054 (class 1259 OID 33669)
 -- Name: academic_solicitudes_inscripcion_created_at_index; Type: INDEX; Schema: academic; Owner: postgres
 --
 
@@ -3508,7 +3997,7 @@ CREATE INDEX academic_solicitudes_inscripcion_created_at_index ON academic.solic
 
 
 --
--- TOC entry 4956 (class 1259 OID 28734)
+-- TOC entry 5055 (class 1259 OID 33670)
 -- Name: academic_solicitudes_inscripcion_curso_abierto_id_estado_index; Type: INDEX; Schema: academic; Owner: postgres
 --
 
@@ -3516,7 +4005,7 @@ CREATE INDEX academic_solicitudes_inscripcion_curso_abierto_id_estado_index ON a
 
 
 --
--- TOC entry 4957 (class 1259 OID 28735)
+-- TOC entry 5056 (class 1259 OID 33671)
 -- Name: academic_solicitudes_inscripcion_curso_abierto_id_index; Type: INDEX; Schema: academic; Owner: postgres
 --
 
@@ -3524,7 +4013,7 @@ CREATE INDEX academic_solicitudes_inscripcion_curso_abierto_id_index ON academic
 
 
 --
--- TOC entry 4958 (class 1259 OID 28736)
+-- TOC entry 5057 (class 1259 OID 33672)
 -- Name: academic_solicitudes_inscripcion_estado_index; Type: INDEX; Schema: academic; Owner: postgres
 --
 
@@ -3532,7 +4021,7 @@ CREATE INDEX academic_solicitudes_inscripcion_estado_index ON academic.solicitud
 
 
 --
--- TOC entry 4959 (class 1259 OID 28737)
+-- TOC entry 5058 (class 1259 OID 33673)
 -- Name: academic_solicitudes_inscripcion_persona_id_estado_index; Type: INDEX; Schema: academic; Owner: postgres
 --
 
@@ -3540,7 +4029,7 @@ CREATE INDEX academic_solicitudes_inscripcion_persona_id_estado_index ON academi
 
 
 --
--- TOC entry 4960 (class 1259 OID 28738)
+-- TOC entry 5059 (class 1259 OID 33674)
 -- Name: academic_solicitudes_inscripcion_persona_id_index; Type: INDEX; Schema: academic; Owner: postgres
 --
 
@@ -3548,7 +4037,7 @@ CREATE INDEX academic_solicitudes_inscripcion_persona_id_index ON academic.solic
 
 
 --
--- TOC entry 4903 (class 1259 OID 28739)
+-- TOC entry 4977 (class 1259 OID 33675)
 -- Name: idx_asistencias_clase; Type: INDEX; Schema: academic; Owner: postgres
 --
 
@@ -3556,7 +4045,63 @@ CREATE INDEX idx_asistencias_clase ON academic.asistencias USING btree (clase_id
 
 
 --
--- TOC entry 4924 (class 1259 OID 28740)
+-- TOC entry 4978 (class 1259 OID 34441)
+-- Name: idx_asistencias_clase_id; Type: INDEX; Schema: academic; Owner: postgres
+--
+
+CREATE INDEX idx_asistencias_clase_id ON academic.asistencias USING btree (clase_id);
+
+
+--
+-- TOC entry 4979 (class 1259 OID 34440)
+-- Name: idx_asistencias_matricula_id; Type: INDEX; Schema: academic; Owner: postgres
+--
+
+CREATE INDEX idx_asistencias_matricula_id ON academic.asistencias USING btree (matricula_id);
+
+
+--
+-- TOC entry 4990 (class 1259 OID 34345)
+-- Name: idx_cambios_horario_matricula_origen; Type: INDEX; Schema: academic; Owner: postgres
+--
+
+CREATE INDEX idx_cambios_horario_matricula_origen ON academic.cambios_horario USING btree (matricula_origen_id);
+
+
+--
+-- TOC entry 4996 (class 1259 OID 34349)
+-- Name: idx_catalogo_cursos_codigo; Type: INDEX; Schema: academic; Owner: postgres
+--
+
+CREATE INDEX idx_catalogo_cursos_codigo ON academic.catalogo_cursos USING btree (codigo);
+
+
+--
+-- TOC entry 4997 (class 1259 OID 34348)
+-- Name: idx_catalogo_cursos_programa_id; Type: INDEX; Schema: academic; Owner: postgres
+--
+
+CREATE INDEX idx_catalogo_cursos_programa_id ON academic.catalogo_cursos USING btree (programa_id);
+
+
+--
+-- TOC entry 5004 (class 1259 OID 34443)
+-- Name: idx_certificados_curso_abierto_id; Type: INDEX; Schema: academic; Owner: postgres
+--
+
+CREATE INDEX idx_certificados_curso_abierto_id ON academic.certificados USING btree (curso_abierto_id);
+
+
+--
+-- TOC entry 5005 (class 1259 OID 34444)
+-- Name: idx_certificados_estudiante_id; Type: INDEX; Schema: academic; Owner: postgres
+--
+
+CREATE INDEX idx_certificados_estudiante_id ON academic.certificados USING btree (estudiante_id);
+
+
+--
+-- TOC entry 5008 (class 1259 OID 33676)
 -- Name: idx_clases_fecha; Type: INDEX; Schema: academic; Owner: postgres
 --
 
@@ -3564,7 +4109,31 @@ CREATE INDEX idx_clases_fecha ON academic.clases USING btree (fecha_clase);
 
 
 --
--- TOC entry 4931 (class 1259 OID 28741)
+-- TOC entry 5009 (class 1259 OID 34442)
+-- Name: idx_clases_modulo_id; Type: INDEX; Schema: academic; Owner: postgres
+--
+
+CREATE INDEX idx_clases_modulo_id ON academic.clases USING btree (modulo_id);
+
+
+--
+-- TOC entry 5016 (class 1259 OID 34346)
+-- Name: idx_cursos_abiertos_catalogo_id; Type: INDEX; Schema: academic; Owner: postgres
+--
+
+CREATE INDEX idx_cursos_abiertos_catalogo_id ON academic.cursos_abiertos USING btree (catalogo_curso_id);
+
+
+--
+-- TOC entry 5017 (class 1259 OID 34347)
+-- Name: idx_cursos_abiertos_estado; Type: INDEX; Schema: academic; Owner: postgres
+--
+
+CREATE INDEX idx_cursos_abiertos_estado ON academic.cursos_abiertos USING btree (es_activo);
+
+
+--
+-- TOC entry 5018 (class 1259 OID 33677)
 -- Name: idx_cursos_abiertos_resumen; Type: INDEX; Schema: academic; Owner: postgres
 --
 
@@ -3572,7 +4141,7 @@ CREATE INDEX idx_cursos_abiertos_resumen ON academic.cursos_abiertos USING btree
 
 
 --
--- TOC entry 4932 (class 1259 OID 28742)
+-- TOC entry 5019 (class 1259 OID 33678)
 -- Name: idx_cursos_estado; Type: INDEX; Schema: academic; Owner: postgres
 --
 
@@ -3580,7 +4149,31 @@ CREATE INDEX idx_cursos_estado ON academic.cursos_abiertos USING btree (estado) 
 
 
 --
--- TOC entry 4943 (class 1259 OID 28743)
+-- TOC entry 5028 (class 1259 OID 34336)
+-- Name: idx_horarios_dias_dia_semana; Type: INDEX; Schema: academic; Owner: postgres
+--
+
+CREATE INDEX idx_horarios_dias_dia_semana ON academic.horarios_dias USING btree (dia_semana);
+
+
+--
+-- TOC entry 5029 (class 1259 OID 34335)
+-- Name: idx_horarios_dias_horario_id; Type: INDEX; Schema: academic; Owner: postgres
+--
+
+CREATE INDEX idx_horarios_dias_horario_id ON academic.horarios_dias USING btree (horario_id);
+
+
+--
+-- TOC entry 5032 (class 1259 OID 34341)
+-- Name: idx_matriculas_composite; Type: INDEX; Schema: academic; Owner: postgres
+--
+
+CREATE INDEX idx_matriculas_composite ON academic.matriculas USING btree (curso_abierto_id, estado, deleted_at);
+
+
+--
+-- TOC entry 5033 (class 1259 OID 33679)
 -- Name: idx_matriculas_curso; Type: INDEX; Schema: academic; Owner: postgres
 --
 
@@ -3588,7 +4181,31 @@ CREATE INDEX idx_matriculas_curso ON academic.matriculas USING btree (curso_abie
 
 
 --
--- TOC entry 4944 (class 1259 OID 28744)
+-- TOC entry 5034 (class 1259 OID 34338)
+-- Name: idx_matriculas_curso_abierto_id; Type: INDEX; Schema: academic; Owner: postgres
+--
+
+CREATE INDEX idx_matriculas_curso_abierto_id ON academic.matriculas USING btree (curso_abierto_id);
+
+
+--
+-- TOC entry 5035 (class 1259 OID 34340)
+-- Name: idx_matriculas_deleted_at; Type: INDEX; Schema: academic; Owner: postgres
+--
+
+CREATE INDEX idx_matriculas_deleted_at ON academic.matriculas USING btree (deleted_at);
+
+
+--
+-- TOC entry 5036 (class 1259 OID 34339)
+-- Name: idx_matriculas_estado; Type: INDEX; Schema: academic; Owner: postgres
+--
+
+CREATE INDEX idx_matriculas_estado ON academic.matriculas USING btree (estado);
+
+
+--
+-- TOC entry 5037 (class 1259 OID 33680)
 -- Name: idx_matriculas_estudiante; Type: INDEX; Schema: academic; Owner: postgres
 --
 
@@ -3596,7 +4213,79 @@ CREATE INDEX idx_matriculas_estudiante ON academic.matriculas USING btree (estud
 
 
 --
--- TOC entry 4969 (class 1259 OID 28745)
+-- TOC entry 5038 (class 1259 OID 34439)
+-- Name: idx_matriculas_estudiante_estado; Type: INDEX; Schema: academic; Owner: postgres
+--
+
+CREATE INDEX idx_matriculas_estudiante_estado ON academic.matriculas USING btree (estudiante_id, estado);
+
+
+--
+-- TOC entry 5039 (class 1259 OID 34337)
+-- Name: idx_matriculas_estudiante_id; Type: INDEX; Schema: academic; Owner: postgres
+--
+
+CREATE INDEX idx_matriculas_estudiante_id ON academic.matriculas USING btree (estudiante_id);
+
+
+--
+-- TOC entry 5040 (class 1259 OID 34438)
+-- Name: idx_matriculas_solicitud_id; Type: INDEX; Schema: academic; Owner: postgres
+--
+
+CREATE INDEX idx_matriculas_solicitud_id ON academic.matriculas USING btree (solicitud_inscripcion_id);
+
+
+--
+-- TOC entry 5047 (class 1259 OID 34344)
+-- Name: idx_notas_composite; Type: INDEX; Schema: academic; Owner: postgres
+--
+
+CREATE INDEX idx_notas_composite ON academic.notas USING btree (matricula_id, modulo_id);
+
+
+--
+-- TOC entry 5048 (class 1259 OID 34342)
+-- Name: idx_notas_matricula_id; Type: INDEX; Schema: academic; Owner: postgres
+--
+
+CREATE INDEX idx_notas_matricula_id ON academic.notas USING btree (matricula_id);
+
+
+--
+-- TOC entry 5049 (class 1259 OID 34343)
+-- Name: idx_notas_modulo_id; Type: INDEX; Schema: academic; Owner: postgres
+--
+
+CREATE INDEX idx_notas_modulo_id ON academic.notas USING btree (modulo_id);
+
+
+--
+-- TOC entry 5227 (class 1259 OID 34330)
+-- Name: audit_cambios_horario_auditoria_cambio_horario_id_index; Type: INDEX; Schema: audit; Owner: postgres
+--
+
+CREATE INDEX audit_cambios_horario_auditoria_cambio_horario_id_index ON audit.cambios_horario_auditoria USING btree (cambio_horario_id);
+
+
+--
+-- TOC entry 5228 (class 1259 OID 34332)
+-- Name: audit_cambios_horario_auditoria_fecha_cambio_index; Type: INDEX; Schema: audit; Owner: postgres
+--
+
+CREATE INDEX audit_cambios_horario_auditoria_fecha_cambio_index ON audit.cambios_horario_auditoria USING btree (fecha_cambio);
+
+
+--
+-- TOC entry 5229 (class 1259 OID 34331)
+-- Name: audit_cambios_horario_auditoria_matricula_origen_id_index; Type: INDEX; Schema: audit; Owner: postgres
+--
+
+CREATE INDEX audit_cambios_horario_auditoria_matricula_origen_id_index ON audit.cambios_horario_auditoria USING btree (matricula_origen_id);
+
+
+--
+-- TOC entry 5072 (class 1259 OID 33681)
 -- Name: idx_audit_eventos_financieros_fecha; Type: INDEX; Schema: audit; Owner: postgres
 --
 
@@ -3604,7 +4293,7 @@ CREATE INDEX idx_audit_eventos_financieros_fecha ON audit.eventos_financieros US
 
 
 --
--- TOC entry 4970 (class 1259 OID 28746)
+-- TOC entry 5073 (class 1259 OID 33682)
 -- Name: idx_audit_inicios_sesion_fecha; Type: INDEX; Schema: audit; Owner: postgres
 --
 
@@ -3612,7 +4301,31 @@ CREATE INDEX idx_audit_inicios_sesion_fecha ON audit.inicios_sesion USING btree 
 
 
 --
--- TOC entry 4973 (class 1259 OID 28747)
+-- TOC entry 5258 (class 1259 OID 34454)
+-- Name: archivos_eliminados_eliminado_por_index; Type: INDEX; Schema: core; Owner: postgres
+--
+
+CREATE INDEX archivos_eliminados_eliminado_por_index ON core.archivos_eliminados USING btree (eliminado_por);
+
+
+--
+-- TOC entry 5259 (class 1259 OID 34453)
+-- Name: archivos_eliminados_field_name_index; Type: INDEX; Schema: core; Owner: postgres
+--
+
+CREATE INDEX archivos_eliminados_field_name_index ON core.archivos_eliminados USING btree (field_name);
+
+
+--
+-- TOC entry 5260 (class 1259 OID 34452)
+-- Name: archivos_eliminados_model_type_model_id_index; Type: INDEX; Schema: core; Owner: postgres
+--
+
+CREATE INDEX archivos_eliminados_model_type_model_id_index ON core.archivos_eliminados USING btree (model_type, model_id);
+
+
+--
+-- TOC entry 5076 (class 1259 OID 33683)
 -- Name: cache_expiration_index; Type: INDEX; Schema: core; Owner: postgres
 --
 
@@ -3620,7 +4333,7 @@ CREATE INDEX cache_expiration_index ON core.cache USING btree (expiration);
 
 
 --
--- TOC entry 4976 (class 1259 OID 28748)
+-- TOC entry 5079 (class 1259 OID 33684)
 -- Name: cache_locks_expiration_index; Type: INDEX; Schema: core; Owner: postgres
 --
 
@@ -3628,7 +4341,7 @@ CREATE INDEX cache_locks_expiration_index ON core.cache_locks USING btree (expir
 
 
 --
--- TOC entry 4985 (class 1259 OID 28749)
+-- TOC entry 5088 (class 1259 OID 33685)
 -- Name: failed_jobs_connection_queue_failed_at_index; Type: INDEX; Schema: core; Owner: postgres
 --
 
@@ -3636,7 +4349,7 @@ CREATE INDEX failed_jobs_connection_queue_failed_at_index ON core.failed_jobs US
 
 
 --
--- TOC entry 4994 (class 1259 OID 28750)
+-- TOC entry 5097 (class 1259 OID 33686)
 -- Name: jobs_queue_index; Type: INDEX; Schema: core; Owner: postgres
 --
 
@@ -3644,7 +4357,7 @@ CREATE INDEX jobs_queue_index ON core.jobs USING btree (queue);
 
 
 --
--- TOC entry 4997 (class 1259 OID 28751)
+-- TOC entry 5100 (class 1259 OID 33687)
 -- Name: model_has_permissions_model_id_model_type_index; Type: INDEX; Schema: core; Owner: postgres
 --
 
@@ -3652,7 +4365,7 @@ CREATE INDEX model_has_permissions_model_id_model_type_index ON core.model_has_p
 
 
 --
--- TOC entry 5000 (class 1259 OID 28752)
+-- TOC entry 5103 (class 1259 OID 33688)
 -- Name: model_has_roles_model_id_model_type_index; Type: INDEX; Schema: core; Owner: postgres
 --
 
@@ -3660,7 +4373,7 @@ CREATE INDEX model_has_roles_model_id_model_type_index ON core.model_has_roles U
 
 
 --
--- TOC entry 5015 (class 1259 OID 28753)
+-- TOC entry 5118 (class 1259 OID 33689)
 -- Name: sessions_last_activity_index; Type: INDEX; Schema: core; Owner: postgres
 --
 
@@ -3668,7 +4381,7 @@ CREATE INDEX sessions_last_activity_index ON core.sessions USING btree (last_act
 
 
 --
--- TOC entry 5018 (class 1259 OID 28754)
+-- TOC entry 5121 (class 1259 OID 33690)
 -- Name: sessions_user_id_index; Type: INDEX; Schema: core; Owner: postgres
 --
 
@@ -3676,7 +4389,7 @@ CREATE INDEX sessions_user_id_index ON core.sessions USING btree (user_id);
 
 
 --
--- TOC entry 5029 (class 1259 OID 28755)
+-- TOC entry 5132 (class 1259 OID 33691)
 -- Name: finance_cuentas_por_cobrar_reserva_radio_id_index; Type: INDEX; Schema: finance; Owner: postgres
 --
 
@@ -3684,7 +4397,7 @@ CREATE INDEX finance_cuentas_por_cobrar_reserva_radio_id_index ON finance.cuenta
 
 
 --
--- TOC entry 5142 (class 1259 OID 29352)
+-- TOC entry 5066 (class 1259 OID 33692)
 -- Name: finance_lineas_pago_modulo_matricula_id_index; Type: INDEX; Schema: finance; Owner: postgres
 --
 
@@ -3692,7 +4405,7 @@ CREATE INDEX finance_lineas_pago_modulo_matricula_id_index ON finance.lineas_pag
 
 
 --
--- TOC entry 5143 (class 1259 OID 29353)
+-- TOC entry 5067 (class 1259 OID 33693)
 -- Name: finance_lineas_pago_modulo_modulo_id_index; Type: INDEX; Schema: finance; Owner: postgres
 --
 
@@ -3700,7 +4413,7 @@ CREATE INDEX finance_lineas_pago_modulo_modulo_id_index ON finance.lineas_pago_m
 
 
 --
--- TOC entry 5030 (class 1259 OID 28756)
+-- TOC entry 5133 (class 1259 OID 33694)
 -- Name: idx_cpc_matricula; Type: INDEX; Schema: finance; Owner: postgres
 --
 
@@ -3708,7 +4421,7 @@ CREATE INDEX idx_cpc_matricula ON finance.cuentas_por_cobrar USING btree (matric
 
 
 --
--- TOC entry 5031 (class 1259 OID 28757)
+-- TOC entry 5134 (class 1259 OID 33695)
 -- Name: idx_cpc_produccion; Type: INDEX; Schema: finance; Owner: postgres
 --
 
@@ -3716,7 +4429,7 @@ CREATE INDEX idx_cpc_produccion ON finance.cuentas_por_cobrar USING btree (servi
 
 
 --
--- TOC entry 5032 (class 1259 OID 28758)
+-- TOC entry 5135 (class 1259 OID 33696)
 -- Name: idx_cpc_reserva_aula; Type: INDEX; Schema: finance; Owner: postgres
 --
 
@@ -3724,7 +4437,7 @@ CREATE INDEX idx_cpc_reserva_aula ON finance.cuentas_por_cobrar USING btree (res
 
 
 --
--- TOC entry 5033 (class 1259 OID 28759)
+-- TOC entry 5136 (class 1259 OID 33697)
 -- Name: idx_cpc_reserva_podcast; Type: INDEX; Schema: finance; Owner: postgres
 --
 
@@ -3732,7 +4445,7 @@ CREATE INDEX idx_cpc_reserva_podcast ON finance.cuentas_por_cobrar USING btree (
 
 
 --
--- TOC entry 5034 (class 1259 OID 28760)
+-- TOC entry 5137 (class 1259 OID 33698)
 -- Name: idx_cpc_streaming; Type: INDEX; Schema: finance; Owner: postgres
 --
 
@@ -3740,7 +4453,7 @@ CREATE INDEX idx_cpc_streaming ON finance.cuentas_por_cobrar USING btree (servic
 
 
 --
--- TOC entry 5040 (class 1259 OID 28761)
+-- TOC entry 5143 (class 1259 OID 33699)
 -- Name: idx_egresos_fecha; Type: INDEX; Schema: finance; Owner: postgres
 --
 
@@ -3748,7 +4461,7 @@ CREATE INDEX idx_egresos_fecha ON finance.transacciones_egreso USING btree (fech
 
 
 --
--- TOC entry 5037 (class 1259 OID 28762)
+-- TOC entry 5140 (class 1259 OID 33700)
 -- Name: idx_horas_instructor_pago; Type: INDEX; Schema: finance; Owner: postgres
 --
 
@@ -3756,7 +4469,7 @@ CREATE INDEX idx_horas_instructor_pago ON finance.horas_instructor USING btree (
 
 
 --
--- TOC entry 5043 (class 1259 OID 28763)
+-- TOC entry 5146 (class 1259 OID 33701)
 -- Name: idx_ingresos_fecha; Type: INDEX; Schema: finance; Owner: postgres
 --
 
@@ -3764,7 +4477,7 @@ CREATE INDEX idx_ingresos_fecha ON finance.transacciones_ingreso USING btree (fe
 
 
 --
--- TOC entry 5054 (class 1259 OID 28764)
+-- TOC entry 5157 (class 1259 OID 33702)
 -- Name: idx_staff_asistencia_fecha; Type: INDEX; Schema: ops; Owner: postgres
 --
 
@@ -3772,7 +4485,23 @@ CREATE INDEX idx_staff_asistencia_fecha ON ops.registro_asistencia_staff USING b
 
 
 --
--- TOC entry 5061 (class 1259 OID 28765)
+-- TOC entry 5225 (class 1259 OID 34297)
+-- Name: idx_tareas_staff_estado; Type: INDEX; Schema: ops; Owner: postgres
+--
+
+CREATE INDEX idx_tareas_staff_estado ON ops.tareas_staff USING btree (estado);
+
+
+--
+-- TOC entry 5226 (class 1259 OID 34296)
+-- Name: idx_tareas_staff_persona; Type: INDEX; Schema: ops; Owner: postgres
+--
+
+CREATE INDEX idx_tareas_staff_persona ON ops.tareas_staff USING btree (persona_id);
+
+
+--
+-- TOC entry 5164 (class 1259 OID 33703)
 -- Name: idx_clientes_externos_apellidos; Type: INDEX; Schema: people; Owner: postgres
 --
 
@@ -3780,7 +4509,7 @@ CREATE INDEX idx_clientes_externos_apellidos ON people.clientes_externos USING g
 
 
 --
--- TOC entry 5062 (class 1259 OID 28766)
+-- TOC entry 5165 (class 1259 OID 33704)
 -- Name: idx_clientes_externos_cedula; Type: INDEX; Schema: people; Owner: postgres
 --
 
@@ -3788,7 +4517,7 @@ CREATE INDEX idx_clientes_externos_cedula ON people.clientes_externos USING btre
 
 
 --
--- TOC entry 5063 (class 1259 OID 28767)
+-- TOC entry 5166 (class 1259 OID 33705)
 -- Name: idx_clientes_externos_nombres; Type: INDEX; Schema: people; Owner: postgres
 --
 
@@ -3796,7 +4525,7 @@ CREATE INDEX idx_clientes_externos_nombres ON people.clientes_externos USING gin
 
 
 --
--- TOC entry 5046 (class 1259 OID 28768)
+-- TOC entry 5149 (class 1259 OID 33706)
 -- Name: idx_personas_apellidos_trgm; Type: INDEX; Schema: people; Owner: postgres
 --
 
@@ -3804,7 +4533,7 @@ CREATE INDEX idx_personas_apellidos_trgm ON people.personas USING gin (apellidos
 
 
 --
--- TOC entry 5047 (class 1259 OID 28769)
+-- TOC entry 5150 (class 1259 OID 33707)
 -- Name: idx_personas_cedula; Type: INDEX; Schema: people; Owner: postgres
 --
 
@@ -3812,7 +4541,7 @@ CREATE INDEX idx_personas_cedula ON people.personas USING btree (cedula) WHERE (
 
 
 --
--- TOC entry 5048 (class 1259 OID 28770)
+-- TOC entry 5151 (class 1259 OID 33708)
 -- Name: idx_personas_nombres_trgm; Type: INDEX; Schema: people; Owner: postgres
 --
 
@@ -3820,7 +4549,7 @@ CREATE INDEX idx_personas_nombres_trgm ON people.personas USING gin (nombres pub
 
 
 --
--- TOC entry 5049 (class 1259 OID 28771)
+-- TOC entry 5152 (class 1259 OID 33709)
 -- Name: idx_personas_tipo; Type: INDEX; Schema: people; Owner: postgres
 --
 
@@ -3828,7 +4557,7 @@ CREATE INDEX idx_personas_tipo ON people.personas USING btree (tipo) WHERE (dele
 
 
 --
--- TOC entry 5118 (class 1259 OID 28772)
+-- TOC entry 5201 (class 1259 OID 33710)
 -- Name: services_alquiler_equipos_equipo_id_index; Type: INDEX; Schema: services; Owner: postgres
 --
 
@@ -3836,7 +4565,7 @@ CREATE INDEX services_alquiler_equipos_equipo_id_index ON services.alquiler_equi
 
 
 --
--- TOC entry 5119 (class 1259 OID 28773)
+-- TOC entry 5202 (class 1259 OID 33711)
 -- Name: services_alquiler_equipos_estado_index; Type: INDEX; Schema: services; Owner: postgres
 --
 
@@ -3844,7 +4573,7 @@ CREATE INDEX services_alquiler_equipos_estado_index ON services.alquiler_equipos
 
 
 --
--- TOC entry 5130 (class 1259 OID 28774)
+-- TOC entry 5213 (class 1259 OID 33712)
 -- Name: services_reservas_radio_estado_index; Type: INDEX; Schema: services; Owner: postgres
 --
 
@@ -3852,7 +4581,7 @@ CREATE INDEX services_reservas_radio_estado_index ON services.reservas_radio USI
 
 
 --
--- TOC entry 5131 (class 1259 OID 28775)
+-- TOC entry 5214 (class 1259 OID 33713)
 -- Name: services_reservas_radio_fecha_reserva_index; Type: INDEX; Schema: services; Owner: postgres
 --
 
@@ -3860,7 +4589,7 @@ CREATE INDEX services_reservas_radio_fecha_reserva_index ON services.reservas_ra
 
 
 --
--- TOC entry 5132 (class 1259 OID 28776)
+-- TOC entry 5215 (class 1259 OID 33714)
 -- Name: services_reservas_radio_operador_id_index; Type: INDEX; Schema: services; Owner: postgres
 --
 
@@ -3868,7 +4597,7 @@ CREATE INDEX services_reservas_radio_operador_id_index ON services.reservas_radi
 
 
 --
--- TOC entry 5137 (class 1259 OID 28777)
+-- TOC entry 5220 (class 1259 OID 33715)
 -- Name: services_trabajos_edicion_estado_index; Type: INDEX; Schema: services; Owner: postgres
 --
 
@@ -3876,7 +4605,7 @@ CREATE INDEX services_trabajos_edicion_estado_index ON services.trabajos_edicion
 
 
 --
--- TOC entry 5138 (class 1259 OID 28778)
+-- TOC entry 5221 (class 1259 OID 33716)
 -- Name: services_trabajos_edicion_fecha_limite_index; Type: INDEX; Schema: services; Owner: postgres
 --
 
@@ -3884,7 +4613,7 @@ CREATE INDEX services_trabajos_edicion_fecha_limite_index ON services.trabajos_e
 
 
 --
--- TOC entry 5139 (class 1259 OID 28779)
+-- TOC entry 5222 (class 1259 OID 33717)
 -- Name: services_trabajos_edicion_fecha_recibo_index; Type: INDEX; Schema: services; Owner: postgres
 --
 
@@ -3892,7 +4621,7 @@ CREATE INDEX services_trabajos_edicion_fecha_recibo_index ON services.trabajos_e
 
 
 --
--- TOC entry 5258 (class 2620 OID 28780)
+-- TOC entry 5383 (class 2620 OID 33718)
 -- Name: matriculas trg_actualizar_perfil_estudiante; Type: TRIGGER; Schema: academic; Owner: postgres
 --
 
@@ -3902,7 +4631,7 @@ ALTER TABLE academic.matriculas DISABLE TRIGGER trg_actualizar_perfil_estudiante
 
 
 --
--- TOC entry 5259 (class 2620 OID 28781)
+-- TOC entry 5384 (class 2620 OID 33719)
 -- Name: matriculas trg_actualizar_resumen_curso; Type: TRIGGER; Schema: academic; Owner: postgres
 --
 
@@ -3912,7 +4641,23 @@ ALTER TABLE academic.matriculas DISABLE TRIGGER trg_actualizar_resumen_curso;
 
 
 --
--- TOC entry 5261 (class 2620 OID 28782)
+-- TOC entry 5382 (class 2620 OID 34334)
+-- Name: cambios_horario trg_auditar_cambios_horario; Type: TRIGGER; Schema: academic; Owner: postgres
+--
+
+CREATE TRIGGER trg_auditar_cambios_horario AFTER INSERT OR DELETE OR UPDATE ON academic.cambios_horario FOR EACH ROW EXECUTE FUNCTION audit.fn_auditar_cambios_horario();
+
+
+--
+-- TOC entry 5385 (class 2620 OID 34302)
+-- Name: matriculas trg_validar_capacidad; Type: TRIGGER; Schema: academic; Owner: postgres
+--
+
+CREATE TRIGGER trg_validar_capacidad BEFORE INSERT ON academic.matriculas FOR EACH ROW EXECUTE FUNCTION academic.fn_validar_capacidad_curso();
+
+
+--
+-- TOC entry 5387 (class 2620 OID 33720)
 -- Name: transacciones_ingreso trg_actualizar_saldo; Type: TRIGGER; Schema: finance; Owner: postgres
 --
 
@@ -3920,7 +4665,7 @@ CREATE TRIGGER trg_actualizar_saldo AFTER INSERT OR DELETE OR UPDATE ON finance.
 
 
 --
--- TOC entry 5260 (class 2620 OID 28783)
+-- TOC entry 5386 (class 2620 OID 33721)
 -- Name: transacciones_egreso trg_resumen_caja_egreso; Type: TRIGGER; Schema: finance; Owner: postgres
 --
 
@@ -3928,7 +4673,7 @@ CREATE TRIGGER trg_resumen_caja_egreso AFTER INSERT OR DELETE OR UPDATE ON finan
 
 
 --
--- TOC entry 5262 (class 2620 OID 28784)
+-- TOC entry 5388 (class 2620 OID 33722)
 -- Name: transacciones_ingreso trg_resumen_caja_ingreso; Type: TRIGGER; Schema: finance; Owner: postgres
 --
 
@@ -3936,7 +4681,7 @@ CREATE TRIGGER trg_resumen_caja_ingreso AFTER INSERT OR DELETE OR UPDATE ON fina
 
 
 --
--- TOC entry 5263 (class 2620 OID 28785)
+-- TOC entry 5389 (class 2620 OID 33723)
 -- Name: personas trg_personas_updated_at; Type: TRIGGER; Schema: people; Owner: postgres
 --
 
@@ -3944,7 +4689,7 @@ CREATE TRIGGER trg_personas_updated_at BEFORE UPDATE ON people.personas FOR EACH
 
 
 --
--- TOC entry 5151 (class 2606 OID 28786)
+-- TOC entry 5268 (class 2606 OID 33724)
 -- Name: asistencias_talleres academic_asistencias_talleres_taller_id_foreign; Type: FK CONSTRAINT; Schema: academic; Owner: postgres
 --
 
@@ -3953,7 +4698,52 @@ ALTER TABLE ONLY academic.asistencias_talleres
 
 
 --
--- TOC entry 5173 (class 2606 OID 28791)
+-- TOC entry 5375 (class 2606 OID 34353)
+-- Name: horarios_talleres academic_horarios_talleres_taller_id_foreign; Type: FK CONSTRAINT; Schema: academic; Owner: postgres
+--
+
+ALTER TABLE ONLY academic.horarios_talleres
+    ADD CONSTRAINT academic_horarios_talleres_taller_id_foreign FOREIGN KEY (taller_id) REFERENCES academic.talleres(id) ON DELETE CASCADE;
+
+
+--
+-- TOC entry 5378 (class 2606 OID 34404)
+-- Name: inscripciones_externos_talleres academic_inscripciones_externos_talleres_participante_externo_i; Type: FK CONSTRAINT; Schema: academic; Owner: postgres
+--
+
+ALTER TABLE ONLY academic.inscripciones_externos_talleres
+    ADD CONSTRAINT academic_inscripciones_externos_talleres_participante_externo_i FOREIGN KEY (participante_externo_id) REFERENCES academic.participantes_externos(id) ON DELETE CASCADE;
+
+
+--
+-- TOC entry 5379 (class 2606 OID 34399)
+-- Name: inscripciones_externos_talleres academic_inscripciones_externos_talleres_taller_id_foreign; Type: FK CONSTRAINT; Schema: academic; Owner: postgres
+--
+
+ALTER TABLE ONLY academic.inscripciones_externos_talleres
+    ADD CONSTRAINT academic_inscripciones_externos_talleres_taller_id_foreign FOREIGN KEY (taller_id) REFERENCES academic.talleres(id) ON DELETE CASCADE;
+
+
+--
+-- TOC entry 5376 (class 2606 OID 34372)
+-- Name: inscripciones_talleres academic_inscripciones_talleres_estudiante_id_foreign; Type: FK CONSTRAINT; Schema: academic; Owner: postgres
+--
+
+ALTER TABLE ONLY academic.inscripciones_talleres
+    ADD CONSTRAINT academic_inscripciones_talleres_estudiante_id_foreign FOREIGN KEY (estudiante_id) REFERENCES people.personas(id) ON DELETE CASCADE;
+
+
+--
+-- TOC entry 5377 (class 2606 OID 34367)
+-- Name: inscripciones_talleres academic_inscripciones_talleres_taller_id_foreign; Type: FK CONSTRAINT; Schema: academic; Owner: postgres
+--
+
+ALTER TABLE ONLY academic.inscripciones_talleres
+    ADD CONSTRAINT academic_inscripciones_talleres_taller_id_foreign FOREIGN KEY (taller_id) REFERENCES academic.talleres(id) ON DELETE CASCADE;
+
+
+--
+-- TOC entry 5290 (class 2606 OID 33729)
 -- Name: matriculas academic_matriculas_solicitud_inscripcion_id_foreign; Type: FK CONSTRAINT; Schema: academic; Owner: postgres
 --
 
@@ -3962,7 +4752,25 @@ ALTER TABLE ONLY academic.matriculas
 
 
 --
--- TOC entry 5179 (class 2606 OID 28796)
+-- TOC entry 5380 (class 2606 OID 34421)
+-- Name: participantes_cursos_personalizados academic_participantes_cursos_personalizados_curso_personalizad; Type: FK CONSTRAINT; Schema: academic; Owner: postgres
+--
+
+ALTER TABLE ONLY academic.participantes_cursos_personalizados
+    ADD CONSTRAINT academic_participantes_cursos_personalizados_curso_personalizad FOREIGN KEY (curso_personalizado_id) REFERENCES academic.cursos_abiertos(id) ON DELETE CASCADE;
+
+
+--
+-- TOC entry 5381 (class 2606 OID 34426)
+-- Name: participantes_cursos_personalizados academic_participantes_cursos_personalizados_participante_exter; Type: FK CONSTRAINT; Schema: academic; Owner: postgres
+--
+
+ALTER TABLE ONLY academic.participantes_cursos_personalizados
+    ADD CONSTRAINT academic_participantes_cursos_personalizados_participante_exter FOREIGN KEY (participante_externo_id) REFERENCES academic.participantes_externos(id) ON DELETE CASCADE;
+
+
+--
+-- TOC entry 5296 (class 2606 OID 33734)
 -- Name: solicitudes_inscripcion academic_solicitudes_inscripcion_curso_abierto_id_foreign; Type: FK CONSTRAINT; Schema: academic; Owner: postgres
 --
 
@@ -3971,7 +4779,7 @@ ALTER TABLE ONLY academic.solicitudes_inscripcion
 
 
 --
--- TOC entry 5180 (class 2606 OID 28801)
+-- TOC entry 5297 (class 2606 OID 33739)
 -- Name: solicitudes_inscripcion academic_solicitudes_inscripcion_participante_externo_id_foreig; Type: FK CONSTRAINT; Schema: academic; Owner: postgres
 --
 
@@ -3980,7 +4788,7 @@ ALTER TABLE ONLY academic.solicitudes_inscripcion
 
 
 --
--- TOC entry 5181 (class 2606 OID 28806)
+-- TOC entry 5298 (class 2606 OID 33744)
 -- Name: solicitudes_inscripcion academic_solicitudes_inscripcion_persona_id_foreign; Type: FK CONSTRAINT; Schema: academic; Owner: postgres
 --
 
@@ -3989,7 +4797,7 @@ ALTER TABLE ONLY academic.solicitudes_inscripcion
 
 
 --
--- TOC entry 5182 (class 2606 OID 28811)
+-- TOC entry 5299 (class 2606 OID 33749)
 -- Name: solicitudes_inscripcion academic_solicitudes_inscripcion_validado_por_foreign; Type: FK CONSTRAINT; Schema: academic; Owner: postgres
 --
 
@@ -3998,7 +4806,7 @@ ALTER TABLE ONLY academic.solicitudes_inscripcion
 
 
 --
--- TOC entry 5146 (class 2606 OID 28816)
+-- TOC entry 5263 (class 2606 OID 33754)
 -- Name: asesorias asesorias_cliente_externo_id_fkey; Type: FK CONSTRAINT; Schema: academic; Owner: postgres
 --
 
@@ -4007,7 +4815,7 @@ ALTER TABLE ONLY academic.asesorias
 
 
 --
--- TOC entry 5147 (class 2606 OID 28821)
+-- TOC entry 5264 (class 2606 OID 33759)
 -- Name: asesorias asesorias_instructor_id_fkey; Type: FK CONSTRAINT; Schema: academic; Owner: postgres
 --
 
@@ -4016,7 +4824,7 @@ ALTER TABLE ONLY academic.asesorias
 
 
 --
--- TOC entry 5148 (class 2606 OID 28826)
+-- TOC entry 5265 (class 2606 OID 33764)
 -- Name: asesorias asesorias_persona_id_fkey; Type: FK CONSTRAINT; Schema: academic; Owner: postgres
 --
 
@@ -4025,7 +4833,7 @@ ALTER TABLE ONLY academic.asesorias
 
 
 --
--- TOC entry 5149 (class 2606 OID 28831)
+-- TOC entry 5266 (class 2606 OID 33769)
 -- Name: asistencias asistencias_clase_id_fkey; Type: FK CONSTRAINT; Schema: academic; Owner: postgres
 --
 
@@ -4034,7 +4842,7 @@ ALTER TABLE ONLY academic.asistencias
 
 
 --
--- TOC entry 5150 (class 2606 OID 28836)
+-- TOC entry 5267 (class 2606 OID 33774)
 -- Name: asistencias asistencias_matricula_id_fkey; Type: FK CONSTRAINT; Schema: academic; Owner: postgres
 --
 
@@ -4043,7 +4851,7 @@ ALTER TABLE ONLY academic.asistencias
 
 
 --
--- TOC entry 5152 (class 2606 OID 28841)
+-- TOC entry 5269 (class 2606 OID 33779)
 -- Name: cambios_horario cambios_horario_autorizado_por_fkey; Type: FK CONSTRAINT; Schema: academic; Owner: postgres
 --
 
@@ -4052,25 +4860,25 @@ ALTER TABLE ONLY academic.cambios_horario
 
 
 --
--- TOC entry 5153 (class 2606 OID 28846)
+-- TOC entry 5270 (class 2606 OID 34308)
 -- Name: cambios_horario cambios_horario_curso_abierto_nuevo_id_fkey; Type: FK CONSTRAINT; Schema: academic; Owner: postgres
 --
 
 ALTER TABLE ONLY academic.cambios_horario
-    ADD CONSTRAINT cambios_horario_curso_abierto_nuevo_id_fkey FOREIGN KEY (curso_abierto_nuevo_id) REFERENCES academic.cursos_abiertos(id);
+    ADD CONSTRAINT cambios_horario_curso_abierto_nuevo_id_fkey FOREIGN KEY (curso_abierto_nuevo_id) REFERENCES academic.cursos_abiertos(id) ON DELETE RESTRICT;
 
 
 --
--- TOC entry 5154 (class 2606 OID 28851)
+-- TOC entry 5271 (class 2606 OID 34303)
 -- Name: cambios_horario cambios_horario_matricula_origen_id_fkey; Type: FK CONSTRAINT; Schema: academic; Owner: postgres
 --
 
 ALTER TABLE ONLY academic.cambios_horario
-    ADD CONSTRAINT cambios_horario_matricula_origen_id_fkey FOREIGN KEY (matricula_origen_id) REFERENCES academic.matriculas(id);
+    ADD CONSTRAINT cambios_horario_matricula_origen_id_fkey FOREIGN KEY (matricula_origen_id) REFERENCES academic.matriculas(id) ON DELETE CASCADE;
 
 
 --
--- TOC entry 5155 (class 2606 OID 28856)
+-- TOC entry 5272 (class 2606 OID 33794)
 -- Name: certificados certificados_catalogo_id_fkey; Type: FK CONSTRAINT; Schema: academic; Owner: postgres
 --
 
@@ -4079,7 +4887,7 @@ ALTER TABLE ONLY academic.certificados
 
 
 --
--- TOC entry 5156 (class 2606 OID 28861)
+-- TOC entry 5273 (class 2606 OID 33799)
 -- Name: certificados certificados_curso_abierto_id_fkey; Type: FK CONSTRAINT; Schema: academic; Owner: postgres
 --
 
@@ -4088,7 +4896,7 @@ ALTER TABLE ONLY academic.certificados
 
 
 --
--- TOC entry 5157 (class 2606 OID 28866)
+-- TOC entry 5274 (class 2606 OID 33804)
 -- Name: certificados certificados_estudiante_id_fkey; Type: FK CONSTRAINT; Schema: academic; Owner: postgres
 --
 
@@ -4097,7 +4905,7 @@ ALTER TABLE ONLY academic.certificados
 
 
 --
--- TOC entry 5158 (class 2606 OID 28871)
+-- TOC entry 5275 (class 2606 OID 33809)
 -- Name: certificados certificados_modulo_id_fkey; Type: FK CONSTRAINT; Schema: academic; Owner: postgres
 --
 
@@ -4106,7 +4914,7 @@ ALTER TABLE ONLY academic.certificados
 
 
 --
--- TOC entry 5161 (class 2606 OID 28876)
+-- TOC entry 5278 (class 2606 OID 33814)
 -- Name: clases_extras clases_extras_curso_abierto_id_fkey; Type: FK CONSTRAINT; Schema: academic; Owner: postgres
 --
 
@@ -4115,7 +4923,7 @@ ALTER TABLE ONLY academic.clases_extras
 
 
 --
--- TOC entry 5162 (class 2606 OID 28881)
+-- TOC entry 5279 (class 2606 OID 33819)
 -- Name: clases_extras clases_extras_estudiante_id_fkey; Type: FK CONSTRAINT; Schema: academic; Owner: postgres
 --
 
@@ -4124,7 +4932,7 @@ ALTER TABLE ONLY academic.clases_extras
 
 
 --
--- TOC entry 5163 (class 2606 OID 28886)
+-- TOC entry 5280 (class 2606 OID 33824)
 -- Name: clases_extras clases_extras_instructor_id_fkey; Type: FK CONSTRAINT; Schema: academic; Owner: postgres
 --
 
@@ -4133,7 +4941,7 @@ ALTER TABLE ONLY academic.clases_extras
 
 
 --
--- TOC entry 5159 (class 2606 OID 28891)
+-- TOC entry 5276 (class 2606 OID 33829)
 -- Name: clases clases_instructor_id_fkey; Type: FK CONSTRAINT; Schema: academic; Owner: postgres
 --
 
@@ -4142,7 +4950,7 @@ ALTER TABLE ONLY academic.clases
 
 
 --
--- TOC entry 5160 (class 2606 OID 28896)
+-- TOC entry 5277 (class 2606 OID 33834)
 -- Name: clases clases_modulo_id_fkey; Type: FK CONSTRAINT; Schema: academic; Owner: postgres
 --
 
@@ -4151,7 +4959,7 @@ ALTER TABLE ONLY academic.clases
 
 
 --
--- TOC entry 5164 (class 2606 OID 28901)
+-- TOC entry 5281 (class 2606 OID 33839)
 -- Name: comentarios_curso comentarios_curso_autor_id_fkey; Type: FK CONSTRAINT; Schema: academic; Owner: postgres
 --
 
@@ -4160,7 +4968,7 @@ ALTER TABLE ONLY academic.comentarios_curso
 
 
 --
--- TOC entry 5165 (class 2606 OID 28906)
+-- TOC entry 5282 (class 2606 OID 33844)
 -- Name: comentarios_curso comentarios_curso_curso_abierto_id_fkey; Type: FK CONSTRAINT; Schema: academic; Owner: postgres
 --
 
@@ -4169,7 +4977,7 @@ ALTER TABLE ONLY academic.comentarios_curso
 
 
 --
--- TOC entry 5166 (class 2606 OID 28911)
+-- TOC entry 5283 (class 2606 OID 33849)
 -- Name: cursos_abiertos cursos_abiertos_catalogo_id_fkey; Type: FK CONSTRAINT; Schema: academic; Owner: postgres
 --
 
@@ -4178,7 +4986,7 @@ ALTER TABLE ONLY academic.cursos_abiertos
 
 
 --
--- TOC entry 5167 (class 2606 OID 28916)
+-- TOC entry 5284 (class 2606 OID 33854)
 -- Name: cursos_abiertos cursos_abiertos_ciudad_id_fkey; Type: FK CONSTRAINT; Schema: academic; Owner: postgres
 --
 
@@ -4187,7 +4995,7 @@ ALTER TABLE ONLY academic.cursos_abiertos
 
 
 --
--- TOC entry 5168 (class 2606 OID 28921)
+-- TOC entry 5285 (class 2606 OID 33859)
 -- Name: cursos_abiertos cursos_abiertos_docente_id_fkey; Type: FK CONSTRAINT; Schema: academic; Owner: postgres
 --
 
@@ -4196,7 +5004,7 @@ ALTER TABLE ONLY academic.cursos_abiertos
 
 
 --
--- TOC entry 5169 (class 2606 OID 28926)
+-- TOC entry 5286 (class 2606 OID 33864)
 -- Name: cursos_abiertos cursos_abiertos_horario_id_fkey; Type: FK CONSTRAINT; Schema: academic; Owner: postgres
 --
 
@@ -4205,7 +5013,7 @@ ALTER TABLE ONLY academic.cursos_abiertos
 
 
 --
--- TOC entry 5170 (class 2606 OID 28931)
+-- TOC entry 5287 (class 2606 OID 33869)
 -- Name: cursos_abiertos cursos_abiertos_instructor_titular_id_fkey; Type: FK CONSTRAINT; Schema: academic; Owner: postgres
 --
 
@@ -4214,7 +5022,7 @@ ALTER TABLE ONLY academic.cursos_abiertos
 
 
 --
--- TOC entry 5171 (class 2606 OID 28936)
+-- TOC entry 5288 (class 2606 OID 33874)
 -- Name: inscripciones_taller inscripciones_taller_persona_id_fkey; Type: FK CONSTRAINT; Schema: academic; Owner: postgres
 --
 
@@ -4223,7 +5031,7 @@ ALTER TABLE ONLY academic.inscripciones_taller
 
 
 --
--- TOC entry 5172 (class 2606 OID 28941)
+-- TOC entry 5289 (class 2606 OID 33879)
 -- Name: inscripciones_taller inscripciones_taller_taller_id_fkey; Type: FK CONSTRAINT; Schema: academic; Owner: postgres
 --
 
@@ -4232,7 +5040,7 @@ ALTER TABLE ONLY academic.inscripciones_taller
 
 
 --
--- TOC entry 5174 (class 2606 OID 28946)
+-- TOC entry 5291 (class 2606 OID 33884)
 -- Name: matriculas matriculas_curso_abierto_id_fkey; Type: FK CONSTRAINT; Schema: academic; Owner: postgres
 --
 
@@ -4241,7 +5049,7 @@ ALTER TABLE ONLY academic.matriculas
 
 
 --
--- TOC entry 5175 (class 2606 OID 28951)
+-- TOC entry 5292 (class 2606 OID 33889)
 -- Name: matriculas matriculas_estudiante_id_fkey; Type: FK CONSTRAINT; Schema: academic; Owner: postgres
 --
 
@@ -4250,7 +5058,7 @@ ALTER TABLE ONLY academic.matriculas
 
 
 --
--- TOC entry 5176 (class 2606 OID 28956)
+-- TOC entry 5293 (class 2606 OID 33894)
 -- Name: modulos modulos_curso_abierto_id_fkey; Type: FK CONSTRAINT; Schema: academic; Owner: postgres
 --
 
@@ -4259,7 +5067,7 @@ ALTER TABLE ONLY academic.modulos
 
 
 --
--- TOC entry 5177 (class 2606 OID 28961)
+-- TOC entry 5294 (class 2606 OID 33899)
 -- Name: notas notas_matricula_id_fkey; Type: FK CONSTRAINT; Schema: academic; Owner: postgres
 --
 
@@ -4268,7 +5076,7 @@ ALTER TABLE ONLY academic.notas
 
 
 --
--- TOC entry 5178 (class 2606 OID 28966)
+-- TOC entry 5295 (class 2606 OID 33904)
 -- Name: notas notas_modulo_id_fkey; Type: FK CONSTRAINT; Schema: academic; Owner: postgres
 --
 
@@ -4277,7 +5085,7 @@ ALTER TABLE ONLY academic.notas
 
 
 --
--- TOC entry 5183 (class 2606 OID 28971)
+-- TOC entry 5300 (class 2606 OID 33909)
 -- Name: talleres talleres_ciudad_id_fkey; Type: FK CONSTRAINT; Schema: academic; Owner: postgres
 --
 
@@ -4286,7 +5094,7 @@ ALTER TABLE ONLY academic.talleres
 
 
 --
--- TOC entry 5184 (class 2606 OID 28976)
+-- TOC entry 5301 (class 2606 OID 33914)
 -- Name: talleres talleres_instructor_id_fkey; Type: FK CONSTRAINT; Schema: academic; Owner: postgres
 --
 
@@ -4295,7 +5103,7 @@ ALTER TABLE ONLY academic.talleres
 
 
 --
--- TOC entry 5185 (class 2606 OID 28981)
+-- TOC entry 5302 (class 2606 OID 33919)
 -- Name: traslados_modulo traslados_modulo_autorizado_por_fkey; Type: FK CONSTRAINT; Schema: academic; Owner: postgres
 --
 
@@ -4304,7 +5112,7 @@ ALTER TABLE ONLY academic.traslados_modulo
 
 
 --
--- TOC entry 5186 (class 2606 OID 28986)
+-- TOC entry 5303 (class 2606 OID 33924)
 -- Name: traslados_modulo traslados_modulo_curso_abierto_destino_id_fkey; Type: FK CONSTRAINT; Schema: academic; Owner: postgres
 --
 
@@ -4313,16 +5121,16 @@ ALTER TABLE ONLY academic.traslados_modulo
 
 
 --
--- TOC entry 5187 (class 2606 OID 28991)
+-- TOC entry 5304 (class 2606 OID 34313)
 -- Name: traslados_modulo traslados_modulo_matricula_origen_id_fkey; Type: FK CONSTRAINT; Schema: academic; Owner: postgres
 --
 
 ALTER TABLE ONLY academic.traslados_modulo
-    ADD CONSTRAINT traslados_modulo_matricula_origen_id_fkey FOREIGN KEY (matricula_origen_id) REFERENCES academic.matriculas(id);
+    ADD CONSTRAINT traslados_modulo_matricula_origen_id_fkey FOREIGN KEY (matricula_origen_id) REFERENCES academic.matriculas(id) ON DELETE CASCADE;
 
 
 --
--- TOC entry 5188 (class 2606 OID 28996)
+-- TOC entry 5305 (class 2606 OID 33934)
 -- Name: traslados_modulo traslados_modulo_modulo_destino_id_fkey; Type: FK CONSTRAINT; Schema: academic; Owner: postgres
 --
 
@@ -4331,7 +5139,7 @@ ALTER TABLE ONLY academic.traslados_modulo
 
 
 --
--- TOC entry 5189 (class 2606 OID 29001)
+-- TOC entry 5306 (class 2606 OID 33939)
 -- Name: traslados_modulo traslados_modulo_modulo_origen_id_fkey; Type: FK CONSTRAINT; Schema: academic; Owner: postgres
 --
 
@@ -4340,7 +5148,7 @@ ALTER TABLE ONLY academic.traslados_modulo
 
 
 --
--- TOC entry 5190 (class 2606 OID 29006)
+-- TOC entry 5310 (class 2606 OID 33944)
 -- Name: eventos_financieros eventos_financieros_registrado_por_fkey; Type: FK CONSTRAINT; Schema: audit; Owner: postgres
 --
 
@@ -4349,7 +5157,7 @@ ALTER TABLE ONLY audit.eventos_financieros
 
 
 --
--- TOC entry 5191 (class 2606 OID 29011)
+-- TOC entry 5311 (class 2606 OID 33949)
 -- Name: eventos_financieros eventos_financieros_transaccion_egreso_id_fkey; Type: FK CONSTRAINT; Schema: audit; Owner: postgres
 --
 
@@ -4358,7 +5166,7 @@ ALTER TABLE ONLY audit.eventos_financieros
 
 
 --
--- TOC entry 5192 (class 2606 OID 29016)
+-- TOC entry 5312 (class 2606 OID 33954)
 -- Name: eventos_financieros eventos_financieros_transaccion_ingreso_id_fkey; Type: FK CONSTRAINT; Schema: audit; Owner: postgres
 --
 
@@ -4367,7 +5175,7 @@ ALTER TABLE ONLY audit.eventos_financieros
 
 
 --
--- TOC entry 5193 (class 2606 OID 29021)
+-- TOC entry 5313 (class 2606 OID 33959)
 -- Name: inicios_sesion inicios_sesion_cuenta_id_fkey; Type: FK CONSTRAINT; Schema: audit; Owner: postgres
 --
 
@@ -4376,7 +5184,7 @@ ALTER TABLE ONLY audit.inicios_sesion
 
 
 --
--- TOC entry 5194 (class 2606 OID 29026)
+-- TOC entry 5314 (class 2606 OID 33964)
 -- Name: inicios_sesion inicios_sesion_persona_id_fkey; Type: FK CONSTRAINT; Schema: audit; Owner: postgres
 --
 
@@ -4385,7 +5193,7 @@ ALTER TABLE ONLY audit.inicios_sesion
 
 
 --
--- TOC entry 5195 (class 2606 OID 29031)
+-- TOC entry 5315 (class 2606 OID 33969)
 -- Name: model_has_permissions core_model_has_permissions_permission_id_foreign; Type: FK CONSTRAINT; Schema: core; Owner: postgres
 --
 
@@ -4394,7 +5202,7 @@ ALTER TABLE ONLY core.model_has_permissions
 
 
 --
--- TOC entry 5196 (class 2606 OID 29036)
+-- TOC entry 5316 (class 2606 OID 33974)
 -- Name: model_has_roles core_model_has_roles_role_id_foreign; Type: FK CONSTRAINT; Schema: core; Owner: postgres
 --
 
@@ -4403,7 +5211,7 @@ ALTER TABLE ONLY core.model_has_roles
 
 
 --
--- TOC entry 5197 (class 2606 OID 29041)
+-- TOC entry 5317 (class 2606 OID 33979)
 -- Name: role_has_permissions core_role_has_permissions_permission_id_foreign; Type: FK CONSTRAINT; Schema: core; Owner: postgres
 --
 
@@ -4412,7 +5220,7 @@ ALTER TABLE ONLY core.role_has_permissions
 
 
 --
--- TOC entry 5198 (class 2606 OID 29046)
+-- TOC entry 5318 (class 2606 OID 33984)
 -- Name: role_has_permissions core_role_has_permissions_role_id_foreign; Type: FK CONSTRAINT; Schema: core; Owner: postgres
 --
 
@@ -4421,7 +5229,7 @@ ALTER TABLE ONLY core.role_has_permissions
 
 
 --
--- TOC entry 5199 (class 2606 OID 29051)
+-- TOC entry 5319 (class 2606 OID 33989)
 -- Name: cuentas_por_cobrar cuentas_por_cobrar_asesoria_id_fkey; Type: FK CONSTRAINT; Schema: finance; Owner: postgres
 --
 
@@ -4430,7 +5238,7 @@ ALTER TABLE ONLY finance.cuentas_por_cobrar
 
 
 --
--- TOC entry 5200 (class 2606 OID 29056)
+-- TOC entry 5320 (class 2606 OID 33994)
 -- Name: cuentas_por_cobrar cuentas_por_cobrar_clase_extra_id_fkey; Type: FK CONSTRAINT; Schema: finance; Owner: postgres
 --
 
@@ -4439,7 +5247,7 @@ ALTER TABLE ONLY finance.cuentas_por_cobrar
 
 
 --
--- TOC entry 5201 (class 2606 OID 29061)
+-- TOC entry 5321 (class 2606 OID 33999)
 -- Name: cuentas_por_cobrar cuentas_por_cobrar_edicion_video_id_fkey; Type: FK CONSTRAINT; Schema: finance; Owner: postgres
 --
 
@@ -4448,7 +5256,7 @@ ALTER TABLE ONLY finance.cuentas_por_cobrar
 
 
 --
--- TOC entry 5202 (class 2606 OID 29066)
+-- TOC entry 5322 (class 2606 OID 34004)
 -- Name: cuentas_por_cobrar cuentas_por_cobrar_inscripcion_taller_id_fkey; Type: FK CONSTRAINT; Schema: finance; Owner: postgres
 --
 
@@ -4457,7 +5265,7 @@ ALTER TABLE ONLY finance.cuentas_por_cobrar
 
 
 --
--- TOC entry 5203 (class 2606 OID 29071)
+-- TOC entry 5323 (class 2606 OID 34009)
 -- Name: cuentas_por_cobrar cuentas_por_cobrar_matricula_id_fkey; Type: FK CONSTRAINT; Schema: finance; Owner: postgres
 --
 
@@ -4466,7 +5274,7 @@ ALTER TABLE ONLY finance.cuentas_por_cobrar
 
 
 --
--- TOC entry 5204 (class 2606 OID 29076)
+-- TOC entry 5324 (class 2606 OID 34014)
 -- Name: cuentas_por_cobrar cuentas_por_cobrar_reserva_aula_id_fkey; Type: FK CONSTRAINT; Schema: finance; Owner: postgres
 --
 
@@ -4475,7 +5283,7 @@ ALTER TABLE ONLY finance.cuentas_por_cobrar
 
 
 --
--- TOC entry 5205 (class 2606 OID 29081)
+-- TOC entry 5325 (class 2606 OID 34019)
 -- Name: cuentas_por_cobrar cuentas_por_cobrar_reserva_podcast_id_fkey; Type: FK CONSTRAINT; Schema: finance; Owner: postgres
 --
 
@@ -4484,7 +5292,7 @@ ALTER TABLE ONLY finance.cuentas_por_cobrar
 
 
 --
--- TOC entry 5206 (class 2606 OID 29086)
+-- TOC entry 5326 (class 2606 OID 34024)
 -- Name: cuentas_por_cobrar cuentas_por_cobrar_servicio_produccion_id_fkey; Type: FK CONSTRAINT; Schema: finance; Owner: postgres
 --
 
@@ -4493,7 +5301,7 @@ ALTER TABLE ONLY finance.cuentas_por_cobrar
 
 
 --
--- TOC entry 5207 (class 2606 OID 29091)
+-- TOC entry 5327 (class 2606 OID 34029)
 -- Name: cuentas_por_cobrar cuentas_por_cobrar_servicio_streaming_id_fkey; Type: FK CONSTRAINT; Schema: finance; Owner: postgres
 --
 
@@ -4502,7 +5310,7 @@ ALTER TABLE ONLY finance.cuentas_por_cobrar
 
 
 --
--- TOC entry 5208 (class 2606 OID 29096)
+-- TOC entry 5328 (class 2606 OID 34034)
 -- Name: cuentas_por_cobrar finance_cuentas_por_cobrar_alquiler_equipo_id_foreign; Type: FK CONSTRAINT; Schema: finance; Owner: postgres
 --
 
@@ -4511,7 +5319,7 @@ ALTER TABLE ONLY finance.cuentas_por_cobrar
 
 
 --
--- TOC entry 5209 (class 2606 OID 29101)
+-- TOC entry 5329 (class 2606 OID 34039)
 -- Name: cuentas_por_cobrar finance_cuentas_por_cobrar_reserva_radio_id_foreign; Type: FK CONSTRAINT; Schema: finance; Owner: postgres
 --
 
@@ -4520,7 +5328,7 @@ ALTER TABLE ONLY finance.cuentas_por_cobrar
 
 
 --
--- TOC entry 5210 (class 2606 OID 29106)
+-- TOC entry 5330 (class 2606 OID 34044)
 -- Name: cuentas_por_cobrar finance_cuentas_por_cobrar_solicitud_inscripcion_id_foreign; Type: FK CONSTRAINT; Schema: finance; Owner: postgres
 --
 
@@ -4529,7 +5337,7 @@ ALTER TABLE ONLY finance.cuentas_por_cobrar
 
 
 --
--- TOC entry 5255 (class 2606 OID 29347)
+-- TOC entry 5307 (class 2606 OID 34049)
 -- Name: lineas_pago_modulo finance_lineas_pago_modulo_ajustado_por_foreign; Type: FK CONSTRAINT; Schema: finance; Owner: postgres
 --
 
@@ -4538,7 +5346,7 @@ ALTER TABLE ONLY finance.lineas_pago_modulo
 
 
 --
--- TOC entry 5256 (class 2606 OID 29337)
+-- TOC entry 5308 (class 2606 OID 34054)
 -- Name: lineas_pago_modulo finance_lineas_pago_modulo_matricula_id_foreign; Type: FK CONSTRAINT; Schema: finance; Owner: postgres
 --
 
@@ -4547,7 +5355,7 @@ ALTER TABLE ONLY finance.lineas_pago_modulo
 
 
 --
--- TOC entry 5257 (class 2606 OID 29342)
+-- TOC entry 5309 (class 2606 OID 34059)
 -- Name: lineas_pago_modulo finance_lineas_pago_modulo_modulo_id_foreign; Type: FK CONSTRAINT; Schema: finance; Owner: postgres
 --
 
@@ -4556,7 +5364,7 @@ ALTER TABLE ONLY finance.lineas_pago_modulo
 
 
 --
--- TOC entry 5217 (class 2606 OID 29356)
+-- TOC entry 5337 (class 2606 OID 34064)
 -- Name: transacciones_ingreso finance_transacciones_ingreso_linea_pago_modulo_id_foreign; Type: FK CONSTRAINT; Schema: finance; Owner: postgres
 --
 
@@ -4565,7 +5373,7 @@ ALTER TABLE ONLY finance.transacciones_ingreso
 
 
 --
--- TOC entry 5211 (class 2606 OID 29111)
+-- TOC entry 5331 (class 2606 OID 34069)
 -- Name: horas_instructor horas_instructor_clase_id_fkey; Type: FK CONSTRAINT; Schema: finance; Owner: postgres
 --
 
@@ -4574,7 +5382,7 @@ ALTER TABLE ONLY finance.horas_instructor
 
 
 --
--- TOC entry 5212 (class 2606 OID 29116)
+-- TOC entry 5332 (class 2606 OID 34074)
 -- Name: horas_instructor horas_instructor_curso_abierto_id_fkey; Type: FK CONSTRAINT; Schema: finance; Owner: postgres
 --
 
@@ -4583,7 +5391,7 @@ ALTER TABLE ONLY finance.horas_instructor
 
 
 --
--- TOC entry 5213 (class 2606 OID 29121)
+-- TOC entry 5333 (class 2606 OID 34079)
 -- Name: horas_instructor horas_instructor_egreso_id_fkey; Type: FK CONSTRAINT; Schema: finance; Owner: postgres
 --
 
@@ -4592,7 +5400,7 @@ ALTER TABLE ONLY finance.horas_instructor
 
 
 --
--- TOC entry 5214 (class 2606 OID 29126)
+-- TOC entry 5334 (class 2606 OID 34084)
 -- Name: horas_instructor horas_instructor_instructor_id_fkey; Type: FK CONSTRAINT; Schema: finance; Owner: postgres
 --
 
@@ -4601,7 +5409,7 @@ ALTER TABLE ONLY finance.horas_instructor
 
 
 --
--- TOC entry 5215 (class 2606 OID 29131)
+-- TOC entry 5335 (class 2606 OID 34089)
 -- Name: transacciones_egreso transacciones_egreso_categoria_id_fkey; Type: FK CONSTRAINT; Schema: finance; Owner: postgres
 --
 
@@ -4610,7 +5418,7 @@ ALTER TABLE ONLY finance.transacciones_egreso
 
 
 --
--- TOC entry 5216 (class 2606 OID 29136)
+-- TOC entry 5336 (class 2606 OID 34094)
 -- Name: transacciones_egreso transacciones_egreso_registrado_por_fkey; Type: FK CONSTRAINT; Schema: finance; Owner: postgres
 --
 
@@ -4619,7 +5427,7 @@ ALTER TABLE ONLY finance.transacciones_egreso
 
 
 --
--- TOC entry 5218 (class 2606 OID 29141)
+-- TOC entry 5338 (class 2606 OID 34099)
 -- Name: transacciones_ingreso transacciones_ingreso_cuenta_cobrar_id_fkey; Type: FK CONSTRAINT; Schema: finance; Owner: postgres
 --
 
@@ -4628,7 +5436,7 @@ ALTER TABLE ONLY finance.transacciones_ingreso
 
 
 --
--- TOC entry 5219 (class 2606 OID 29146)
+-- TOC entry 5339 (class 2606 OID 34104)
 -- Name: transacciones_ingreso transacciones_ingreso_registrado_por_fkey; Type: FK CONSTRAINT; Schema: finance; Owner: postgres
 --
 
@@ -4637,7 +5445,7 @@ ALTER TABLE ONLY finance.transacciones_ingreso
 
 
 --
--- TOC entry 5221 (class 2606 OID 29151)
+-- TOC entry 5341 (class 2606 OID 34109)
 -- Name: registro_asistencia_staff registro_asistencia_staff_persona_id_fkey; Type: FK CONSTRAINT; Schema: ops; Owner: postgres
 --
 
@@ -4646,7 +5454,7 @@ ALTER TABLE ONLY ops.registro_asistencia_staff
 
 
 --
--- TOC entry 5222 (class 2606 OID 29156)
+-- TOC entry 5342 (class 2606 OID 34114)
 -- Name: registro_asistencia_staff registro_asistencia_staff_registrado_por_fkey; Type: FK CONSTRAINT; Schema: ops; Owner: postgres
 --
 
@@ -4655,7 +5463,7 @@ ALTER TABLE ONLY ops.registro_asistencia_staff
 
 
 --
--- TOC entry 5223 (class 2606 OID 29161)
+-- TOC entry 5343 (class 2606 OID 34119)
 -- Name: clientes_externos clientes_externos_ciudad_id_fkey; Type: FK CONSTRAINT; Schema: people; Owner: postgres
 --
 
@@ -4664,7 +5472,7 @@ ALTER TABLE ONLY people.clientes_externos
 
 
 --
--- TOC entry 5232 (class 2606 OID 29166)
+-- TOC entry 5352 (class 2606 OID 34124)
 -- Name: cuentas_sistema cuentas_sistema_persona_id_fkey; Type: FK CONSTRAINT; Schema: people; Owner: postgres
 --
 
@@ -4673,7 +5481,7 @@ ALTER TABLE ONLY people.cuentas_sistema
 
 
 --
--- TOC entry 5233 (class 2606 OID 29171)
+-- TOC entry 5353 (class 2606 OID 34129)
 -- Name: perfil_estudiante perfil_estudiante_persona_id_fkey; Type: FK CONSTRAINT; Schema: people; Owner: postgres
 --
 
@@ -4682,7 +5490,7 @@ ALTER TABLE ONLY people.perfil_estudiante
 
 
 --
--- TOC entry 5234 (class 2606 OID 29176)
+-- TOC entry 5354 (class 2606 OID 34134)
 -- Name: perfil_instructor perfil_instructor_persona_id_fkey; Type: FK CONSTRAINT; Schema: people; Owner: postgres
 --
 
@@ -4691,7 +5499,7 @@ ALTER TABLE ONLY people.perfil_instructor
 
 
 --
--- TOC entry 5235 (class 2606 OID 29181)
+-- TOC entry 5355 (class 2606 OID 34139)
 -- Name: perfil_staff perfil_staff_persona_id_fkey; Type: FK CONSTRAINT; Schema: people; Owner: postgres
 --
 
@@ -4700,7 +5508,7 @@ ALTER TABLE ONLY people.perfil_staff
 
 
 --
--- TOC entry 5220 (class 2606 OID 29186)
+-- TOC entry 5340 (class 2606 OID 34144)
 -- Name: personas personas_ciudad_id_fkey; Type: FK CONSTRAINT; Schema: people; Owner: postgres
 --
 
@@ -4709,7 +5517,7 @@ ALTER TABLE ONLY people.personas
 
 
 --
--- TOC entry 5239 (class 2606 OID 29191)
+-- TOC entry 5359 (class 2606 OID 34149)
 -- Name: asignaciones_personal asignaciones_personal_edicion_video_id_fkey; Type: FK CONSTRAINT; Schema: services; Owner: postgres
 --
 
@@ -4718,7 +5526,7 @@ ALTER TABLE ONLY services.asignaciones_personal
 
 
 --
--- TOC entry 5240 (class 2606 OID 29196)
+-- TOC entry 5360 (class 2606 OID 34154)
 -- Name: asignaciones_personal asignaciones_personal_persona_id_fkey; Type: FK CONSTRAINT; Schema: services; Owner: postgres
 --
 
@@ -4727,7 +5535,7 @@ ALTER TABLE ONLY services.asignaciones_personal
 
 
 --
--- TOC entry 5241 (class 2606 OID 29201)
+-- TOC entry 5361 (class 2606 OID 34159)
 -- Name: asignaciones_personal asignaciones_personal_reserva_podcast_id_fkey; Type: FK CONSTRAINT; Schema: services; Owner: postgres
 --
 
@@ -4736,7 +5544,7 @@ ALTER TABLE ONLY services.asignaciones_personal
 
 
 --
--- TOC entry 5242 (class 2606 OID 29206)
+-- TOC entry 5362 (class 2606 OID 34164)
 -- Name: asignaciones_personal asignaciones_personal_servicio_produccion_id_fkey; Type: FK CONSTRAINT; Schema: services; Owner: postgres
 --
 
@@ -4745,7 +5553,7 @@ ALTER TABLE ONLY services.asignaciones_personal
 
 
 --
--- TOC entry 5243 (class 2606 OID 29211)
+-- TOC entry 5363 (class 2606 OID 34169)
 -- Name: asignaciones_personal asignaciones_personal_servicio_streaming_id_fkey; Type: FK CONSTRAINT; Schema: services; Owner: postgres
 --
 
@@ -4754,7 +5562,7 @@ ALTER TABLE ONLY services.asignaciones_personal
 
 
 --
--- TOC entry 5245 (class 2606 OID 29216)
+-- TOC entry 5365 (class 2606 OID 34174)
 -- Name: edicion_videos edicion_videos_cliente_externo_id_fkey; Type: FK CONSTRAINT; Schema: services; Owner: postgres
 --
 
@@ -4763,7 +5571,7 @@ ALTER TABLE ONLY services.edicion_videos
 
 
 --
--- TOC entry 5246 (class 2606 OID 29221)
+-- TOC entry 5366 (class 2606 OID 34179)
 -- Name: edicion_videos edicion_videos_persona_id_fkey; Type: FK CONSTRAINT; Schema: services; Owner: postgres
 --
 
@@ -4772,7 +5580,7 @@ ALTER TABLE ONLY services.edicion_videos
 
 
 --
--- TOC entry 5247 (class 2606 OID 29226)
+-- TOC entry 5367 (class 2606 OID 34184)
 -- Name: items_paquete_podcast items_paquete_podcast_paquete_id_fkey; Type: FK CONSTRAINT; Schema: services; Owner: postgres
 --
 
@@ -4781,7 +5589,7 @@ ALTER TABLE ONLY services.items_paquete_podcast
 
 
 --
--- TOC entry 5224 (class 2606 OID 29231)
+-- TOC entry 5344 (class 2606 OID 34189)
 -- Name: reservas_aulas reservas_aulas_aula_id_fkey; Type: FK CONSTRAINT; Schema: services; Owner: postgres
 --
 
@@ -4790,7 +5598,7 @@ ALTER TABLE ONLY services.reservas_aulas
 
 
 --
--- TOC entry 5225 (class 2606 OID 29236)
+-- TOC entry 5345 (class 2606 OID 34194)
 -- Name: reservas_aulas reservas_aulas_cliente_externo_id_fkey; Type: FK CONSTRAINT; Schema: services; Owner: postgres
 --
 
@@ -4799,7 +5607,7 @@ ALTER TABLE ONLY services.reservas_aulas
 
 
 --
--- TOC entry 5226 (class 2606 OID 29241)
+-- TOC entry 5346 (class 2606 OID 34199)
 -- Name: reservas_aulas reservas_aulas_persona_id_fkey; Type: FK CONSTRAINT; Schema: services; Owner: postgres
 --
 
@@ -4808,7 +5616,7 @@ ALTER TABLE ONLY services.reservas_aulas
 
 
 --
--- TOC entry 5227 (class 2606 OID 29246)
+-- TOC entry 5347 (class 2606 OID 34204)
 -- Name: reservas_podcast reservas_podcast_cliente_externo_id_fkey; Type: FK CONSTRAINT; Schema: services; Owner: postgres
 --
 
@@ -4817,7 +5625,7 @@ ALTER TABLE ONLY services.reservas_podcast
 
 
 --
--- TOC entry 5228 (class 2606 OID 29251)
+-- TOC entry 5348 (class 2606 OID 34209)
 -- Name: reservas_podcast reservas_podcast_paquete_id_fkey; Type: FK CONSTRAINT; Schema: services; Owner: postgres
 --
 
@@ -4826,7 +5634,7 @@ ALTER TABLE ONLY services.reservas_podcast
 
 
 --
--- TOC entry 5229 (class 2606 OID 29256)
+-- TOC entry 5349 (class 2606 OID 34214)
 -- Name: reservas_podcast reservas_podcast_persona_id_fkey; Type: FK CONSTRAINT; Schema: services; Owner: postgres
 --
 
@@ -4835,7 +5643,7 @@ ALTER TABLE ONLY services.reservas_podcast
 
 
 --
--- TOC entry 5236 (class 2606 OID 29261)
+-- TOC entry 5356 (class 2606 OID 34219)
 -- Name: alquiler_equipos services_alquiler_equipos_cliente_externo_id_foreign; Type: FK CONSTRAINT; Schema: services; Owner: postgres
 --
 
@@ -4844,7 +5652,7 @@ ALTER TABLE ONLY services.alquiler_equipos
 
 
 --
--- TOC entry 5237 (class 2606 OID 29266)
+-- TOC entry 5357 (class 2606 OID 34224)
 -- Name: alquiler_equipos services_alquiler_equipos_equipo_id_foreign; Type: FK CONSTRAINT; Schema: services; Owner: postgres
 --
 
@@ -4853,7 +5661,7 @@ ALTER TABLE ONLY services.alquiler_equipos
 
 
 --
--- TOC entry 5238 (class 2606 OID 29271)
+-- TOC entry 5358 (class 2606 OID 34229)
 -- Name: alquiler_equipos services_alquiler_equipos_persona_id_foreign; Type: FK CONSTRAINT; Schema: services; Owner: postgres
 --
 
@@ -4862,7 +5670,7 @@ ALTER TABLE ONLY services.alquiler_equipos
 
 
 --
--- TOC entry 5244 (class 2606 OID 29276)
+-- TOC entry 5364 (class 2606 OID 34234)
 -- Name: asignaciones_personal services_asignaciones_personal_reserva_radio_id_foreign; Type: FK CONSTRAINT; Schema: services; Owner: postgres
 --
 
@@ -4871,7 +5679,7 @@ ALTER TABLE ONLY services.asignaciones_personal
 
 
 --
--- TOC entry 5248 (class 2606 OID 29281)
+-- TOC entry 5368 (class 2606 OID 34239)
 -- Name: reservas_radio services_reservas_radio_cliente_externo_id_foreign; Type: FK CONSTRAINT; Schema: services; Owner: postgres
 --
 
@@ -4880,7 +5688,7 @@ ALTER TABLE ONLY services.reservas_radio
 
 
 --
--- TOC entry 5249 (class 2606 OID 29286)
+-- TOC entry 5369 (class 2606 OID 34244)
 -- Name: reservas_radio services_reservas_radio_operador_id_foreign; Type: FK CONSTRAINT; Schema: services; Owner: postgres
 --
 
@@ -4889,7 +5697,7 @@ ALTER TABLE ONLY services.reservas_radio
 
 
 --
--- TOC entry 5250 (class 2606 OID 29291)
+-- TOC entry 5370 (class 2606 OID 34249)
 -- Name: reservas_radio services_reservas_radio_persona_id_foreign; Type: FK CONSTRAINT; Schema: services; Owner: postgres
 --
 
@@ -4898,7 +5706,7 @@ ALTER TABLE ONLY services.reservas_radio
 
 
 --
--- TOC entry 5251 (class 2606 OID 29296)
+-- TOC entry 5371 (class 2606 OID 34254)
 -- Name: reservas_radio services_reservas_radio_tarifa_id_foreign; Type: FK CONSTRAINT; Schema: services; Owner: postgres
 --
 
@@ -4907,7 +5715,7 @@ ALTER TABLE ONLY services.reservas_radio
 
 
 --
--- TOC entry 5254 (class 2606 OID 29301)
+-- TOC entry 5374 (class 2606 OID 34259)
 -- Name: trabajos_edicion services_trabajos_edicion_reserva_podcast_id_foreign; Type: FK CONSTRAINT; Schema: services; Owner: postgres
 --
 
@@ -4916,7 +5724,7 @@ ALTER TABLE ONLY services.trabajos_edicion
 
 
 --
--- TOC entry 5252 (class 2606 OID 29306)
+-- TOC entry 5372 (class 2606 OID 34264)
 -- Name: servicios_produccion servicios_produccion_cliente_externo_id_fkey; Type: FK CONSTRAINT; Schema: services; Owner: postgres
 --
 
@@ -4925,7 +5733,7 @@ ALTER TABLE ONLY services.servicios_produccion
 
 
 --
--- TOC entry 5253 (class 2606 OID 29311)
+-- TOC entry 5373 (class 2606 OID 34269)
 -- Name: servicios_produccion servicios_produccion_persona_id_fkey; Type: FK CONSTRAINT; Schema: services; Owner: postgres
 --
 
@@ -4934,7 +5742,7 @@ ALTER TABLE ONLY services.servicios_produccion
 
 
 --
--- TOC entry 5230 (class 2606 OID 29316)
+-- TOC entry 5350 (class 2606 OID 34274)
 -- Name: servicios_streaming servicios_streaming_cliente_externo_id_fkey; Type: FK CONSTRAINT; Schema: services; Owner: postgres
 --
 
@@ -4943,7 +5751,7 @@ ALTER TABLE ONLY services.servicios_streaming
 
 
 --
--- TOC entry 5231 (class 2606 OID 29321)
+-- TOC entry 5351 (class 2606 OID 34279)
 -- Name: servicios_streaming servicios_streaming_persona_id_fkey; Type: FK CONSTRAINT; Schema: services; Owner: postgres
 --
 
@@ -4951,7 +5759,7 @@ ALTER TABLE ONLY services.servicios_streaming
     ADD CONSTRAINT servicios_streaming_persona_id_fkey FOREIGN KEY (persona_id) REFERENCES people.personas(id);
 
 
--- Completed on 2026-06-21 17:11:11 -05
+-- Completed on 2026-07-05 17:27:37 -05
 
 --
 -- PostgreSQL database dump complete

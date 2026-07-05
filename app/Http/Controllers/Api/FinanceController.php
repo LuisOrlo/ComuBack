@@ -14,6 +14,7 @@ use App\Models\Services\TrabajoEdicion;
 use App\Models\TransaccionEgreso;
 use App\Models\TransaccionIngreso;
 use App\Models\Finance\LineaPagoModulo;
+use App\Services\StorageCleanupService;
 use App\Http\Requests\StorePagoInicialRequest;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
@@ -1016,6 +1017,50 @@ class FinanceController extends Controller
                     ? [['id' => $base['id'], 'modulo_nombre' => $base['modulo_nombre'], 'monto' => $base['monto']]]
                     : [],
             ]);
+        })->values();
+
+        $purgados = \App\Models\ArchivoEliminado::where(function ($q) use ($pageKeys, $ek, $ik) {
+            $egresoIds = $pageKeys->filter(fn($k) => str_starts_with($k, 'e_'))
+                ->map(fn($k) => $ek[$k]->id ?? null)->filter();
+            $ingresoIds = $pageKeys->filter(fn($k) => str_starts_with($k, 'i_'))
+                ->map(fn($k) => $ik[$k]->id ?? null)->filter();
+
+            if ($egresoIds->isNotEmpty()) {
+                $q->orWhere(function ($sq) use ($egresoIds) {
+                    $sq->where('model_type', \App\Models\TransaccionEgreso::class)
+                       ->whereIn('model_id', $egresoIds->values());
+                });
+            }
+            if ($ingresoIds->isNotEmpty()) {
+                $q->orWhere(function ($sq) use ($ingresoIds) {
+                    $sq->where('model_type', \App\Models\TransaccionIngreso::class)
+                       ->whereIn('model_id', $ingresoIds->values());
+                });
+            }
+        })
+        ->where('field_name', 'comprobante_url')
+        ->get()
+        ->groupBy(fn($ae) => $ae->model_id . '|' . $ae->field_name);
+
+        $data = $data->map(function ($item) use ($purgados) {
+            if (!empty($item['id']) && !empty($item['comprobante_url'])) {
+                $isEgreso = ($item['tipo_movimiento'] ?? '') === 'egreso';
+                $key = $item['id'] . '|comprobante_url';
+                $entries = $purgados[$key] ?? collect();
+
+                if ($entries->isNotEmpty()) {
+                    $last = $entries->sortByDesc('created_at')->first();
+                    $item['comprobante_purgado'] = in_array($last->accion, [
+                        \App\Models\ArchivoEliminado::ACCION_BORRADO_ARCHIVO,
+                        \App\Models\ArchivoEliminado::ACCION_BORRADO_REGISTRO,
+                    ]);
+                } else {
+                    $item['comprobante_purgado'] = false;
+                }
+            } else {
+                $item['comprobante_purgado'] = false;
+            }
+            return $item;
         });
 
         return response()->json([
@@ -1101,6 +1146,15 @@ class FinanceController extends Controller
             ];
         }
 
+        $comprobantePurgado = false;
+        if ($t->comprobante_url) {
+            $comprobantePurgado = \App\Models\ArchivoEliminado::archivoFueEliminado(
+                \App\Models\TransaccionIngreso::class,
+                $t->id,
+                'comprobante_url'
+            );
+        }
+
         return response()->json([
             'datos' => [
                 'id' => $t->id,
@@ -1109,6 +1163,7 @@ class FinanceController extends Controller
                 'fecha_pago' => $t->fecha_pago?->format('Y-m-d H:i'),
                 'estado_verificacion' => $t->estado_verificacion,
                 'comprobante_url' => $t->comprobante_url,
+                'comprobante_purgado' => $comprobantePurgado,
                 'observaciones' => $t->observaciones,
                 'motivo_rechazo' => $t->motivo_rechazo,
                 'fecha_verificacion' => $t->fecha_verificacion?->format('Y-m-d H:i'),
@@ -1811,7 +1866,39 @@ class FinanceController extends Controller
             'total' => $totalAll,
             'last_page' => $lastPage,
         ]);
+
     }
 
+    public function deleteArchivoIngreso(Request $request, string $id): JsonResponse
+    {
+        $request->validate(['campo' => 'required|string|in:comprobante_url']);
+        $transaccion = TransaccionIngreso::findOrFail($id);
+        $service = app(StorageCleanupService::class);
+        $eliminadoPor = auth()->id() ?? auth()->user()?->persona_id ?? null;
+
+        $resultado = $service->deleteFile($transaccion, $request->campo, $eliminadoPor);
+
+        if (!$resultado['eliminado']) {
+            return response()->json(['message' => $resultado['mensaje']], Response::HTTP_CONFLICT);
+        }
+
+        return response()->json(['message' => 'Comprobante eliminado del almacenamiento']);
+    }
+
+    public function deleteArchivoEgreso(Request $request, string $id): JsonResponse
+    {
+        $request->validate(['campo' => 'required|string|in:comprobante_url']);
+        $transaccion = TransaccionEgreso::findOrFail($id);
+        $service = app(StorageCleanupService::class);
+        $eliminadoPor = auth()->id() ?? auth()->user()?->persona_id ?? null;
+
+        $resultado = $service->deleteFile($transaccion, $request->campo, $eliminadoPor);
+
+        if (!$resultado['eliminado']) {
+            return response()->json(['message' => $resultado['mensaje']], Response::HTTP_CONFLICT);
+        }
+
+        return response()->json(['message' => 'Comprobante eliminado del almacenamiento']);
+    }
 
 }

@@ -7,9 +7,11 @@ use App\Models\Matricula;
 use App\Models\SolicitudInscripcion;
 use App\Models\CursoAbierto;
 use App\Services\RegistrationStateService;
+use App\Services\StorageCleanupService;
 use App\Http\Requests\StoreMatriculaRequest;
 use App\Http\Requests\UpdateMatriculaRequest;
 use Illuminate\Http\Request;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\DB;
 
@@ -70,8 +72,34 @@ class MatriculaController extends Controller
 
     public function destroy($id)
     {
-        Matricula::findOrFail($id)->delete();
+        $matricula = Matricula::findOrFail($id);
+        $eliminadoPor = auth()->id() ?? auth()->user()?->persona_id ?? null;
+        $matricula->delete();
+
+        app(StorageCleanupService::class)->deleteRecordFiles($matricula, $eliminadoPor);
+
         return response()->json(['message' => 'Eliminado exitosamente']);
+    }
+
+    public function deleteArchivo(Request $request, string $id): JsonResponse
+    {
+        $request->validate([
+            'campo' => 'required|string|in:voucher_url',
+        ]);
+
+        $matricula = Matricula::findOrFail($id);
+        $eliminadoPor = auth()->id() ?? auth()->user()?->persona_id ?? null;
+        $service = app(StorageCleanupService::class);
+
+        $resultado = $service->deleteFile($matricula, $request->campo, $eliminadoPor);
+
+        if (!$resultado['eliminado']) {
+            return response()->json(['message' => $resultado['mensaje']], Response::HTTP_CONFLICT);
+        }
+
+        return response()->json([
+            'message' => 'Archivo eliminado del almacenamiento. El registro se conserva como constancia histórica.',
+        ]);
     }
 
     public function notas($id)

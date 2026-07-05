@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Services\Equipo;
+use App\Services\StorageCleanupService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -78,12 +79,13 @@ class EquipoController extends Controller
         ]);
 
         if ($request->hasFile('foto')) {
+            $service = app(StorageCleanupService::class);
             if ($equipo->foto_url) {
-                $oldPath = str_replace('/storage/', '', $equipo->foto_url);
-                Storage::disk('public')->delete($oldPath);
+                $service->deleteFilePhysically($equipo, 'foto_url');
             }
             $path = $request->file('foto')->store('equipos', 'public');
             $validated['foto_url'] = Storage::url($path);
+            $service->reviveFileField($equipo, 'foto_url');
         }
 
         $equipo->update($validated);
@@ -94,8 +96,32 @@ class EquipoController extends Controller
     public function destroy(string $id): JsonResponse
     {
         $equipo = Equipo::findOrFail($id);
+        $eliminadoPor = auth()->id() ?? auth()->user()?->persona_id ?? null;
         $equipo->delete();
 
+        app(StorageCleanupService::class)->deleteRecordFiles($equipo, $eliminadoPor);
+
         return response()->json(['message' => 'Equipo eliminado correctamente']);
+    }
+
+    public function deleteArchivo(Request $request, string $id): JsonResponse
+    {
+        $request->validate([
+            'campo' => 'required|string|in:foto_url',
+        ]);
+
+        $equipo = Equipo::findOrFail($id);
+        $eliminadoPor = auth()->id() ?? auth()->user()?->persona_id ?? null;
+        $service = app(StorageCleanupService::class);
+
+        $resultado = $service->deleteFile($equipo, $request->campo, $eliminadoPor);
+
+        if (!$resultado['eliminado']) {
+            return response()->json(['message' => $resultado['mensaje']], Response::HTTP_CONFLICT);
+        }
+
+        return response()->json([
+            'message' => 'Archivo eliminado del almacenamiento. El registro se conserva como constancia histórica.',
+        ]);
     }
 }
