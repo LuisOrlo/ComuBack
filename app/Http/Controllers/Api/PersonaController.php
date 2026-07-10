@@ -106,7 +106,7 @@ class PersonaController extends Controller
             $tipos = explode(',', $request->tipo);
             $query->whereIn('tipo', $tipos);
         } else {
-            $query->whereIn('tipo', ['instructor', 'staff', 'secretaria', 'admin', 'pasante', 'estudiante']);
+            $query->whereIn('tipo', ['instructor', 'staff', 'secretaria', 'admin', 'pasante']);
         }
 
         if ($request->has('activos')) {
