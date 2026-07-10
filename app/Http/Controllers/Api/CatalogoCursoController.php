@@ -83,8 +83,8 @@ class CatalogoCursoController extends Controller
             'imagen' => 'required|image|mimes:jpeg,png,jpg,webp|max:2048',
         ]);
 
-        $path = $request->file('imagen')->store('catalogos', 'public');
-        $url = asset(Storage::url($path));
+        $path = $request->file('imagen')->store('catalogos', 's3');
+        $url = Storage::disk('s3')->url($path);
 
         return response()->json([
             'data' => ['url' => $url, 'path' => $path],

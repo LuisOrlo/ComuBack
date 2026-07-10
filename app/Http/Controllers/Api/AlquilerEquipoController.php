@@ -74,8 +74,8 @@ class AlquilerEquipoController extends Controller
         }
 
         if ($request->hasFile('foto_salida')) {
-            $path = $request->file('foto_salida')->store('alquileres', 'public');
-            $validated['foto_salida_url'] = Storage::url($path);
+            $path = $request->file('foto_salida')->store('alquileres', 's3');
+            $validated['foto_salida_url'] = Storage::disk('s3')->url($path);
         }
 
         $validated['estado'] = 'pendiente';
@@ -135,8 +135,8 @@ class AlquilerEquipoController extends Controller
         ];
 
         if ($request->hasFile('foto_retorno')) {
-            $path = $request->file('foto_retorno')->store('alquileres', 'public');
-            $updateData['foto_retorno_url'] = Storage::url($path);
+            $path = $request->file('foto_retorno')->store('alquileres', 's3');
+            $updateData['foto_retorno_url'] = Storage::disk('s3')->url($path);
         }
 
         $alquiler->update($updateData);

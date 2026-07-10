@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class FileAccessController extends Controller
@@ -23,24 +24,21 @@ class FileAccessController extends Controller
             abort(404);
         }
 
-        $path = storage_path("app/private/uploads/{$filename}");
+        $path = "uploads/{$filename}";
 
-        if (!file_exists($path) || !is_file($path)) {
+        if (!Storage::disk('s3')->exists($path)) {
             abort(404);
         }
 
-        $finfo = new \finfo(FILEINFO_MIME_TYPE);
-        $mimeType = $finfo->file($path);
+        $mimeType = Storage::disk('s3')->mimeType($path);
 
         if (!in_array($mimeType, self::ALLOWED_MIMES, true)) {
             abort(415, 'Tipo de archivo no permitido');
         }
 
-        return response()->file($path, [
+        return Storage::disk('s3')->download($path, $filename, [
             'Content-Type' => $mimeType,
             'X-Content-Type-Options' => 'nosniff',
-            'Content-Disposition' => 'attachment; filename="' . $filename . '"',
-            'Cache-Control' => 'private, no-cache, no-store, must-revalidate',
         ]);
     }
 }

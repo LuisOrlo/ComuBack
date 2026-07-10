@@ -12,30 +12,30 @@ class StorageCleanupService
 {
     const ALLOWED_FIELDS = [
         \App\Models\Certificado::class => [
-            'archivo_pdf_url' => ['disk' => 'public', 'prefix' => '/storage/'],
+            'archivo_pdf_url' => ['disk' => 's3', 'prefix' => ''],
         ],
         \App\Models\InscripcionTaller::class => [
-            'comprobante_url' => ['disk' => 'public', 'prefix' => '/storage/'],
-            'cedula_url' => ['disk' => 'public', 'prefix' => '/storage/'],
+            'comprobante_url' => ['disk' => 's3', 'prefix' => ''],
+            'cedula_url' => ['disk' => 's3', 'prefix' => ''],
         ],
         \App\Models\SolicitudInscripcion::class => [
-            'archivo_comprobante_url' => ['disk' => 'public', 'prefix' => '/storage/'],
-            'archivo_cedula_url' => ['disk' => 'public', 'prefix' => '/storage/'],
+            'archivo_comprobante_url' => ['disk' => 's3', 'prefix' => ''],
+            'archivo_cedula_url' => ['disk' => 's3', 'prefix' => ''],
         ],
         \App\Models\Matricula::class => [
-            'voucher_url' => ['disk' => 'public', 'prefix' => '/storage/'],
+            'voucher_url' => ['disk' => 's3', 'prefix' => ''],
         ],
         \App\Models\Persona::class => [
-            'cedula_photo_url' => ['disk' => 'public', 'prefix' => '/storage/'],
+            'cedula_photo_url' => ['disk' => 's3', 'prefix' => ''],
         ],
         \App\Models\Services\Equipo::class => [
-            'foto_url' => ['disk' => 'public', 'prefix' => '/storage/'],
+            'foto_url' => ['disk' => 's3', 'prefix' => ''],
         ],
         \App\Models\TransaccionIngreso::class => [
-            'comprobante_url' => ['disk' => 'public', 'prefix' => '/storage/'],
+            'comprobante_url' => ['disk' => 's3', 'prefix' => ''],
         ],
         \App\Models\TransaccionEgreso::class => [
-            'comprobante_url' => ['disk' => 'public', 'prefix' => '/storage/'],
+            'comprobante_url' => ['disk' => 's3', 'prefix' => ''],
         ],
     ];
 
@@ -56,8 +56,7 @@ class StorageCleanupService
             return ['eliminado' => false, 'mensaje' => 'El archivo ya fue eliminado anteriormente'];
         }
 
-        $storagePath = str_replace($config['prefix'], '', $path);
-
+        $storagePath = $this->extractStoragePath($path, $config);
         return DB::transaction(function () use ($model, $field, $config, $storagePath, $eliminadoPor, $accion, $path) {
             if (Storage::disk($config['disk'])->exists($storagePath)) {
                 Storage::disk($config['disk'])->delete($storagePath);
@@ -141,8 +140,7 @@ class StorageCleanupService
             return false;
         }
 
-        $storagePath = str_replace($config['prefix'], '', $path);
-        return Storage::disk($config['disk'])->exists($storagePath);
+        $storagePath = $this->extractStoragePath($path, $config);        return Storage::disk($config['disk'])->exists($storagePath);
     }
 
     /**
@@ -161,6 +159,20 @@ class StorageCleanupService
         }
 
         return self::ALLOWED_FIELDS[$modelClass][$field];
+    }
+
+    /**
+     * Extrae la key de storage desde la URL o path almacenado.
+     * Para S3 las URLs son absolutas (https://...), se parsea el path.
+     * Para discos locales se usa el prefix configurado.
+     */
+    private function extractStoragePath(string $path, array $config): string
+    {
+        if ($config['disk'] === 's3' && str_starts_with($path, 'http')) {
+            $parsed = parse_url($path);
+            return ltrim($parsed['path'] ?? '', '/');
+        }
+        return str_replace($config['prefix'], '', $path);
     }
 
     /**
@@ -198,8 +210,7 @@ class StorageCleanupService
             return;
         }
 
-        $storagePath = str_replace($config['prefix'], '', $path);
-
+        $storagePath = $this->extractStoragePath($path, $config);
         if (Storage::disk($config['disk'])->exists($storagePath)) {
             Storage::disk($config['disk'])->delete($storagePath);
         }

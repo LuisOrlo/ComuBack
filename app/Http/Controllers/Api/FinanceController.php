@@ -22,6 +22,7 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\Rule;
+use Illuminate\Support\Facades\Storage;
 
 class FinanceController extends Controller
 {
@@ -786,8 +787,8 @@ class FinanceController extends Controller
         $request->validate(['archivo' => 'required|file|image|max:5120']);
         $file = $request->file('archivo');
         $filename = \Illuminate\Support\Str::uuid() . '.' . $file->getClientOriginalExtension();
-        $path = $file->storeAs('comprobantes', $filename, 'public');
-        return response()->json(['data' => ['url' => '/storage/' . $path]], 201);
+        $path = $file->storeAs('comprobantes', $filename, 's3');
+        return response()->json(['data' => ['url' => Storage::disk('s3')->url($path)]], 201);
     }
 
     public function registrarPagosIniciales(StorePagoInicialRequest $request): JsonResponse

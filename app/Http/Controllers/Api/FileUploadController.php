@@ -22,9 +22,9 @@ class FileUploadController extends Controller
 
         $file = $request->file('archivo');
         $filename = Str::uuid() . '.' . $file->getClientOriginalExtension();
-        $path = $file->storeAs('comprobantes', $filename, 'public');
+        $path = $file->storeAs('comprobantes', $filename, 's3');
 
-        $url = '/storage/' . $path;
+        $url = Storage::disk('s3')->url($path);
 
         return response()->json([
             'data' => [
@@ -47,9 +47,9 @@ class FileUploadController extends Controller
 
         $file = $request->file('archivo');
         $filename = Str::uuid() . '.' . $file->getClientOriginalExtension();
-        $path = $file->storeAs('cedulas', $filename, 'public');
+        $path = $file->storeAs('cedulas', $filename, 's3');
 
-        $url = '/storage/' . $path;
+        $url = Storage::disk('s3')->url($path);
 
         return response()->json([
             'data' => [

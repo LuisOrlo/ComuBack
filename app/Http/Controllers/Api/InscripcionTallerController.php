@@ -164,9 +164,9 @@ class InscripcionTallerController extends Controller
 
         $file = $request->file('archivo');
         $filename = Str::uuid() . '.' . $file->getClientOriginalExtension();
-        $path = $file->storeAs('comprobantes-talleres', $filename, 'public');
+        $path = $file->storeAs('comprobantes-talleres', $filename, 's3');
 
-        $inscripcion->update(['comprobante_url' => '/storage/' . $path]);
+        $inscripcion->update(['comprobante_url' => Storage::disk('s3')->url($path)]);
         $service->reviveFileField($inscripcion, 'comprobante_url');
 
         return response()->json([
@@ -259,9 +259,9 @@ class InscripcionTallerController extends Controller
 
         $file = $request->file('archivo');
         $filename = \Illuminate\Support\Str::uuid() . '.' . $file->getClientOriginalExtension();
-        $path = $file->storeAs('cedulas-talleres', $filename, 'public');
+        $path = $file->storeAs('cedulas-talleres', $filename, 's3');
 
-        $inscripcion->update(['cedula_url' => '/storage/' . $path]);
+        $inscripcion->update(['cedula_url' => Storage::disk('s3')->url($path)]);
         $service->reviveFileField($inscripcion, 'cedula_url');
 
         return response()->json([
