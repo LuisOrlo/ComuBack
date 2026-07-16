@@ -16,6 +16,16 @@ class ReservaRadio extends Model
 
     protected $table = 'services.reservas_radio';
 
+    protected static function booted(): void
+    {
+        static::created(function ($model) {
+            if ($model->cliente_externo_id) {
+                ClienteExterno::where('id', $model->cliente_externo_id)
+                    ->update(['es_cliente' => true]);
+            }
+        });
+    }
+
     protected $fillable = [
         'tarifa_id',
         'persona_id',

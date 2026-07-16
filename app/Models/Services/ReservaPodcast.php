@@ -18,6 +18,16 @@ class ReservaPodcast extends Model
 
     protected $table = 'services.reservas_podcast';
 
+    protected static function booted(): void
+    {
+        static::created(function ($model) {
+            if ($model->cliente_externo_id) {
+                ClienteExterno::where('id', $model->cliente_externo_id)
+                    ->update(['es_cliente' => true]);
+            }
+        });
+    }
+
     protected $fillable = [
         'persona_id',
         'cliente_externo_id',

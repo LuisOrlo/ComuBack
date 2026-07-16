@@ -30,6 +30,9 @@ class EstudianteResource extends JsonResource
             'ficha_registro_url' => $this->ficha_registro_url,
             'es_activo' => $this->es_activo,
             'total_cursos' => $this->relationLoaded('matriculas') ? $this->matriculas->count() : ($this->perfilEstudiante?->total_cursos ?? 0),
+            'total_talleres' => $this->totalTalleres(),
+            'estado_pago' => $this->calcularEstadoPago(),
+            'saldo_pendiente' => $this->calcularSaldoPendiente(),
             'perfil_estudiante' => $this->whenLoaded('perfilEstudiante', function () {
                 if (!$this->perfilEstudiante) {
                     return null;
@@ -71,6 +74,59 @@ class EstudianteResource extends JsonResource
             'creado_en' => $this->created_at->toIso8601String(),
             'actualizado_en' => $this->updated_at->toIso8601String(),
         ];
+    }
+
+    private function calcularEstadoPago(): string
+    {
+        $matriculas = $this->relationLoaded('matriculas') ? $this->matriculas : collect();
+        $totalMatriculas = $matriculas->count();
+
+        if ($totalMatriculas === 0) {
+            return 'ninguno';
+        }
+
+        $cuentas = $matriculas->map(fn($m) => $m->cuentaPorCobrar)->filter();
+        $estadosCuentas = $cuentas->pluck('estado')->unique();
+        $estadosLineas = $matriculas->flatMap(fn($m) => $m->lineasPago->pluck('estado'))->unique();
+
+        $tienePendiente = $estadosCuentas->contains('pendiente') || $estadosLineas->contains('pendiente');
+        $tieneAbonado = $estadosCuentas->contains('abonado') || $estadosLineas->contains('abonado');
+        $tienePagado = ($cuentas->count() > 0 && $estadosCuentas->every(fn($e) => $e === 'pagado'))
+            || ($cuentas->isEmpty() && $estadosLineas->isNotEmpty() && $estadosLineas->every(fn($e) => $e === 'pagado'));
+
+        if ($cuentas->count() < $totalMatriculas && $estadosLineas->isEmpty()) {
+            return 'deudor';
+        }
+        if ($tienePendiente) {
+            return 'deudor';
+        }
+        if ($tieneAbonado) {
+            return 'abonado';
+        }
+        if ($tienePagado) {
+            return 'al_dia';
+        }
+        return 'deudor';
+    }
+
+    private function calcularSaldoPendiente(): float
+    {
+        $matriculas = $this->relationLoaded('matriculas') ? $this->matriculas : collect();
+
+        return $matriculas->sum(function ($m) {
+            if ($m->cuentaPorCobrar) {
+                return (float) ($m->cuentaPorCobrar->monto_total - $m->cuentaPorCobrar->monto_abonado);
+            }
+            return (float) ($m->cursoAbierto->precio_base ?? 0);
+        });
+    }
+
+    private function totalTalleres(): int
+    {
+        if (!$this->cedula) return 0;
+        return \App\Models\InscripcionTaller::where('cedula', $this->cedula)
+            ->whereIn('estado', ['activo', 'completado'])
+            ->count();
     }
 
     private function resolveCedulaFromSolicitudes(): ?string

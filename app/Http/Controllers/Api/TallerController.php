@@ -16,7 +16,7 @@ class TallerController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
-        $query = Taller::query()->with(['instructor', 'ciudad'])->withCount(['inscripciones as inscripciones_count' => function ($q) {
+        $query = Taller::query()->with(['ciudad', 'horarios', 'instructor:id,nombres,apellidos'])->withCount(['inscripciones as inscripciones_count' => function ($q) {
             $q->where('estado', 'activo');
         }]);
 
@@ -54,10 +54,8 @@ class TallerController extends Controller
 
         if ($request->filled('tab')) {
             if ($request->tab === 'proximos') {
-                $query->where(function ($q) {
-                    $q->where('fecha', '>=', now()->toDateString())
-                      ->orWhere('fecha_fin', '>=', now()->toDateString());
-                })->whereIn('estado', ['pendiente', 'confirmado']);
+                $query->where('fecha', '>', now()->subDays(7)->toDateString())
+                      ->whereIn('estado', ['pendiente', 'confirmado', 'en_progreso']);
             } elseif ($request->tab === 'pasados') {
                 $query->where(function ($q) {
                     $q->where('fecha', '<', now()->toDateString())

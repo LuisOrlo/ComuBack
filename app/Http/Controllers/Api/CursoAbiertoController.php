@@ -19,7 +19,12 @@ class CursoAbiertoController extends Controller
 {
     public function index(Request $request)
     {
-        $query = CursoAbierto::with(['catalogo', 'docente', 'ciudad', 'modulos', 'matriculas'])
+        $query = CursoAbierto::with([
+            'catalogo:id,nombre,categoria',
+            'ciudad:id,nombre',
+            'horario.diasSemana',
+            'docente:id,nombres,apellidos',
+        ])
             ->withCount(['matriculas as estudiantes_inscritos']);
 
         if ($request->has('catalogo_curso_id')) {
@@ -38,12 +43,19 @@ class CursoAbiertoController extends Controller
             $query->vigentes();
         }
 
-        if ($request->has('no_iniciados') && $request->no_iniciados == 'true') {
-            $query->where('fecha_inicio', '>', \Carbon\Carbon::now());
+        if ($request->has('dias_desde_inicio') && is_numeric($request->dias_desde_inicio)) {
+            $dias = max(0, (int) $request->dias_desde_inicio);
+            $query->where('fecha_inicio', '>', now()->subDays($dias));
+        } elseif ($request->has('no_iniciados') && $request->no_iniciados == 'true') {
+            $query->where('fecha_inicio', '>', now());
         }
 
         if ($request->has('modalidad')) {
             $query->where('modalidad', $request->modalidad);
+        }
+
+        if ($request->has('categoria')) {
+            $query->whereHas('catalogo', fn($q) => $q->where('categoria', $request->categoria));
         }
 
         if ($request->has('ciudad_id')) {

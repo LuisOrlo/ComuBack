@@ -44,15 +44,15 @@ class RegistrationController extends Controller
         if ($request->hasFile('archivo_comprobante') && empty($validated['archivo_comprobante_url'])) {
             $file = $request->file('archivo_comprobante');
             $filename = Str::uuid() . '.' . $file->getClientOriginalExtension();
-            $path = $file->storeAs('comprobantes', $filename, 's3');
-            $validated['archivo_comprobante_url'] = Storage::disk('s3')->url($path);
+            $path = $file->storeAs('comprobantes', $filename, 'public');
+            $validated['archivo_comprobante_url'] = Storage::disk('public')->url($path);
         }
 
         if ($request->hasFile('archivo_cedula') && empty($validated['archivo_cedula_url'])) {
             $file = $request->file('archivo_cedula');
             $filename = Str::uuid() . '.' . $file->getClientOriginalExtension();
-            $path = $file->storeAs('cedulas', $filename, 's3');
-            $validated['archivo_cedula_url'] = Storage::disk('s3')->url($path);
+            $path = $file->storeAs('cedulas', $filename, 'public');
+            $validated['archivo_cedula_url'] = Storage::disk('public')->url($path);
         }
 
         // 1. Determinar si es estudiante o participante externo

@@ -26,17 +26,17 @@ class FileAccessController extends Controller
 
         $path = "uploads/{$filename}";
 
-        if (!Storage::disk('s3')->exists($path)) {
+        if (!Storage::disk('public')->exists($path)) {
             abort(404);
         }
 
-        $mimeType = Storage::disk('s3')->mimeType($path);
+        $mimeType = Storage::disk('public')->mimeType($path);
 
         if (!in_array($mimeType, self::ALLOWED_MIMES, true)) {
             abort(415, 'Tipo de archivo no permitido');
         }
 
-        return Storage::disk('s3')->download($path, $filename, [
+        return Storage::disk('public')->download($path, $filename, [
             'Content-Type' => $mimeType,
             'X-Content-Type-Options' => 'nosniff',
         ]);

@@ -32,6 +32,7 @@ class ClienteExterno extends Model
         'estado_civil',
         'fecha_nacimiento',
         'edad',
+        'es_cliente',
     ];
 
     protected $casts = [
@@ -58,6 +59,38 @@ class ClienteExterno extends Model
     public function ciudad()
     {
         return $this->belongsTo(Ciudad::class, 'ciudad_id', 'id');
+    }
+
+    /**
+     * Reservas de radio de este cliente
+     */
+    public function reservasRadio(): HasMany
+    {
+        return $this->hasMany(\App\Models\Services\ReservaRadio::class, 'cliente_externo_id');
+    }
+
+    /**
+     * Reservas de aulas de este cliente
+     */
+    public function reservasAulas(): HasMany
+    {
+        return $this->hasMany(\App\Models\Services\ReservaAula::class, 'cliente_externo_id');
+    }
+
+    /**
+     * Reservas de podcast de este cliente
+     */
+    public function reservasPodcast(): HasMany
+    {
+        return $this->hasMany(\App\Models\Services\ReservaPodcast::class, 'cliente_externo_id');
+    }
+
+    /**
+     * Alquileres de equipos de este cliente
+     */
+    public function alquilerEquipos(): HasMany
+    {
+        return $this->hasMany(\App\Models\Services\AlquilerEquipo::class, 'cliente_externo_id');
     }
 
     // ========================================================================

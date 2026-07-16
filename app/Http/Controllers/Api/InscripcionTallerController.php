@@ -66,6 +66,14 @@ class InscripcionTallerController extends Controller
             });
         }
 
+        if ($request->filled('fecha_desde')) {
+            $query->whereDate('fecha_inscripcion', '>=', $request->fecha_desde);
+        }
+
+        if ($request->filled('fecha_hasta')) {
+            $query->whereDate('fecha_inscripcion', '<=', $request->fecha_hasta);
+        }
+
         $inscripciones = $query->orderBy('fecha_inscripcion', 'desc')
             ->paginate($request->per_page ?? 50);
 
@@ -91,6 +99,8 @@ class InscripcionTallerController extends Controller
             'monto_pagado' => 'required|numeric|min:0',
             'metodo_pago' => 'nullable|string|max:50',
             'fecha_pago' => 'nullable|date',
+            'comprobante' => 'nullable|file|image|max:5120',
+            'archivo_cedula' => 'nullable|file|image|max:2048',
         ]);
 
         $taller = Taller::findOrFail($validated['taller_id']);
@@ -125,26 +135,44 @@ class InscripcionTallerController extends Controller
             ], 422);
         }
 
-        $inscripcion = InscripcionTaller::create([
-            'taller_id' => $validated['taller_id'],
-            'nombres' => $validated['nombres'],
-            'apellidos' => $validated['apellidos'],
-            'cedula' => $validated['cedula'],
-            'correo' => $validated['correo'],
-            'telefono' => $validated['telefono'] ?? null,
-            'ciudad' => $validated['ciudad'] ?? null,
-            'ocupacion' => $validated['ocupacion'] ?? null,
-            'direccion' => $validated['direccion'] ?? null,
-            'estado_civil' => $validated['estado_civil'] ?? null,
-            'fecha_nacimiento' => $validated['fecha_nacimiento'] ?? null,
-            'edad' => $validated['edad'] ?? null,
-            'fecha_inscripcion' => now()->toDateString(),
-            'estado' => 'activo',
-            'tipo_pago' => $validated['tipo_pago'],
-            'monto_pagado' => $validated['monto_pagado'],
-            'metodo_pago' => $validated['metodo_pago'] ?? null,
-            'fecha_pago' => $validated['fecha_pago'] ?? now()->toDateString(),
-        ]);
+        $inscripcion = DB::transaction(function () use ($request, $validated) {
+            $data = [
+                'taller_id' => $validated['taller_id'],
+                'nombres' => $validated['nombres'],
+                'apellidos' => $validated['apellidos'],
+                'cedula' => $validated['cedula'],
+                'correo' => $validated['correo'],
+                'telefono' => $validated['telefono'] ?? null,
+                'ciudad' => $validated['ciudad'] ?? null,
+                'ocupacion' => $validated['ocupacion'] ?? null,
+                'direccion' => $validated['direccion'] ?? null,
+                'estado_civil' => $validated['estado_civil'] ?? null,
+                'fecha_nacimiento' => $validated['fecha_nacimiento'] ?? null,
+                'edad' => $validated['edad'] ?? null,
+                'fecha_inscripcion' => now()->toDateString(),
+                'estado' => 'activo',
+                'tipo_pago' => $validated['tipo_pago'],
+                'monto_pagado' => $validated['monto_pagado'],
+                'metodo_pago' => $validated['metodo_pago'] ?? null,
+                'fecha_pago' => $validated['fecha_pago'] ?? now()->toDateString(),
+            ];
+
+            if ($request->hasFile('comprobante')) {
+                $file = $request->file('comprobante');
+                $filename = Str::uuid() . '.' . $file->getClientOriginalExtension();
+                $path = $file->storeAs('comprobantes-talleres', $filename, 'public');
+                $data['comprobante_url'] = Storage::disk('public')->url($path);
+            }
+
+            if ($request->hasFile('archivo_cedula')) {
+                $file = $request->file('archivo_cedula');
+                $filename = Str::uuid() . '.' . $file->getClientOriginalExtension();
+                $path = $file->storeAs('cedulas-talleres', $filename, 'public');
+                $data['cedula_url'] = Storage::disk('public')->url($path);
+            }
+
+            return InscripcionTaller::create($data);
+        });
 
         return response()->json($inscripcion, 201);
     }
@@ -164,9 +192,9 @@ class InscripcionTallerController extends Controller
 
         $file = $request->file('archivo');
         $filename = Str::uuid() . '.' . $file->getClientOriginalExtension();
-        $path = $file->storeAs('comprobantes-talleres', $filename, 's3');
+        $path = $file->storeAs('comprobantes-talleres', $filename, 'public');
 
-        $inscripcion->update(['comprobante_url' => Storage::disk('s3')->url($path)]);
+        $inscripcion->update(['comprobante_url' => Storage::disk('public')->url($path)]);
         $service->reviveFileField($inscripcion, 'comprobante_url');
 
         return response()->json([
@@ -203,6 +231,10 @@ class InscripcionTallerController extends Controller
             // Guardar el precio ajustado en la inscripción para que persista
             if ($request->filled('precio_ajustado')) {
                 $inscripcion->update(['monto_pagado' => $precioTotal]);
+            }
+
+            if ($request->filled('motivo_ajuste')) {
+                $inscripcion->update(['motivo_ajuste' => $request->motivo_ajuste]);
             }
 
             $montoAbonado = $request->monto_pagado ?? $inscripcion->monto_pagado ?? 0;
@@ -247,7 +279,7 @@ class InscripcionTallerController extends Controller
     public function uploadCedula(Request $request, string $id): JsonResponse
     {
         $request->validate([
-            'archivo' => 'required|file|image|max:5120',
+            'archivo' => 'required|file|image|max:2048',
         ]);
 
         $inscripcion = InscripcionTaller::findOrFail($id);
@@ -259,9 +291,9 @@ class InscripcionTallerController extends Controller
 
         $file = $request->file('archivo');
         $filename = \Illuminate\Support\Str::uuid() . '.' . $file->getClientOriginalExtension();
-        $path = $file->storeAs('cedulas-talleres', $filename, 's3');
+        $path = $file->storeAs('cedulas-talleres', $filename, 'public');
 
-        $inscripcion->update(['cedula_url' => Storage::disk('s3')->url($path)]);
+        $inscripcion->update(['cedula_url' => Storage::disk('public')->url($path)]);
         $service->reviveFileField($inscripcion, 'cedula_url');
 
         return response()->json([
@@ -289,6 +321,8 @@ class InscripcionTallerController extends Controller
             'ciudad' => 'nullable|string|max:100',
             'fecha_pago' => 'nullable|date',
             'taller_id' => 'nullable|uuid|exists:pgsql.academic.talleres,id',
+            'precio_ajustado' => 'nullable|numeric|min:0',
+            'motivo_ajuste' => 'nullable|string|max:255',
         ]);
 
         $inscripcion = InscripcionTaller::findOrFail($id);

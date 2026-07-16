@@ -30,6 +30,7 @@ class InscripcionTaller extends Model
         'estado',
         'tipo_pago',
         'monto_pagado',
+        'motivo_ajuste',
         'metodo_pago',
         'comprobante_url',
         'cedula_url',

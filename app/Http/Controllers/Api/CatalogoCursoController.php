@@ -56,13 +56,13 @@ class CatalogoCursoController extends Controller
 
     public function show($id)
     {
-        $catalogo = CatalogoCurso::with(['programa', 'modulosPredeterminados'])->findOrFail($id);
+        $catalogo = CatalogoCurso::findOrFail($id);
         return response()->json(['data' => $catalogo]);
     }
 
     public function update(UpdateCatalogoCursoRequest $request, $id)
     {
-        $catalogo = CatalogoCurso::with(['programa'])->findOrFail($id);
+        $catalogo = CatalogoCurso::findOrFail($id);
         $catalogo->update($request->validated());
         return response()->json(['data' => $catalogo, 'message' => 'Actualizado exitosamente']);
     }
@@ -83,8 +83,8 @@ class CatalogoCursoController extends Controller
             'imagen' => 'required|image|mimes:jpeg,png,jpg,webp|max:2048',
         ]);
 
-        $path = $request->file('imagen')->store('catalogos', 's3');
-        $url = Storage::disk('s3')->url($path);
+        $path = $request->file('imagen')->store('catalogos', 'public');
+        $url = Storage::disk('public')->url($path);
 
         return response()->json([
             'data' => ['url' => $url, 'path' => $path],

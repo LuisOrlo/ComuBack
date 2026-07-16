@@ -17,6 +17,8 @@ use App\Models\Nota;
 use App\Models\CuentaPorCobrar;
 use App\Models\TransaccionIngreso;
 use App\Models\EstudianteSegmento;
+use App\Models\Taller;
+use App\Models\CursoAbierto;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -32,6 +34,14 @@ class EstudianteController extends Controller
             ->estudiantes()
             ->with(['ciudad', 'perfilEstudiante', 'matriculas.cuentaPorCobrar', 'matriculas.lineasPago'])
             ->whereNull('deleted_at')
+            ->when($request->filled('buscar'), function ($q) use ($request) {
+                $buscar = $request->buscar;
+                $q->where(function ($sub) use ($buscar) {
+                    $sub->whereRaw('LOWER(nombres) LIKE ?', ["%{$buscar}%"])
+                      ->orWhereRaw('LOWER(apellidos) LIKE ?', ["%{$buscar}%"])
+                      ->orWhere('cedula', 'like', "%{$buscar}%");
+                });
+            })
             ->orderBy('nombres')
             ->get()
             ->map(function ($p) {
@@ -96,6 +106,13 @@ class EstudianteController extends Controller
             ->whereHas('solicitudesInscripcion', fn ($q) =>
                 $q->whereIn('estado', ['aprobado', 'matricula_creada'])
             )
+            ->when($request->filled('buscar'), function ($q) use ($request) {
+                $buscar = $request->buscar;
+                $q->where(function ($sub) use ($buscar) {
+                    $sub->whereRaw('LOWER(nombres) LIKE ?', ["%{$buscar}%"])
+                      ->orWhere('cedula', 'like', "%{$buscar}%");
+                });
+            })
             ->with([
                 'solicitudesInscripcion' => fn ($q) =>
                     $q->whereIn('estado', ['aprobado', 'matricula_creada'])
@@ -179,6 +196,14 @@ class EstudianteController extends Controller
             ->whereNotNull('nombres')
             ->whereIn('estado', ['activo', 'completado'])
             ->with('taller')
+            ->when($request->filled('buscar'), function ($q) use ($request) {
+                $buscar = $request->buscar;
+                $q->where(function ($sub) use ($buscar) {
+                    $sub->whereRaw('LOWER(nombres) LIKE ?', ["%{$buscar}%"])
+                      ->orWhereRaw('LOWER(apellidos) LIKE ?', ["%{$buscar}%"])
+                      ->orWhere('cedula', 'like', "%{$buscar}%");
+                });
+            })
             ->orderBy('nombres')
             ->get();
 
@@ -213,7 +238,7 @@ class EstudianteController extends Controller
                 'cedula' => $primera->cedula,
                 'correo' => $primera->correo,
                 'celular' => $primera->telefono,
-                'ciudad' => null,
+                'ciudad' => $primera->ciudad ? ['nombre' => $primera->ciudad] : null,
                 'es_activo' => true,
                 'total_cursos' => $totalTalleres,
                 'estado_pago' => $estadoPago,
@@ -240,8 +265,7 @@ class EstudianteController extends Controller
             $buscar = mb_strtolower($request->buscar);
             $todos = $todos->filter(fn ($e) =>
                 str_contains(mb_strtolower($e['nombres'] . ' ' . $e['apellidos']), $buscar) ||
-                str_contains(mb_strtolower($e['cedula'] ?? ''), $buscar) ||
-                str_contains(mb_strtolower($e['correo'] ?? ''), $buscar)
+                str_contains(mb_strtolower($e['cedula'] ?? ''), $buscar)
             );
         }
 
@@ -273,9 +297,7 @@ class EstudianteController extends Controller
             $todos = $todos->values();
         }
 
-        $baseParaStats = $request->filled('buscar')
-            ? $todos
-            : $internos->concat($clientesData);
+        $baseParaStats = $todos;
 
         $stats = [
             'todos' => $baseParaStats->count(),
@@ -380,6 +402,15 @@ class EstudianteController extends Controller
 
         if ($inscripcionTaller) {
             $taller = $inscripcionTaller->taller;
+            $precioTaller = (float) ($taller->precio ?? 0);
+            $montoPagado = (float) ($inscripcionTaller->monto_pagado ?? 0);
+            $saldoPendiente = max(0, $precioTaller - $montoPagado);
+            $cedulaUrl = $inscripcionTaller->cedula_url;
+            $cedulaPurgado = $cedulaUrl
+                ? \App\Models\ArchivoEliminado::archivoFueEliminado(
+                    \App\Models\InscripcionTaller::class, $inscripcionTaller->id, 'cedula_url'
+                )
+                : false;
             return response()->json([
                 'datos' => [
                     'id' => $inscripcionTaller->id,
@@ -390,10 +421,13 @@ class EstudianteController extends Controller
                     'correo' => $inscripcionTaller->correo,
                     'celular' => $inscripcionTaller->telefono,
                     'ciudad' => $inscripcionTaller->ciudad ? ['nombre' => $inscripcionTaller->ciudad] : null,
+                    'cedula_photo_url' => $cedulaUrl,
+                    'cedula_purgado' => $cedulaPurgado,
                     'es_activo' => true,
-                    'total_cursos' => 1,
-                    'estado_pago' => $inscripcionTaller->pago_verificado ? 'al_dia' : 'deudor',
-                    'saldo_pendiente' => max(0, ($taller->precio ?? 0) - ($inscripcionTaller->monto_pagado ?? 0)),
+                    'total_cursos' => 0,
+                    'total_talleres' => 1,
+                    'saldo_pendiente' => $saldoPendiente,
+                    'estado_pago' => $saldoPendiente <= 0 ? 'al_dia' : ($montoPagado > 0 ? 'abonado' : 'deudor'),
                     'perfil_estudiante' => [
                         'edad' => $inscripcionTaller->edad ?? null,
                         'ocupacion' => $inscripcionTaller->ocupacion ?? null,
@@ -464,7 +498,7 @@ class EstudianteController extends Controller
                                 'curso' => 'Taller: ' . ($t->nombre ?? 'Sin nombre'),
                                 'estado' => $inscripcionTaller->estado ?? 'activo',
                                 'fecha_inscripcion' => $inscripcionTaller->fecha_inscripcion ?? $inscripcionTaller->created_at?->format('Y-m-d'),
-                                'porcentaje_asistencia' => 100,
+                                'porcentaje_asistencia' => 0,
                                 'promedio' => null,
                                 'notas' => [],
                             ]],
@@ -1253,9 +1287,9 @@ class EstudianteController extends Controller
                                 'total_pagado' => $pagado,
                                 'total_general' => $precio,
                                 'porcentaje_pagado' => $precio > 0 ? round(($pagado / $precio) * 100) : 0,
-                                'cuentas_pendientes' => $inscripcionTaller->pago_verificado ? 0 : 1,
-                                'cuentas_abonadas' => ($pagado > 0 && !$inscripcionTaller->pago_verificado) ? 1 : 0,
-                                'cuentas_pagadas' => $inscripcionTaller->pago_verificado ? 1 : 0,
+                                'cuentas_pendientes' => $pagado <= 0 ? 1 : 0,
+                                'cuentas_abonadas' => ($pagado > 0 && $pagado < $precio) ? 1 : 0,
+                                'cuentas_pagadas' => $pagado >= $precio ? 1 : 0,
                             ],
                         ],
                     ]);
@@ -1504,7 +1538,7 @@ class EstudianteController extends Controller
             ->whereHas('solicitudesInscripcion', fn($q) => $q->whereIn('estado', ['aprobado', 'matricula_creada']))
             ->count();
 
-        $porCiudad = Persona::query()
+        $internosCiudad = Persona::query()
             ->estudiantes()
             ->whereNull('deleted_at')
             ->whereNotNull('ciudad_id')
@@ -1513,9 +1547,49 @@ class EstudianteController extends Controller
             ->with('ciudad')
             ->get()
             ->map(fn($p) => [
-                'ciudad' => is_string($p->ciudad) ? $p->ciudad : ($p->ciudad->nombre ?? 'Sin ciudad'),
-                'total' => $p->total,
+                'ciudad' => $p->ciudad?->nombre ?? 'Sin ciudad',
+                'total' => (int) $p->total,
             ]);
+
+        $solicitudesSub = DB::table('academic.solicitudes_inscripcion')
+            ->whereIn('estado', ['aprobado', 'matricula_creada'])
+            ->whereNotNull('participante_externo_id')
+            ->select('participante_externo_id');
+
+        $externosCiudad = ClienteExterno::query()
+            ->whereIn('id', $solicitudesSub)
+            ->whereNotNull('ciudad')
+            ->where('ciudad', '!=', '')
+            ->selectRaw('ciudad, count(*) as total')
+            ->groupBy('ciudad')
+            ->get()
+            ->map(fn($item) => [
+                'ciudad' => $item->ciudad,
+                'total' => (int) $item->total,
+            ]);
+
+        $talleresCiudad = \App\Models\InscripcionTaller::query()
+            ->whereIn('estado', ['activo', 'completado'])
+            ->whereNotNull('ciudad')
+            ->where('ciudad', '!=', '')
+            ->selectRaw('ciudad, count(*) as total')
+            ->groupBy('ciudad')
+            ->get()
+            ->map(fn($item) => [
+                'ciudad' => $item->ciudad,
+                'total' => (int) $item->total,
+            ]);
+
+        $porCiudad = collect($internosCiudad)
+            ->concat($externosCiudad)
+            ->concat($talleresCiudad)
+            ->groupBy(fn($item) => mb_strtolower(trim($item['ciudad'])))
+            ->map(fn($grupo) => [
+                'ciudad' => $grupo->first()['ciudad'],
+                'total' => $grupo->sum('total'),
+            ])
+            ->sortByDesc('total')
+            ->values();
 
         $matriculasStats = Matricula::query()
             ->selectRaw("estado, count(*) as total")
@@ -1535,6 +1609,10 @@ class EstudianteController extends Controller
         $completadas = $matriculasStats->get('completado', 0);
         $tasaCompletacion = $tasaAprobacion > 0 ? round(($completadas / $tasaAprobacion) * 100, 2) : 0;
 
+        $cursosCount = CursoAbierto::query()->count();
+        $talleresCount = Taller::query()->count();
+        $ciudadesCount = $porCiudad->count();
+
         return response()->json([
         'datos' => [
             'total_estudiantes' => $internosCount + $externosCount,
@@ -1542,6 +1620,9 @@ class EstudianteController extends Controller
                 'matriculas_por_estado' => $matriculasStats,
                 'promedio_general' => round((float) $promedioGeneral, 2),
                 'tasa_completacion' => $tasaCompletacion,
+                'cursos_count' => $cursosCount,
+                'talleres_count' => $talleresCount,
+                'ciudades_count' => $ciudadesCount,
             ],
         ]);
     }
@@ -1884,8 +1965,7 @@ class EstudianteController extends Controller
             $internos->where(function ($q) use ($buscar) {
                 $q->whereRaw('LOWER(nombres) LIKE ?', ["%{$buscar}%"])
                   ->orWhereRaw('LOWER(apellidos) LIKE ?', ["%{$buscar}%"])
-                  ->orWhere('cedula', 'like', "%{$buscar}%")
-                  ->orWhere('correo', 'like', "%{$buscar}%");
+                  ->orWhere('cedula', 'like', "%{$buscar}%");
             });
         }
 
@@ -1947,8 +2027,7 @@ class EstudianteController extends Controller
             $buscar = mb_strtolower($request->buscar);
             $clientesQuery->where(function ($q) use ($buscar) {
                 $q->whereRaw('LOWER(nombres) LIKE ?', ["%{$buscar}%"])
-                  ->orWhere('cedula', 'like', "%{$buscar}%")
-                  ->orWhere('correo', 'like', "%{$buscar}%");
+                  ->orWhere('cedula', 'like', "%{$buscar}%");
             });
         }
 
@@ -2169,6 +2248,84 @@ class EstudianteController extends Controller
      * Buscar estudiantes existentes por cédula, nombre o correo.
      * Usado para evitar duplicados al crear matrículas manuales.
      */
+    public function ciudades(Request $request): JsonResponse
+    {
+        $perPage = (int) ($request->per_page ?? 50);
+        $page = (int) ($request->input('page', 1));
+
+        $internos = Persona::query()
+            ->estudiantes()
+            ->whereNotNull('ciudad_id')
+            ->selectRaw('ciudad_id, count(*) as total')
+            ->groupBy('ciudad_id')
+            ->with('ciudad')
+            ->get()
+            ->map(fn($item) => [
+                'ciudad' => $item->ciudad?->nombre ?? 'Sin ciudad',
+                'total' => (int) $item->total,
+            ]);
+
+        $solicitudesSub = DB::table('academic.solicitudes_inscripcion')
+            ->whereIn('estado', ['aprobado', 'matricula_creada'])
+            ->whereNotNull('participante_externo_id')
+            ->select('participante_externo_id');
+
+        $externos = ClienteExterno::query()
+            ->whereIn('id', $solicitudesSub)
+            ->whereNotNull('ciudad')
+            ->where('ciudad', '!=', '')
+            ->selectRaw('ciudad, count(*) as total')
+            ->groupBy('ciudad')
+            ->get()
+            ->map(fn($item) => [
+                'ciudad' => $item->ciudad,
+                'total' => (int) $item->total,
+            ]);
+
+        $talleres = \App\Models\InscripcionTaller::query()
+            ->whereIn('estado', ['activo', 'completado'])
+            ->whereNotNull('ciudad')
+            ->where('ciudad', '!=', '')
+            ->selectRaw('ciudad, count(*) as total')
+            ->groupBy('ciudad')
+            ->get()
+            ->map(fn($item) => [
+                'ciudad' => $item->ciudad,
+                'total' => (int) $item->total,
+            ]);
+
+        $todas = collect($internos)
+            ->concat($externos)
+            ->concat($talleres)
+            ->groupBy(fn($item) => mb_strtolower(trim($item['ciudad'])))
+            ->map(fn($grupo) => [
+                'ciudad' => $grupo->first()['ciudad'],
+                'total' => $grupo->sum('total'),
+            ])
+            ->sortByDesc('total')
+            ->values();
+
+        if ($request->filled('buscar')) {
+            $buscar = mb_strtolower($request->buscar);
+            $todas = $todas->filter(fn($item) =>
+                str_contains(mb_strtolower($item['ciudad']), $buscar)
+            )->values();
+        }
+
+        $total = $todas->count();
+        $items = $todas->slice(($page - 1) * $perPage, $perPage)->values();
+
+        return response()->json([
+            'datos' => $items,
+            'meta' => [
+                'current_page' => $page,
+                'last_page' => (int) ceil($total / max($perPage, 1)),
+                'per_page' => $perPage,
+                'total' => $total,
+            ],
+        ]);
+    }
+
     public function buscar(Request $request): JsonResponse
     {
         $request->validate([

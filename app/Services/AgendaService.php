@@ -175,8 +175,8 @@ class AgendaService
         // Contar matriculas
         $cursoAbiertoId = $clase['curso_abierto_id'] ?? null;
         if ($cursoAbiertoId) {
-            $cursoAbierto = CursoAbierto::withCount(['matriculas as estudiantes_inscritos'])->find($cursoAbiertoId);
-            $event['participantes_count'] = $cursoAbierto ? $cursoAbierto->estudiantes_inscritos : null;
+            $cursoAbierto = CursoAbierto::withCount(['matriculas as inscritos_count'])->find($cursoAbiertoId);
+            $event['participantes_count'] = $cursoAbierto ? $cursoAbierto->inscritos_count : null;
         } else {
             $event['participantes_count'] = null;
         }

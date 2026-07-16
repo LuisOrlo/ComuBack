@@ -17,6 +17,16 @@ class ReservaAula extends Model
 
     public $timestamps = false;
 
+    protected static function booted(): void
+    {
+        static::created(function ($model) {
+            if ($model->cliente_externo_id) {
+                ClienteExterno::where('id', $model->cliente_externo_id)
+                    ->update(['es_cliente' => true]);
+            }
+        });
+    }
+
     protected $fillable = [
         'aula_id',
         'persona_id',

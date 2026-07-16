@@ -331,6 +331,7 @@ class RegistrationStateService
                         'participante_externo_id' => null,
                         'es_participante_externo' => false,
                     ]);
+                    $externo->update(['es_cliente' => false]);
                 }
             }
 

@@ -164,6 +164,7 @@ use Illuminate\Support\Facades\Route;
         Route::post('importar/validar', [EstudianteController::class, 'validateImport'])->name('estudiantes.import.validate');
         Route::post('exportar', [EstudianteController::class, 'exportStudents'])->name('estudiantes.export');
         Route::get('buscar', [EstudianteController::class, 'buscar'])->name('estudiantes.buscar');
+        Route::get('ciudades', [EstudianteController::class, 'ciudades'])->name('estudiantes.ciudades');
 
         // ========================================================================
         // RUTAS PARAMETRIZADAS POR ESTUDIANTE
@@ -229,6 +230,7 @@ use Illuminate\Support\Facades\Route;
             Route::post('{id}/cedula', [StaffRegistrationController::class, 'uploadCedula'])->name('solicitudes-inscripcion.cedula');
             Route::post('{id}/comprobante', [StaffRegistrationController::class, 'uploadComprobante'])->name('solicitudes-inscripcion.comprobante');
             Route::delete('{id}/archivo', [StaffRegistrationController::class, 'deleteArchivo'])->name('solicitudes-inscripcion.delete-archivo');
+            Route::delete('{id}', [StaffRegistrationController::class, 'destroy'])->name('solicitudes-inscripcion.destroy');
         });
 
         // STAFF
@@ -335,9 +337,13 @@ use Illuminate\Support\Facades\Route;
             Route::get('/', [ClienteExternoController::class, 'index'])->name('clientes-externos.index');
             Route::post('/', [ClienteExternoController::class, 'store'])->name('clientes-externos.store');
             Route::get('{id}', [ClienteExternoController::class, 'show'])->name('clientes-externos.show');
+            Route::put('{id}', [ClienteExternoController::class, 'update'])->name('clientes-externos.update');
+            Route::delete('{id}', [ClienteExternoController::class, 'destroy'])->name('clientes-externos.destroy');
             Route::post('buscar-cedula', [ClienteExternoController::class, 'buscarCedula'])
                 ->middleware('throttle:5,1')
                 ->name('clientes-externos.buscar-cedula');
+            Route::get('{id}/reservas', [ClienteExternoController::class, 'reservas'])->name('clientes-externos.reservas');
+            Route::get('{id}/financial', [ClienteExternoController::class, 'financial'])->name('clientes-externos.financial');
         });
 
         // SERVICIOS - EQUIPOS
@@ -654,6 +660,7 @@ Route::prefix('reports')->group(function () {
             Route::post('/', [EgresoController::class, 'store'])->name('finanzas.egresos.store');
             Route::get('categorias', [EgresoController::class, 'categorias'])->name('finanzas.egresos.categorias');
             Route::get('personal-disponible', [EgresoController::class, 'personalDisponible'])->name('finanzas.egresos.personal-disponible');
+            Route::get('personal/{personaId}', [EgresoController::class, 'pagosPersonal'])->name('finanzas.egresos.personal');
             Route::get('{id}', [EgresoController::class, 'show'])->name('finanzas.egresos.show');
             Route::put('{id}', [EgresoController::class, 'update'])->name('finanzas.egresos.update');
             Route::delete('{id}', [EgresoController::class, 'destroy'])->name('finanzas.egresos.destroy');
@@ -826,12 +833,17 @@ Route::prefix('reports')->group(function () {
             Route::post('{id}/rechazar', [StaffRegistrationController::class, 'reject'])->name('secretaria.solicitudes-inscripcion.reject');
             Route::post('{id}/cancelar', [StaffRegistrationController::class, 'cancel'])->name('secretaria.solicitudes-inscripcion.cancel');
             Route::patch('{id}/actualizar-pago', [StaffRegistrationController::class, 'updatePago'])->name('secretaria.solicitudes-inscripcion.update-pago');
+            Route::delete('{id}', [StaffRegistrationController::class, 'destroy'])->name('secretaria.solicitudes-inscripcion.destroy');
         });
 
         // Clientes externos
         Route::prefix('clientes-externos')->group(function () {
             Route::get('/', [ClienteExternoController::class, 'index'])->name('secretaria.clientes-externos.index');
             Route::post('/', [ClienteExternoController::class, 'store'])->name('secretaria.clientes-externos.store');
+            Route::get('{id}', [ClienteExternoController::class, 'show'])->name('secretaria.clientes-externos.show');
+            Route::put('{id}', [ClienteExternoController::class, 'update'])->name('secretaria.clientes-externos.update');
             Route::post('buscar-cedula', [ClienteExternoController::class, 'buscarCedula'])->name('secretaria.clientes-externos.buscar-cedula');
+            Route::get('{id}/reservas', [ClienteExternoController::class, 'reservas'])->name('secretaria.clientes-externos.reservas');
+            Route::get('{id}/financial', [ClienteExternoController::class, 'financial'])->name('secretaria.clientes-externos.financial');
         });
     });

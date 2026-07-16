@@ -64,8 +64,8 @@ class RegistrationValidationService
             $errores[] = 'El curso no está disponible para inscripciones';
         }
 
-        // 4. Validar que la fecha del curso no ha pasado (permite inscribirse hasta el día de inicio)
-        if ($curso->fecha_inicio && Carbon::parse($curso->fecha_inicio)->startOfDay()->lt(Carbon::today())) {
+        // 4. Validar que la fecha del curso no haya superado los 7 días desde su inicio
+        if ($curso->fecha_inicio && Carbon::parse($curso->fecha_inicio)->startOfDay()->lt(Carbon::today()->subDays(7))) {
             $errores[] = 'El curso ya ha comenzado';
         }
 

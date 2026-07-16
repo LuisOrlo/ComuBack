@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\Persona;
 use App\Models\TransaccionEgreso;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -203,6 +204,54 @@ class EgresoController extends Controller
         TransaccionEgreso::findOrFail($id)->delete();
         Cache::forget('finance.resumen');
         return response()->json(['message' => 'Egreso eliminado exitosamente']);
+    }
+
+    public function pagosPersonal($personaId): JsonResponse
+    {
+        $persona = Persona::select('id', 'nombres', 'apellidos', 'tipo')
+            ->findOrFail($personaId);
+
+        $nombreCompleto = trim("{$persona->nombres} {$persona->apellidos}");
+
+        $query = TransaccionEgreso::with(['categoria'])
+            ->where('proveedor_beneficiario', $nombreCompleto)
+            ->orderBy('fecha_pago', 'desc');
+
+        $totalPagado = (clone $query)->sum('monto');
+        $cantidadPagos = (clone $query)->count();
+        $ultimoPago = (clone $query)->value('fecha_pago');
+
+        $items = $query->paginate(25);
+
+        $data = $items->map(fn($e) => [
+            'id' => $e->id,
+            'categoria_id' => $e->categoria_id,
+            'categoria_nombre' => $e->categoria?->nombre,
+            'descripcion' => $e->descripcion,
+            'monto' => (float) $e->monto,
+            'metodo_pago' => $e->metodo_pago ?? 'transferencia',
+            'comprobante_url' => $e->comprobante_url,
+            'fecha_pago' => $e->fecha_pago?->format('Y-m-d'),
+            'notas' => $e->notas,
+        ]);
+
+        return response()->json([
+            'persona' => [
+                'id' => $persona->id,
+                'nombre_completo' => $nombreCompleto,
+                'tipo' => $persona->tipo,
+            ],
+            'totales' => [
+                'total_pagado' => (float) $totalPagado,
+                'cantidad_pagos' => $cantidadPagos,
+                'ultimo_pago' => $ultimoPago?->format('Y-m-d'),
+            ],
+            'data' => $data->values(),
+            'current_page' => $items->currentPage(),
+            'per_page' => $items->perPage(),
+            'total' => $items->total(),
+            'last_page' => $items->lastPage(),
+        ]);
     }
 
     public function categorias(): JsonResponse

@@ -9,8 +9,10 @@ use App\Models\SolicitudInscripcion;
 use App\Models\Persona;
 use App\Services\RegistrationStateService;
 use App\Services\StorageCleanupService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 
 class StaffRegistrationController extends Controller
@@ -66,6 +68,10 @@ class StaffRegistrationController extends Controller
         $perPage = $request->get('per_page', 15);
         $solicitudes = $query->paginate($perPage);
 
+        $baseQuery = SolicitudInscripcion::query();
+        $fechaMin = (clone $baseQuery)->min('created_at');
+        $fechaMax = (clone $baseQuery)->max('created_at');
+
         return response()->json([
             'data' => $solicitudes->items(),
             'meta' => [
@@ -73,6 +79,8 @@ class StaffRegistrationController extends Controller
                 'per_page' => $solicitudes->perPage(),
                 'current_page' => $solicitudes->currentPage(),
                 'last_page' => $solicitudes->lastPage(),
+                'fecha_min' => $fechaMin,
+                'fecha_max' => $fechaMax,
             ],
         ]);
     }
@@ -108,7 +116,7 @@ class StaffRegistrationController extends Controller
      */
     public function approve(string $id, ValidateRegistrationRequest $request)
     {
-        $solicitud = SolicitudInscripcion::find($id);
+        $solicitud = SolicitudInscripcion::with('cursoAbierto.modulos', 'participanteExterno')->find($id);
 
         if (!$solicitud) {
             return response()->json([
@@ -222,6 +230,13 @@ class StaffRegistrationController extends Controller
      */
     private function formatearSolicitudDetallada(SolicitudInscripcion $solicitud): array
     {
+        $solicitud->loadMissing([
+            'estudiante.perfilEstudiante',
+            'participanteExterno',
+            'cursoAbierto.catalogo',
+            'validador',
+        ]);
+
         $lineasPago = null;
         if ($solicitud->estado === SolicitudInscripcion::ESTADO_MATRICULA_CREADA) {
             $matricula = \App\Models\Matricula::with('lineasPago.modulo')
@@ -327,7 +342,7 @@ class StaffRegistrationController extends Controller
      */
     public function uploadCedula(string $id, Request $request)
     {
-        $request->validate(['archivo' => 'required|file|image|max:5120']);
+        $request->validate(['archivo' => 'required|file|image|max:2048']);
         $solicitud = SolicitudInscripcion::findOrFail($id);
         $service = app(StorageCleanupService::class);
 
@@ -337,8 +352,8 @@ class StaffRegistrationController extends Controller
 
         $file = $request->file('archivo');
         $filename = \Illuminate\Support\Str::uuid() . '.' . $file->getClientOriginalExtension();
-        $path = $file->storeAs('comprobantes', $filename, 's3');
-        $url = Storage::disk('s3')->url($path);
+        $path = $file->storeAs('comprobantes', $filename, 'public');
+        $url = Storage::disk('public')->url($path);
         $solicitud->update(['archivo_cedula_url' => $url]);
         $service->reviveFileField($solicitud, 'archivo_cedula_url');
         return response()->json(['data' => ['cedula_url' => $url], 'message' => 'Cédula subida']);
@@ -355,6 +370,7 @@ class StaffRegistrationController extends Controller
     public function updateEstudiante(string $id, Request $request)
     {
         $solicitud = SolicitudInscripcion::findOrFail($id);
+        $solicitud->loadMissing(['estudiante.perfilEstudiante', 'participanteExterno']);
 
         // Validar datos
         $validated = $request->validate([
@@ -548,14 +564,33 @@ class StaffRegistrationController extends Controller
 
         $file = $request->file('archivo');
         $filename = \Illuminate\Support\Str::uuid() . '.' . $file->getClientOriginalExtension();
-        $path = $file->storeAs('comprobantes', $filename, 's3');
-        $url = Storage::disk('s3')->url($path);
+        $path = $file->storeAs('comprobantes', $filename, 'public');
+        $url = Storage::disk('public')->url($path);
         $solicitud->update(['archivo_comprobante_url' => $url]);
         $service->reviveFileField($solicitud, 'archivo_comprobante_url');
         return response()->json([
             'data' => ['comprobante_url' => $url],
             'mensaje' => 'Comprobante subido correctamente',
         ]);
+    }
+
+    /**
+     * DELETE /api/academic/solicitudes-inscripcion/{id}
+     * Eliminar una solicitud rechazada (soft delete + limpieza de archivos)
+     */
+    public function destroy(string $id): JsonResponse
+    {
+        $solicitud = SolicitudInscripcion::findOrFail($id);
+        $eliminadoPor = auth()->id() ?? auth()->user()?->persona_id ?? null;
+
+        DB::transaction(function () use ($solicitud) {
+            \App\Models\CuentaPorCobrar::where('solicitud_inscripcion_id', $solicitud->id)->delete();
+            $solicitud->delete();
+        });
+
+        app(StorageCleanupService::class)->deleteRecordFiles($solicitud, $eliminadoPor);
+
+        return response()->json(['mensaje' => 'Solicitud eliminada correctamente']);
     }
 
     public function deleteArchivo(Request $request, string $id): \Illuminate\Http\JsonResponse

@@ -112,8 +112,8 @@ class CertificadoController extends Controller
         if ($request->hasFile('pdf')) {
             $file = $request->file('pdf');
             $filename = Str::uuid() . '.pdf';
-            $path = $file->storeAs('certificados', $filename, 's3');
-            $data['archivo_pdf_url'] = Storage::disk('s3')->url($path);
+            $path = $file->storeAs('certificados', $filename, 'public');
+            $data['archivo_pdf_url'] = Storage::disk('public')->url($path);
         }
 
         $certificado = Certificado::create($data);
@@ -234,10 +234,10 @@ class CertificadoController extends Controller
 
         $file = $request->file('pdf');
         $filename = Str::uuid() . '.pdf';
-        $path = $file->storeAs('certificados', $filename, 's3');
+        $path = $file->storeAs('certificados', $filename, 'public');
 
         $certificado->update([
-            'archivo_pdf_url' => Storage::disk('s3')->url($path),
+            'archivo_pdf_url' => Storage::disk('public')->url($path),
             'estado' => Certificado::ESTADO_GENERADO,
         ]);
 
@@ -376,19 +376,15 @@ class CertificadoController extends Controller
                 'academic.certificados.codigo_certificado',
                 'academic.certificados.estado as estado_certificado',
                 'academic.certificados.archivo_pdf_url',
-                DB::raw("(EXISTS (
-                    SELECT 1 FROM archivos_eliminados ae
-                    WHERE ae.model_type = 'App\\Models\\Certificado'
-                    AND ae.model_id = academic.certificados.id
-                    AND ae.field_name = 'archivo_pdf_url'
-                    AND ae.accion IN ('borrado_archivo', 'borrado_registro')
-                    AND ae.created_at = (
-                        SELECT MAX(ae2.created_at) FROM archivos_eliminados ae2
-                        WHERE ae2.model_type = 'App\\Models\\Certificado'
-                        AND ae2.model_id = academic.certificados.id
-                        AND ae2.field_name = 'archivo_pdf_url'
-                    )
-                )) as archivo_purgado"),
+                DB::raw("COALESCE((
+                    SELECT CASE WHEN accion IN ('borrado_archivo', 'borrado_registro') THEN true ELSE false END
+                    FROM archivos_eliminados
+                    WHERE model_type = 'App\\Models\\Certificado'
+                      AND model_id = academic.certificados.id
+                      AND field_name = 'archivo_pdf_url'
+                    ORDER BY created_at DESC
+                    LIMIT 1
+                ), false) as archivo_purgado"),
             ])
             ->orderByRaw('COALESCE(people.personas.apellidos, people.clientes_externos.apellidos)')
             ->orderByRaw('COALESCE(people.personas.nombres, people.clientes_externos.nombres)')
@@ -440,6 +436,7 @@ class CertificadoController extends Controller
         $resultados = [];
         $errores = [];
 
+        DB::transaction(function () use ($request, &$resultados, &$errores) {
         foreach ($request->file('certificados') as $index => $files) {
             try {
                 $data = $request->input("certificados.{$index}");
@@ -465,7 +462,7 @@ class CertificadoController extends Controller
                 }
 
                 $filename = Str::uuid() . '.pdf';
-                $path = $file->storeAs('certificados', $filename, 's3');
+                $path = $file->storeAs('certificados', $filename, 'public');
 
                 $certificado = Certificado::create([
                     'estudiante_id' => $persona->id,
@@ -474,7 +471,7 @@ class CertificadoController extends Controller
                     'cedula_impresa' => $persona->cedula,
                     'fecha_emision' => $data['fecha_emision'] ?? now()->toDateString(),
                     'estado' => Certificado::ESTADO_GENERADO,
-                    'archivo_pdf_url' => Storage::disk('s3')->url($path),
+                    'archivo_pdf_url' => Storage::disk('public')->url($path),
                 ]);
 
                 $resultados[] = [
@@ -490,6 +487,7 @@ class CertificadoController extends Controller
                 ];
             }
         }
+        });
 
         return response()->json([
             'message' => 'Procesamiento completado',
@@ -511,15 +509,17 @@ class CertificadoController extends Controller
         $certificados = Certificado::with(['estudiante', 'catalogoCurso', 'cursoAbierto'])
             ->porCedula($request->cedula)
             ->orderBy('fecha_emision', 'desc')
+            ->select('academic.certificados.*')
+            ->addSelect(DB::raw("COALESCE((
+                SELECT CASE WHEN accion IN ('borrado_archivo', 'borrado_registro') THEN true ELSE false END
+                FROM archivos_eliminados
+                WHERE model_type = 'App\\Models\\Certificado'
+                  AND model_id = academic.certificados.id
+                  AND field_name = 'archivo_pdf_url'
+                ORDER BY created_at DESC
+                LIMIT 1
+            ), false) as archivo_purgado"))
             ->get();
-
-        $certificados->each(function ($certificado) {
-            $certificado->archivo_purgado = ArchivoEliminado::archivoFueEliminado(
-                Certificado::class,
-                $certificado->id,
-                'archivo_pdf_url'
-            );
-        });
 
         return response()->json(['data' => $certificados]);
     }
@@ -569,7 +569,7 @@ class CertificadoController extends Controller
             ], Response::HTTP_NOT_FOUND);
         }
 
-        if (!Storage::disk('s3')->exists($path)) {
+        if (!Storage::disk('public')->exists($path)) {
             return response()->json([
                 'message' => 'El archivo PDF no se encuentra en el servidor',
             ], Response::HTTP_NOT_FOUND);
@@ -581,20 +581,46 @@ class CertificadoController extends Controller
         $catalogo = strtoupper(str_replace(' ', '_', $certificado->catalogoCurso->nombre ?? 'CERTIFICADO'));
         $filename = preg_replace('/[^A-Z0-9_]/', '', "{$nombres}_{$catalogo}") . '.pdf';
 
-        return Storage::disk('s3')->download($path, $filename);
+        return Storage::disk('public')->download($path, $filename);
     }
 
     public function historial(string $id): JsonResponse
     {
         $certificado = Certificado::with(['estudiante'])->findOrFail($id);
 
+        $personaIds = [];
+        if ($certificado->emitido_por) {
+            $personaIds[] = $certificado->emitido_por;
+        }
+        if ($certificado->borrado_por) {
+            $personaIds[] = $certificado->borrado_por;
+        }
+
+        $archivosEliminados = ArchivoEliminado::where('model_type', Certificado::class)
+            ->where('model_id', $certificado->id)
+            ->orderBy('created_at', 'desc')
+            ->get();
+
+        foreach ($archivosEliminados as $ae) {
+            if ($ae->eliminado_por) {
+                $personaIds[] = $ae->eliminado_por;
+            }
+        }
+
+        $personas = [];
+        if (!empty($personaIds)) {
+            $personas = Persona::whereIn('id', array_unique($personaIds))
+                ->get()
+                ->keyBy('id');
+        }
+
         $eventos = [];
 
         if ($certificado->fecha_emitido || $certificado->created_at) {
             $emitidoPor = null;
-            if ($certificado->emitido_por) {
-                $p = \App\Models\Persona::find($certificado->emitido_por);
-                $emitidoPor = $p ? trim(($p->nombres ?? '') . ' ' . ($p->apellidos ?? '')) : null;
+            if ($certificado->emitido_por && isset($personas[$certificado->emitido_por])) {
+                $p = $personas[$certificado->emitido_por];
+                $emitidoPor = trim(($p->nombres ?? '') . ' ' . ($p->apellidos ?? ''));
             }
             $fechaEmitido = $certificado->fecha_emitido ?? $certificado->created_at;
             $eventos[] = [
@@ -618,9 +644,9 @@ class CertificadoController extends Controller
 
         if ($certificado->fecha_borrado) {
             $borradoPor = null;
-            if ($certificado->borrado_por) {
-                $p = \App\Models\Persona::find($certificado->borrado_por);
-                $borradoPor = $p ? trim(($p->nombres ?? '') . ' ' . ($p->apellidos ?? '')) : null;
+            if ($certificado->borrado_por && isset($personas[$certificado->borrado_por])) {
+                $p = $personas[$certificado->borrado_por];
+                $borradoPor = trim(($p->nombres ?? '') . ' ' . ($p->apellidos ?? ''));
             }
             $fechaBorrado = $certificado->fecha_borrado;
             $eventos[] = [
@@ -631,16 +657,11 @@ class CertificadoController extends Controller
             ];
         }
 
-        $archivosEliminados = ArchivoEliminado::where('model_type', Certificado::class)
-            ->where('model_id', $certificado->id)
-            ->orderBy('created_at', 'desc')
-            ->get();
-
         foreach ($archivosEliminados as $ae) {
             $nombre = null;
-            if ($ae->eliminado_por) {
-                $p = \App\Models\Persona::find($ae->eliminado_por);
-                $nombre = $p ? trim(($p->nombres ?? '') . ' ' . ($p->apellidos ?? '')) : null;
+            if ($ae->eliminado_por && isset($personas[$ae->eliminado_por])) {
+                $p = $personas[$ae->eliminado_por];
+                $nombre = trim(($p->nombres ?? '') . ' ' . ($p->apellidos ?? ''));
             }
 
             if ($ae->accion === ArchivoEliminado::ACCION_RESTAURADO) {
