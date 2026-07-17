@@ -21,4 +21,10 @@ if [ -n "$PORT" ]; then
     sed -i "s/VirtualHost \*:80/VirtualHost \*:${PORT}/" /etc/apache2/sites-enabled/000-default.conf
 fi
 
+# Forzar que solo mpm_prefork esté activo (fix necesario en Railway)
+a2dismod mpm_event mpm_worker 2>/dev/null || true
+rm -f /etc/apache2/mods-enabled/mpm_event.* /etc/apache2/mods-enabled/mpm_worker.* 2>/dev/null || true
+a2enmod mpm_prefork
+apache2ctl -t
+
 exec apache2-foreground
