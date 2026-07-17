@@ -28,3 +28,4 @@ phpunit.xml
 .phpunit.result.cache
 .editorconfig
 .npmrc
+bootstrap/cache/*.php

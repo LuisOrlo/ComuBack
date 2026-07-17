@@ -44,8 +44,10 @@ RUN docker-php-ext-configure gd --with-freetype --with-jpeg \
     && docker-php-ext-enable redis
 
 RUN a2enmod rewrite \
-    && a2dismod mpm_event mpm_worker 2>/dev/null || true \
-    && a2enmod mpm_prefork
+    && rm -f /etc/apache2/mods-enabled/mpm_event.* /etc/apache2/mods-enabled/mpm_worker.* \
+    && a2enmod mpm_prefork; \
+    echo "=== MPM modules enabled ==="; \
+    ls -la /etc/apache2/mods-enabled/ | grep mpm
 
 RUN rm /etc/apache2/sites-enabled/000-default.conf
 COPY docker/apache-laravel.conf /etc/apache2/sites-available/000-default.conf
@@ -59,7 +61,8 @@ COPY --from=assets /app/public/build /var/www/html/public/build
 
 COPY . /var/www/html
 
-RUN chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache \
+RUN rm -f bootstrap/cache/*.php \
+    && chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache \
     && chmod -R 775 /var/www/html/storage /var/www/html/bootstrap/cache
 
 WORKDIR /var/www/html
