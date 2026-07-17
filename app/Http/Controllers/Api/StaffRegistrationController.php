@@ -352,8 +352,8 @@ class StaffRegistrationController extends Controller
 
         $file = $request->file('archivo');
         $filename = \Illuminate\Support\Str::uuid() . '.' . $file->getClientOriginalExtension();
-        $path = $file->storeAs('comprobantes', $filename, 'public');
-        $url = Storage::disk('public')->url($path);
+        $path = $file->storeAs('comprobantes', $filename, 's3');
+        $url = Storage::disk('s3')->url($path);
         $solicitud->update(['archivo_cedula_url' => $url]);
         $service->reviveFileField($solicitud, 'archivo_cedula_url');
         return response()->json(['data' => ['cedula_url' => $url], 'message' => 'Cédula subida']);
@@ -564,8 +564,8 @@ class StaffRegistrationController extends Controller
 
         $file = $request->file('archivo');
         $filename = \Illuminate\Support\Str::uuid() . '.' . $file->getClientOriginalExtension();
-        $path = $file->storeAs('comprobantes', $filename, 'public');
-        $url = Storage::disk('public')->url($path);
+        $path = $file->storeAs('comprobantes', $filename, 's3');
+        $url = Storage::disk('s3')->url($path);
         $solicitud->update(['archivo_comprobante_url' => $url]);
         $service->reviveFileField($solicitud, 'archivo_comprobante_url');
         return response()->json([

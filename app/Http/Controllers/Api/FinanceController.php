@@ -811,8 +811,8 @@ class FinanceController extends Controller
         $request->validate(['archivo' => 'required|file|image|max:5120']);
         $file = $request->file('archivo');
         $filename = \Illuminate\Support\Str::uuid() . '.' . $file->getClientOriginalExtension();
-        $path = $file->storeAs('comprobantes', $filename, 'public');
-        return response()->json(['data' => ['url' => Storage::disk('public')->url($path)]], 201);
+        $path = $file->storeAs('comprobantes', $filename, 's3');
+        return response()->json(['data' => ['url' => Storage::disk('s3')->url($path)]], 201);
     }
 
     public function registrarPagosIniciales(StorePagoInicialRequest $request): JsonResponse

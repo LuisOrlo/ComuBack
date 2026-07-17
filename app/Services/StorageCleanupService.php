@@ -12,30 +12,30 @@ class StorageCleanupService
 {
     const ALLOWED_FIELDS = [
         \App\Models\Certificado::class => [
-            'archivo_pdf_url' => ['disk' => 'public', 'prefix' => ''],
+            'archivo_pdf_url' => ['disk' => 's3', 'prefix' => ''],
         ],
         \App\Models\InscripcionTaller::class => [
-            'comprobante_url' => ['disk' => 'public', 'prefix' => ''],
-            'cedula_url' => ['disk' => 'public', 'prefix' => ''],
+            'comprobante_url' => ['disk' => 's3', 'prefix' => ''],
+            'cedula_url' => ['disk' => 's3', 'prefix' => ''],
         ],
         \App\Models\SolicitudInscripcion::class => [
-            'archivo_comprobante_url' => ['disk' => 'public', 'prefix' => ''],
-            'archivo_cedula_url' => ['disk' => 'public', 'prefix' => ''],
+            'archivo_comprobante_url' => ['disk' => 's3', 'prefix' => ''],
+            'archivo_cedula_url' => ['disk' => 's3', 'prefix' => ''],
         ],
         \App\Models\Matricula::class => [
-            'voucher_url' => ['disk' => 'public', 'prefix' => ''],
+            'voucher_url' => ['disk' => 's3', 'prefix' => ''],
         ],
         \App\Models\Persona::class => [
-            'cedula_photo_url' => ['disk' => 'public', 'prefix' => ''],
+            'cedula_photo_url' => ['disk' => 's3', 'prefix' => ''],
         ],
         \App\Models\Services\Equipo::class => [
-            'foto_url' => ['disk' => 'public', 'prefix' => ''],
+            'foto_url' => ['disk' => 's3', 'prefix' => ''],
         ],
         \App\Models\TransaccionIngreso::class => [
-            'comprobante_url' => ['disk' => 'public', 'prefix' => ''],
+            'comprobante_url' => ['disk' => 's3', 'prefix' => ''],
         ],
         \App\Models\TransaccionEgreso::class => [
-            'comprobante_url' => ['disk' => 'public', 'prefix' => ''],
+            'comprobante_url' => ['disk' => 's3', 'prefix' => ''],
         ],
     ];
 
@@ -168,14 +168,9 @@ class StorageCleanupService
      */
     private function extractStoragePath(string $path, array $config): string
     {
-        if (str_starts_with($path, 'http')) {
+        if ($config['disk'] === 's3') {
             $parsed = parse_url($path);
-            $pathOnly = ltrim($parsed['path'] ?? '', '/');
-            $storagePrefix = 'storage/';
-            if (str_starts_with($pathOnly, $storagePrefix)) {
-                return substr($pathOnly, strlen($storagePrefix));
-            }
-            return $pathOnly;
+            return ltrim($parsed['path'] ?? '', '/');
         }
         return str_replace($config['prefix'], '', $path);
     }

@@ -51,8 +51,8 @@ class EquipoController extends Controller
         ]);
 
         if ($request->hasFile('foto')) {
-            $path = $request->file('foto')->store('equipos', 'public');
-            $validated['foto_url'] = Storage::disk('public')->url($path);
+            $path = $request->file('foto')->store('equipos', 's3');
+            $validated['foto_url'] = Storage::disk('s3')->url($path);
         }
 
         $equipo = Equipo::create($validated);
@@ -83,8 +83,8 @@ class EquipoController extends Controller
             if ($equipo->foto_url) {
                 $service->deleteFilePhysically($equipo, 'foto_url');
             }
-            $path = $request->file('foto')->store('equipos', 'public');
-            $validated['foto_url'] = Storage::disk('public')->url($path);
+            $path = $request->file('foto')->store('equipos', 's3');
+            $validated['foto_url'] = Storage::disk('s3')->url($path);
             $service->reviveFileField($equipo, 'foto_url');
         }
 

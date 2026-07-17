@@ -160,15 +160,15 @@ class InscripcionTallerController extends Controller
             if ($request->hasFile('comprobante')) {
                 $file = $request->file('comprobante');
                 $filename = Str::uuid() . '.' . $file->getClientOriginalExtension();
-                $path = $file->storeAs('comprobantes-talleres', $filename, 'public');
-                $data['comprobante_url'] = Storage::disk('public')->url($path);
+                $path = $file->storeAs('comprobantes-talleres', $filename, 's3');
+                $data['comprobante_url'] = Storage::disk('s3')->url($path);
             }
 
             if ($request->hasFile('archivo_cedula')) {
                 $file = $request->file('archivo_cedula');
                 $filename = Str::uuid() . '.' . $file->getClientOriginalExtension();
-                $path = $file->storeAs('cedulas-talleres', $filename, 'public');
-                $data['cedula_url'] = Storage::disk('public')->url($path);
+                $path = $file->storeAs('cedulas-talleres', $filename, 's3');
+                $data['cedula_url'] = Storage::disk('s3')->url($path);
             }
 
             return InscripcionTaller::create($data);
@@ -192,9 +192,9 @@ class InscripcionTallerController extends Controller
 
         $file = $request->file('archivo');
         $filename = Str::uuid() . '.' . $file->getClientOriginalExtension();
-        $path = $file->storeAs('comprobantes-talleres', $filename, 'public');
+        $path = $file->storeAs('comprobantes-talleres', $filename, 's3');
 
-        $inscripcion->update(['comprobante_url' => Storage::disk('public')->url($path)]);
+        $inscripcion->update(['comprobante_url' => Storage::disk('s3')->url($path)]);
         $service->reviveFileField($inscripcion, 'comprobante_url');
 
         return response()->json([
@@ -291,9 +291,9 @@ class InscripcionTallerController extends Controller
 
         $file = $request->file('archivo');
         $filename = \Illuminate\Support\Str::uuid() . '.' . $file->getClientOriginalExtension();
-        $path = $file->storeAs('cedulas-talleres', $filename, 'public');
+        $path = $file->storeAs('cedulas-talleres', $filename, 's3');
 
-        $inscripcion->update(['cedula_url' => Storage::disk('public')->url($path)]);
+        $inscripcion->update(['cedula_url' => Storage::disk('s3')->url($path)]);
         $service->reviveFileField($inscripcion, 'cedula_url');
 
         return response()->json([
