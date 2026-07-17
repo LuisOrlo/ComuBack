@@ -43,7 +43,9 @@ RUN docker-php-ext-configure gd --with-freetype --with-jpeg \
     && pecl install redis \
     && docker-php-ext-enable redis
 
-RUN a2enmod rewrite
+RUN a2enmod rewrite \
+    && a2dismod mpm_event mpm_worker 2>/dev/null || true \
+    && a2enmod mpm_prefork
 
 RUN rm /etc/apache2/sites-enabled/000-default.conf
 COPY docker/apache-laravel.conf /etc/apache2/sites-available/000-default.conf
