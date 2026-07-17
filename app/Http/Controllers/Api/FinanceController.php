@@ -61,6 +61,9 @@ class FinanceController extends Controller
                 'alquilerEquipo.equipo',
                 'reservaRadio.persona',
                 'reservaRadio.clienteExterno',
+                'reservaRadio.tarifa',
+                'edicionVideo.cliente',
+                'edicionVideo.clienteExterno',
             ]);
         }
         if (!$origen || $origen === 'taller') {
@@ -968,6 +971,9 @@ class FinanceController extends Controller
                 'cuentaPorCobrar.alquilerEquipo.equipo',
                 'cuentaPorCobrar.reservaRadio.persona',
                 'cuentaPorCobrar.reservaRadio.clienteExterno',
+                'cuentaPorCobrar.reservaRadio.tarifa',
+                'cuentaPorCobrar.edicionVideo.cliente',
+                'cuentaPorCobrar.edicionVideo.clienteExterno',
                 'registrador',
             ])->whereIn('id', $ingresoIdsOnPage)
               ->orderBy('fecha_pago', 'desc')
@@ -1744,6 +1750,8 @@ class FinanceController extends Controller
             'cuentaPorCobrar.reservaRadio.persona',
             'cuentaPorCobrar.reservaRadio.clienteExterno',
             'cuentaPorCobrar.reservaRadio.tarifa',
+            'cuentaPorCobrar.edicionVideo.cliente',
+            'cuentaPorCobrar.edicionVideo.clienteExterno',
             'lineaPagoModulo.modulo',
             'lineaPagoModulo.matricula.estudiante',
             'lineaPagoModulo.matricula.cursoAbierto.catalogo',
@@ -1787,6 +1795,12 @@ class FinanceController extends Controller
                   ->orWhereHas('cuentaPorCobrar.reservaAula.persona', fn($sq) =>
                     $sq->where('nombres', 'ilike', "%{$search}%")->orWhere('apellidos', 'ilike', "%{$search}%"))
                   ->orWhereHas('cuentaPorCobrar.reservaRadio.persona', fn($sq) =>
+                    $sq->where('nombres', 'ilike', "%{$search}%")->orWhere('apellidos', 'ilike', "%{$search}%"))
+                  ->orWhereHas('cuentaPorCobrar.reservaRadio.clienteExterno', fn($sq) =>
+                    $sq->where('nombres', 'ilike', "%{$search}%")->orWhere('apellidos', 'ilike', "%{$search}%"))
+                  ->orWhereHas('cuentaPorCobrar.edicionVideo.cliente', fn($sq) =>
+                    $sq->where('nombres', 'ilike', "%{$search}%")->orWhere('apellidos', 'ilike', "%{$search}%"))
+                  ->orWhereHas('cuentaPorCobrar.edicionVideo.clienteExterno', fn($sq) =>
                     $sq->where('nombres', 'ilike', "%{$search}%")->orWhere('apellidos', 'ilike', "%{$search}%"))
                   ->orWhereHas('cuentaPorCobrar.alquilerEquipo.clienteExterno', fn($sq) =>
                     $sq->where('nombres', 'ilike', "%{$search}%")->orWhere('apellidos', 'ilike', "%{$search}%"));
@@ -1875,6 +1889,8 @@ class FinanceController extends Controller
                 ?? $cp?->alquilerEquipo?->clienteExterno
                 ?? $cp?->reservaRadio?->persona
                 ?? $cp?->reservaRadio?->clienteExterno
+                ?? $cp?->edicionVideo?->cliente
+                ?? $cp?->edicionVideo?->clienteExterno
                 ?? $t->lineaPagoModulo?->matricula?->estudiante;
 
             $concepto = $cp?->matricula?->cursoAbierto?->catalogo?->nombre
@@ -1885,6 +1901,7 @@ class FinanceController extends Controller
                 ?? $cp?->reservaAula?->aula?->nombre
                 ?? $cp?->alquilerEquipo?->equipo?->nombre
                 ?? $cp?->reservaRadio?->tarifa?->nombre
+                ?? $cp?->edicionVideo?->titulo
                 ?? $t->lineaPagoModulo?->matricula?->cursoAbierto?->catalogo?->nombre;
 
             return [

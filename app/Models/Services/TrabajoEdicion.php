@@ -2,6 +2,7 @@
 
 namespace App\Models\Services;
 
+use App\Models\ClienteExterno;
 use App\Models\Persona;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -20,9 +21,10 @@ class TrabajoEdicion extends Model
         'fecha_recibo',
         'fecha_limite',
         'fecha_entrega',
-        'nivel',
         'estado',
         'editor_ids',
+        'persona_id',
+        'cliente_externo_id',
         'reserva_podcast_id',
         'precio_cobrado',
         'cobro_registrado',
@@ -49,5 +51,15 @@ class TrabajoEdicion extends Model
     public function reservaPodcast(): BelongsTo
     {
         return $this->belongsTo(ReservaPodcast::class, 'reserva_podcast_id');
+    }
+
+    public function cliente(): BelongsTo
+    {
+        return $this->belongsTo(Persona::class, 'persona_id');
+    }
+
+    public function clienteExterno(): BelongsTo
+    {
+        return $this->belongsTo(ClienteExterno::class, 'cliente_externo_id');
     }
 }

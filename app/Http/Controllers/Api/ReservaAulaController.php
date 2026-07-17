@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\CuentaPorCobrar;
 use App\Models\Services\ReservaAula;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -77,6 +78,14 @@ class ReservaAulaController extends Controller
         }
 
         $reserva = ReservaAula::create($validated);
+
+        CuentaPorCobrar::create([
+            'reserva_aula_id' => $reserva->id,
+            'monto_total' => $validated['precio_total'],
+            'monto_abonado' => 0,
+            'estado' => 'pendiente',
+            'es_legacy' => false,
+        ]);
 
         return response()->json([
             'message' => 'Reserva creada exitosamente.',

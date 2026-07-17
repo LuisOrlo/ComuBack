@@ -17,7 +17,6 @@ return new class extends Migration
                 $table->date('fecha_recibo');
                 $table->date('fecha_limite');
                 $table->date('fecha_entrega')->nullable();
-                $table->string('nivel', 20)->default('basica');
                 $table->string('estado', 20)->default('recibido');
                 $table->jsonb('editor_ids')->default('[]');
                 $table->uuid('reserva_podcast_id')->nullable();
@@ -39,11 +38,6 @@ return new class extends Migration
                 CHECK (estado IN ('recibido','en_proceso','revision','entregado'))
             ");
 
-            DB::connection('pgsql')->statement("
-                ALTER TABLE services.trabajos_edicion
-                ADD CONSTRAINT trabajos_edicion_nivel_check
-                CHECK (nivel IN ('basica','estandar','premium'))
-            ");
         }
     }
 

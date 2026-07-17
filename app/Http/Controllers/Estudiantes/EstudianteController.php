@@ -1039,47 +1039,62 @@ class EstudianteController extends Controller
                 }
             }
 
-            // Cuentas por cobrar de servicios (Podcast, Aula, Equipo, Radio)
+            // Cuentas por cobrar de servicios (Podcast, Aula, Equipo, Radio, Edición)
             $clienteExternoMatch = null;
             if ($estudiante->cedula) {
                 $clienteExternoMatch = \App\Models\ClienteExterno::where('cedula', $estudiante->cedula)->first();
             }
 
             $cuentasServicios = \App\Models\CuentaPorCobrar::query()
-                ->with(['transacciones'])
+                ->with([
+                    'transacciones',
+                    'reservaPodcast.paquete',
+                    'reservaPodcast.persona',
+                    'reservaAula.aula',
+                    'alquilerEquipo.equipo',
+                    'reservaRadio.tarifa',
+                    'edicionVideo',
+                ])
                 ->where(function ($q) use ($estudiante, $clienteExternoMatch) {
                     $q->whereHas('reservaPodcast', fn($sq) => $sq->where('persona_id', $estudiante->id));
                     $q->orWhereHas('reservaAula', fn($sq) => $sq->where('persona_id', $estudiante->id));
                     $q->orWhereHas('alquilerEquipo', fn($sq) => $sq->where('persona_id', $estudiante->id));
                     $q->orWhereHas('reservaRadio', fn($sq) => $sq->where('persona_id', $estudiante->id));
+                    $q->orWhereHas('edicionVideo', fn($sq) => $sq->where('persona_id', $estudiante->id));
                     if ($clienteExternoMatch) {
                         $q->orWhereHas('reservaPodcast', fn($sq) => $sq->where('cliente_externo_id', $clienteExternoMatch->id));
                         $q->orWhereHas('reservaAula', fn($sq) => $sq->where('cliente_externo_id', $clienteExternoMatch->id));
                         $q->orWhereHas('alquilerEquipo', fn($sq) => $sq->where('cliente_externo_id', $clienteExternoMatch->id));
                         $q->orWhereHas('reservaRadio', fn($sq) => $sq->where('cliente_externo_id', $clienteExternoMatch->id));
+                        $q->orWhereHas('edicionVideo', fn($sq) => $sq->where('cliente_externo_id', $clienteExternoMatch->id));
                     }
                 })
                 ->get();
 
-            $servicioLabels = [
-                'reserva_podcast_id' => 'Podcast',
-                'reserva_aula_id' => 'Aula',
-                'alquiler_equipo_id' => 'Equipo',
-                'reserva_radio_id' => 'Radio',
-                'edicion_video_id' => 'Edición de Video',
-            ];
-
             foreach ($cuentasServicios as $cs) {
-                $tipoServicio = '';
-                foreach ($servicioLabels as $col => $label) {
-                    if ($cs->$col) { $tipoServicio = $label; break; }
+                $concepto = 'Servicio';
+                if ($cs->reserva_podcast_id) {
+                    $nombre = $cs->reservaPodcast?->titulo ?: $cs->reservaPodcast?->paquete?->nombre ?: '';
+                    $concepto = 'Podcast' . ($nombre ? " — {$nombre}" : '');
+                } elseif ($cs->reserva_aula_id) {
+                    $nombre = $cs->reservaAula?->aula?->nombre ?: '';
+                    $concepto = 'Aula' . ($nombre ? " — {$nombre}" : '');
+                } elseif ($cs->alquiler_equipo_id) {
+                    $nombre = $cs->alquilerEquipo?->equipo?->nombre ?: '';
+                    $concepto = 'Equipo' . ($nombre ? " — {$nombre}" : '');
+                } elseif ($cs->reserva_radio_id) {
+                    $nombre = $cs->reservaRadio?->tarifa?->nombre ?: $cs->reservaRadio?->fecha_reserva?->format('Y-m-d') ?: '';
+                    $concepto = 'Radio' . ($nombre ? " — {$nombre}" : '');
+                } elseif ($cs->edicion_video_id) {
+                    $nombre = $cs->edicionVideo?->titulo ?: '';
+                    $concepto = 'Edición de Video' . ($nombre ? " — {$nombre}" : '');
                 }
 
                 $cuentas->push([
                     'id' => $cs->id,
                     'origen' => 'servicio',
                     'origen_id' => $cs->id,
-                    'concepto' => $tipoServicio ?: 'Servicio',
+                    'concepto' => $concepto,
                     'monto_total' => (float) $cs->monto_total,
                     'monto_abonado' => (float) $cs->monto_abonado,
                     'saldo_pendiente' => (float) $cs->obtenerSaldoPendiente(),
@@ -1098,7 +1113,7 @@ class EstudianteController extends Controller
                 $transacciones = $transacciones->concat($cs->transacciones->map(fn($t) => [
                     'id' => $t->id,
                     'cuenta_id' => $cs->id,
-                    'concepto' => $tipoServicio ?: 'Servicio',
+                    'concepto' => $concepto,
                     'monto' => (float) $t->monto,
                     'metodo_pago' => $t->metodo_pago,
                     'comprobante_url' => $t->comprobante_url,

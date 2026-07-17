@@ -9,6 +9,7 @@ use App\Models\Services\AlquilerEquipo;
 use App\Models\Services\ReservaAula;
 use App\Models\Services\ReservaPodcast;
 use App\Models\Services\ReservaRadio;
+use App\Models\Services\TrabajoEdicion;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -160,12 +161,17 @@ class ClienteExternoController extends Controller
             ->orderBy('fecha_entrega', 'desc')
             ->get();
 
+        $edicion = TrabajoEdicion::where('cliente_externo_id', $id)
+            ->orderBy('created_at', 'desc')
+            ->get();
+
         return response()->json([
             'data' => [
                 'radio' => $radio,
                 'aulas' => $aulas,
                 'podcast' => $podcast,
                 'equipos' => $equipos,
+                'edicion' => $edicion,
             ],
         ]);
     }
@@ -181,13 +187,15 @@ class ClienteExternoController extends Controller
         $aulaIds = ReservaAula::where('cliente_externo_id', $id)->pluck('id');
         $podcastIds = ReservaPodcast::where('cliente_externo_id', $id)->pluck('id');
         $equipoIds = AlquilerEquipo::where('cliente_externo_id', $id)->pluck('id');
+        $edicionIds = TrabajoEdicion::where('cliente_externo_id', $id)->pluck('id');
 
         $cuentas = CuentaPorCobrar::with('transacciones')
-            ->where(function ($q) use ($radioIds, $aulaIds, $podcastIds, $equipoIds) {
+            ->where(function ($q) use ($radioIds, $aulaIds, $podcastIds, $equipoIds, $edicionIds) {
                 if ($radioIds->isNotEmpty()) $q->orWhereIn('reserva_radio_id', $radioIds);
                 if ($aulaIds->isNotEmpty()) $q->orWhereIn('reserva_aula_id', $aulaIds);
                 if ($podcastIds->isNotEmpty()) $q->orWhereIn('reserva_podcast_id', $podcastIds);
                 if ($equipoIds->isNotEmpty()) $q->orWhereIn('alquiler_equipo_id', $equipoIds);
+                if ($edicionIds->isNotEmpty()) $q->orWhereIn('edicion_video_id', $edicionIds);
             })
             ->orderBy('created_at', 'desc')
             ->get();

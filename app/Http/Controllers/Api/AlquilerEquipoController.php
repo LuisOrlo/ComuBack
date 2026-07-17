@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\CuentaPorCobrar;
 use App\Models\Services\AlquilerEquipo;
 use App\Models\Services\Equipo;
 use Illuminate\Http\JsonResponse;
@@ -82,6 +83,14 @@ class AlquilerEquipoController extends Controller
 
         $alquiler = AlquilerEquipo::create($validated);
 
+        CuentaPorCobrar::create([
+            'alquiler_equipo_id' => $alquiler->id,
+            'monto_total' => $validated['precio_total'],
+            'monto_abonado' => 0,
+            'estado' => 'pendiente',
+            'es_legacy' => false,
+        ]);
+
         $equipo->update(['estado' => 'alquilado']);
 
         return response()->json([
@@ -102,6 +111,8 @@ class AlquilerEquipoController extends Controller
             'estado' => 'entregado',
             'fecha_entrega' => now(),
         ]);
+
+        $alquiler->equipo()->update(['estado' => 'disponible']);
 
         return response()->json([
             'message' => 'Equipo marcado como entregado',

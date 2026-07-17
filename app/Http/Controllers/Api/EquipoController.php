@@ -96,6 +96,13 @@ class EquipoController extends Controller
     public function destroy(string $id): JsonResponse
     {
         $equipo = Equipo::findOrFail($id);
+
+        if ($equipo->alquileres()->count() > 0) {
+            return response()->json([
+                'message' => 'No se puede eliminar el equipo porque tiene alquileres asociados'
+            ], 422);
+        }
+
         $eliminadoPor = auth()->id() ?? auth()->user()?->persona_id ?? null;
         $equipo->delete();
 
