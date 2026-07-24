@@ -23,6 +23,7 @@ class LineaPagoModulo extends Model
     protected $fillable = [
         'matricula_id',
         'modulo_id',
+        'tipo',
         'monto_original',
         'monto_ajustado',
         'motivo_ajuste',

@@ -203,7 +203,10 @@ class FinanceController extends Controller
                         ? $matricula->lineasPago->sortBy('orden')->map(fn($lp) => [
                             'id' => $lp->id,
                             'modulo_id' => $lp->modulo_id,
-                            'nombre_modulo' => $lp->modulo?->nombre_modulo ?? ('M\u00f3dulo ' . ($lp->orden + 1)),
+                            'tipo' => $lp->tipo,
+                            'nombre_modulo' => $lp->tipo === 'inscripcion'
+                                ? 'Inscripción / Matrícula'
+                                : ($lp->modulo?->nombre_modulo ?? ('M\u00f3dulo ' . ($lp->orden + 1))),
                             'numero_orden' => $lp->modulo?->numero_orden ?? $lp->orden,
                             'monto_ajustado' => (float) $lp->monto_ajustado,
                             'monto_abonado' => (float) $lp->monto_abonado,
@@ -276,7 +279,10 @@ class FinanceController extends Controller
                 $lineasPagoData = $c->matricula->lineasPago->sortBy('orden')->map(fn($lp) => [
                     'id' => $lp->id,
                     'modulo_id' => $lp->modulo_id,
-                    'nombre_modulo' => $lp->modulo?->nombre_modulo ?? ('M\u00f3dulo ' . ($lp->orden + 1)),
+                    'tipo' => $lp->tipo,
+                    'nombre_modulo' => $lp->tipo === 'inscripcion'
+                        ? 'Inscripción / Matrícula'
+                        : ($lp->modulo?->nombre_modulo ?? ('M\u00f3dulo ' . ($lp->orden + 1))),
                     'numero_orden' => $lp->modulo?->numero_orden ?? $lp->orden,
                 'monto_ajustado' => (float) $lp->monto_ajustado,
                 'monto_original' => (float) $lp->monto_original,
@@ -608,7 +614,10 @@ class FinanceController extends Controller
                         ? $m->lineasPago->sortBy('orden')->map(fn($lp) => [
                             'id' => $lp->id,
                             'modulo_id' => $lp->modulo_id,
-                            'nombre_modulo' => $lp->modulo?->nombre_modulo ?? ('M\u00f3dulo ' . ($lp->orden + 1)),
+                            'tipo' => $lp->tipo,
+                            'nombre_modulo' => $lp->tipo === 'inscripcion'
+                                ? 'Inscripción / Matrícula'
+                                : ($lp->modulo?->nombre_modulo ?? ('M\u00f3dulo ' . ($lp->orden + 1))),
                             'numero_orden' => $lp->modulo?->numero_orden ?? $lp->orden,
                             'monto_ajustado' => (float) $lp->monto_ajustado,
                             'monto_abonado' => (float) $lp->monto_abonado,
@@ -811,8 +820,8 @@ class FinanceController extends Controller
         $request->validate(['archivo' => 'required|file|image|max:5120']);
         $file = $request->file('archivo');
         $filename = \Illuminate\Support\Str::uuid() . '.' . $file->getClientOriginalExtension();
-        $path = $file->storeAs('comprobantes', $filename, 's3');
-        return response()->json(['data' => ['url' => Storage::disk('s3')->url($path)]], 201);
+        $path = $file->storeAs('comprobantes', $filename);
+        return response()->json(['data' => ['url' => Storage::disk()->url($path)]], 201);
     }
 
     public function registrarPagosIniciales(StorePagoInicialRequest $request): JsonResponse
@@ -1319,6 +1328,14 @@ class FinanceController extends Controller
                 $totalEsperadoCatalogo += $precio;
             }
 
+            $lineaInscripcion = $matricula->lineasPago->firstWhere('tipo', 'inscripcion');
+            $inscripcionTotal = $lineaInscripcion ? (float) $lineaInscripcion->monto_ajustado : 0;
+            $inscripcionAbonado = $lineaInscripcion ? (float) $lineaInscripcion->monto_abonado : 0;
+
+            $totalPagadoEstudiante += $inscripcionAbonado;
+            $totalEsperadoEstudiante += $inscripcionTotal;
+            $totalEsperadoCatalogo += $inscripcionTotal;
+
             $esExterno = $est && $est instanceof \App\Models\ClienteExterno;
 
             $estudiantesData[] = [
@@ -1330,6 +1347,12 @@ class FinanceController extends Controller
                 'telefono' => $est?->celular ?? $est?->telefono ?? '—',
                 'ciudad' => $est?->ciudad?->nombre ?? $est?->ciudad ?? '—',
                 'modulos' => $filasModulos,
+                'inscripcion' => $lineaInscripcion ? [
+                    'monto_ajustado' => $inscripcionTotal,
+                    'monto_abonado' => $inscripcionAbonado,
+                    'saldo_pendiente' => max(0, $inscripcionTotal - $inscripcionAbonado),
+                    'estado' => $lineaInscripcion->estado,
+                ] : null,
                 'total_pagado' => $totalPagadoEstudiante,
                 'total_esperado' => $totalEsperadoEstudiante,
             ];
@@ -1453,7 +1476,10 @@ class FinanceController extends Controller
             ->map(fn($lp) => [
                 'id' => $lp->id,
                 'modulo_id' => $lp->modulo_id,
-                'nombre_modulo' => $lp->modulo?->nombre_modulo ?? ('Módulo ' . ($lp->orden + 1)),
+                'tipo' => $lp->tipo,
+                'nombre_modulo' => $lp->tipo === 'inscripcion'
+                    ? 'Inscripción / Matrícula'
+                    : ($lp->modulo?->nombre_modulo ?? ('Módulo ' . ($lp->orden + 1))),
                 'numero_orden' => $lp->modulo?->numero_orden ?? $lp->orden,
                 'monto_original' => (float) $lp->monto_original,
                 'monto_ajustado' => (float) $lp->monto_ajustado,
@@ -1533,7 +1559,10 @@ class FinanceController extends Controller
             ->map(fn($lp) => [
                 'linea_pago_modulo_id' => $lp->id,
                 'modulo_id' => $lp->modulo_id,
-                'nombre_modulo' => $lp->modulo?->nombre_modulo ?? ('Módulo ' . ($lp->orden + 1)),
+                'tipo' => $lp->tipo,
+                'nombre_modulo' => $lp->tipo === 'inscripcion'
+                    ? 'Inscripción / Matrícula'
+                    : ($lp->modulo?->nombre_modulo ?? ('Módulo ' . ($lp->orden + 1))),
                 'numero_orden' => $lp->modulo?->numero_orden ?? $lp->orden,
                 'monto_ajustado' => (float) $lp->monto_ajustado,
                 'monto_abonado' => (float) $lp->monto_abonado,

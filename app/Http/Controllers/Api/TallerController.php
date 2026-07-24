@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreTallerRequest;
 use App\Http\Requests\UpdateTallerRequest;
 use App\Models\Taller;
+use App\Models\AsistenciaTaller;
+use App\Models\AsistenciaTallerEstudiante;
 use App\Services\InstructorConflictValidator;
 use Illuminate\Http\JsonResponse;
 
@@ -235,6 +237,99 @@ class TallerController extends Controller
         $taller = Taller::findOrFail($id);
         $taller->delete();
         return response()->json(['mensaje' => 'Taller eliminado correctamente']);
+    }
+
+    public function asistenciaPDF(string $id): JsonResponse
+    {
+        $taller = Taller::with([
+            'instructor',
+            'ciudad',
+            'inscripciones',
+            'horarios',
+        ])->findOrFail($id);
+
+        // Sesiones de asistencia (fechas)
+        $sesiones = AsistenciaTaller::where('taller_id', $id)
+            ->orderBy('fecha_sesion')
+            ->get();
+
+        $fechas = $sesiones->pluck('fecha_sesion')->map(fn($d) => $d->format('Y-m-d'))->values();
+        $sesionIds = $sesiones->pluck('id');
+
+        // Construir un mapa: inscripcion_taller_id → { fecha_sesion → asistio }
+        $asistenciaMap = [];
+        if ($sesionIds->isNotEmpty()) {
+            $registros = AsistenciaTallerEstudiante::whereIn('asistencia_taller_id', $sesionIds)->get();
+            foreach ($registros as $r) {
+                $key = $r->inscripcion_taller_id;
+                $fecha = $sesiones->firstWhere('id', $r->asistencia_taller_id)?->fecha_sesion?->format('Y-m-d');
+                if ($key && $fecha) {
+                    $asistenciaMap[$key][$fecha] = $r->asistio;
+                }
+            }
+        }
+
+        // Participantes desde inscripciones
+        $inscripciones = $taller->inscripciones()->where('estado', 'activo')->get();
+
+        $participantes = $inscripciones->map(function ($ins) use ($fechas, $asistenciaMap) {
+            $asistenciasArray = [];
+            $conteoC = 0;
+            $conteoF = 0;
+
+            foreach ($fechas as $fecha) {
+                $asistio = $asistenciaMap[$ins->id][$fecha] ?? null;
+                if ($asistio === true) {
+                    $asistenciasArray[] = 'X';
+                    $conteoC++;
+                } elseif ($asistio === false) {
+                    $asistenciasArray[] = 'F';
+                    $conteoF++;
+                } else {
+                    $asistenciasArray[] = null;
+                }
+            }
+
+            return [
+                'nombres' => $ins->nombres ?? '',
+                'apellidos' => $ins->apellidos ?? '',
+                'cedula' => $ins->cedula ?? '',
+                'telefono' => $ins->telefono ?? '',
+                'ciudad' => $ins->ciudad ?? '',
+                'conteo_c' => $conteoC,
+                'conteo_f' => $conteoF,
+                'asistencias' => $asistenciasArray,
+            ];
+        });
+
+        // Horario legible
+        $horario = '';
+        if ($taller->esMultiDia() && $taller->horarios->isNotEmpty()) {
+            $dias = $taller->horarios
+                ->sortBy('dia_semana')
+                ->map(fn($h) => [1=>'Lun',2=>'Mar',3=>'Mié',4=>'Jue',5=>'Vie',6=>'Sáb',7=>'Dom'][(int)$h->dia_semana] ?? '')
+                ->implode(', ');
+            $hIni = $taller->hora_inicio ? substr($taller->hora_inicio, 0, 5) : '';
+            $hFin = $taller->hora_fin ? substr($taller->hora_fin, 0, 5) : '';
+            $horario = $dias ? "{$dias} {$hIni}-{$hFin}" : '';
+        } elseif ($taller->hora_inicio) {
+            $horario = substr($taller->hora_inicio, 0, 5) . '-' . substr($taller->hora_fin ?? '', 0, 5);
+        }
+
+        return response()->json([
+            'info' => [
+                'nombre' => $taller->nombre,
+                'instructor' => $taller->instructor ? trim("{$taller->instructor->nombres} {$taller->instructor->apellidos}") : '',
+                'ciudad' => $taller->ciudad?->nombre ?? '',
+                'horario' => $horario,
+                'fecha_inicio' => $taller->fecha?->format('Y-m-d'),
+                'fecha_fin' => $taller->fecha_fin?->format('Y-m-d'),
+            ],
+            'modulos' => $fechas->isNotEmpty()
+                ? [['nombre' => $taller->nombre, 'fechas' => $fechas]]
+                : [],
+            'participantes' => $participantes,
+        ]);
     }
 
     public function estadisticas(string $id): JsonResponse

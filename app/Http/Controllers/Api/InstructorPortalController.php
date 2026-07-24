@@ -260,7 +260,7 @@ class InstructorPortalController extends Controller
                         'apellidos' => $persona->apellidos,
                         'cedula' => $persona->cedula,
                         'correo' => $persona->correo,
-                        'ciudad' => $persona->ciudad?->nombre ?? null,
+                        'ciudad' => $persona?->getAttribute('ciudad') ?? null,
                     ] : null,
                     'participante_externo' => $externo ? [
                         'id' => $externo->id,
@@ -371,6 +371,140 @@ class InstructorPortalController extends Controller
             DB::rollBack();
             return response()->json(['mensaje' => 'Error al registrar notas.', 'error' => $e->getMessage()], 500);
         }
+    }
+
+    /**
+     * Datos para generar PDF de lista de asistencia de un curso
+     */
+    public function asistenciaPDF($id): JsonResponse
+    {
+        $personaId = auth()->user()->persona_id;
+
+        $query = CursoAbierto::with([
+            'catalogo',
+            'horario.diasSemana',
+            'modulos',
+            'docente',
+            'ciudad',
+            'matriculas.estudiante.perfilEstudiante',
+            'matriculas.solicitudInscripcion.estudiante.perfilEstudiante',
+            'matriculas.solicitudInscripcion.participanteExterno',
+        ]);
+
+        if (!$this->isAdmin()) {
+            $query->where('docente_id', $personaId);
+        }
+
+        $curso = $query->findOrFail($id);
+
+        $diasSemana = $curso->horario?->diasSemana?->pluck('dia_semana')->toArray() ?? [];
+
+        $modulos = $curso->modulos->sortBy('numero_orden')->values()->map(function ($modulo) use ($diasSemana) {
+            $fechas = [];
+            if ($modulo->fecha_inicio && $modulo->fecha_fin && $diasSemana) {
+                $inicio = \Carbon\Carbon::parse($modulo->fecha_inicio);
+                $fin = \Carbon\Carbon::parse($modulo->fecha_fin);
+                $fecha = $inicio->copy();
+                while ($fecha->lte($fin)) {
+                    if (in_array((int)$fecha->format('N'), $diasSemana)) {
+                        $fechas[$fecha->format('Y-m-d')] = true;
+                    }
+                    $fecha->addDay();
+                }
+            }
+            $claseDates = Clase::where('modulo_id', $modulo->id)
+                ->orderBy('fecha_clase')
+                ->get()
+                ->pluck('fecha_clase')
+                ->map(fn($d) => $d->format('Y-m-d'));
+            foreach ($claseDates as $d) {
+                $fechas[$d] = true;
+            }
+            ksort($fechas);
+            return [
+                'nombre' => $modulo->nombre_modulo,
+                'fechas' => array_keys($fechas),
+            ];
+        });
+
+        $allDates = $modulos->flatMap(fn($m) => $m['fechas'])->unique()->sort()->values();
+
+        $allClasesByDate = collect();
+        if ($allDates->isNotEmpty()) {
+            $allClasesByDate = Clase::whereIn('fecha_clase', $allDates)
+                ->get()
+                ->keyBy(fn($c) => $c->fecha_clase->format('Y-m-d'));
+        }
+
+        $participantes = $curso->matriculas->map(function ($matricula) use ($allDates, $allClasesByDate) {
+            $persona = $matricula->estudiante;
+            $sol = $matricula->solicitudInscripcion;
+            $externo = $sol?->participanteExterno;
+
+            $claseIds = $allClasesByDate->pluck('id');
+            $asistencias = collect();
+            if ($claseIds->isNotEmpty()) {
+                $asistencias = Asistencia::where('matricula_id', $matricula->id)
+                    ->whereIn('clase_id', $claseIds)
+                    ->get()
+                    ->keyBy('clase_id');
+            }
+
+            $asistenciasMap = [];
+            $conteoC = 0;
+            $conteoF = 0;
+
+            foreach ($allDates as $fechaStr) {
+                $clase = $allClasesByDate->get($fechaStr);
+                $a = $clase ? $asistencias->get($clase->id) : null;
+                if ($a && $a->asistio) {
+                    $asistenciasMap[] = 'X';
+                    $conteoC++;
+                } elseif ($a && !$a->asistio) {
+                    $asistenciasMap[] = 'F';
+                    $conteoF++;
+                } else {
+                    $asistenciasMap[] = null;
+                }
+            }
+
+            $ciudadStr = $persona?->getAttribute('ciudad') ?? '';
+
+            return [
+                'nombres' => $persona?->nombres ?? $externo?->nombres ?? '',
+                'apellidos' => $persona?->apellidos ?? $externo?->apellidos ?? '',
+                'cedula' => $persona?->cedula ?? $externo?->cedula ?? '',
+                'telefono' => $persona?->celular ?? $externo?->celular ?? '',
+                'ciudad' => $ciudadStr,
+                'conteo_c' => $conteoC,
+                'conteo_f' => $conteoF,
+                'asistencias' => $asistenciasMap,
+            ];
+        });
+
+        $horario = '';
+        if ($curso->horario) {
+            $dias = $curso->horario->diasSemana
+                ->sortBy('dia_semana')
+                ->map(fn($d) => [1=>'Lun',2=>'Mar',3=>'Mié',4=>'Jue',5=>'Vie',6=>'Sáb',7=>'Dom'][(int)$d->dia_semana] ?? '')
+                ->implode(', ');
+            $hIni = $curso->horario->hora_inicio ? substr($curso->horario->hora_inicio, 0, 5) : '';
+            $hFin = $curso->horario->hora_fin ? substr($curso->horario->hora_fin, 0, 5) : '';
+            $horario = $dias ? "{$dias} {$hIni}-{$hFin}" : '';
+        }
+
+        return response()->json([
+            'info' => [
+                'nombre' => $curso->nombre_instancia,
+                'instructor' => $curso->docente ? trim("{$curso->docente->nombres} {$curso->docente->apellidos}") : '',
+                'ciudad' => $curso->ciudad?->nombre ?? '',
+                'horario' => $horario,
+                'fecha_inicio' => $curso->fecha_inicio?->format('Y-m-d'),
+                'fecha_fin' => $curso->fecha_fin?->format('Y-m-d'),
+            ],
+            'modulos' => $modulos,
+            'participantes' => $participantes,
+        ]);
     }
 
     private function calcularAsistenciaMatricula($matriculaId)

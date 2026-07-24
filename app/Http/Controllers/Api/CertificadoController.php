@@ -112,8 +112,8 @@ class CertificadoController extends Controller
         if ($request->hasFile('pdf')) {
             $file = $request->file('pdf');
             $filename = Str::uuid() . '.pdf';
-            $path = $file->storeAs('certificados', $filename, 's3');
-            $data['archivo_pdf_url'] = Storage::disk('s3')->url($path);
+            $path = $file->storeAs('certificados', $filename);
+            $data['archivo_pdf_url'] = Storage::disk()->url($path);
         }
 
         $certificado = Certificado::create($data);
@@ -234,10 +234,10 @@ class CertificadoController extends Controller
 
         $file = $request->file('pdf');
         $filename = Str::uuid() . '.pdf';
-        $path = $file->storeAs('certificados', $filename, 's3');
+        $path = $file->storeAs('certificados', $filename);
 
         $certificado->update([
-            'archivo_pdf_url' => Storage::disk('s3')->url($path),
+            'archivo_pdf_url' => Storage::disk()->url($path),
             'estado' => Certificado::ESTADO_GENERADO,
         ]);
 
@@ -462,7 +462,7 @@ class CertificadoController extends Controller
                 }
 
                 $filename = Str::uuid() . '.pdf';
-                $path = $file->storeAs('certificados', $filename, 's3');
+                $path = $file->storeAs('certificados', $filename);
 
                 $certificado = Certificado::create([
                     'estudiante_id' => $persona->id,
@@ -471,7 +471,7 @@ class CertificadoController extends Controller
                     'cedula_impresa' => $persona->cedula,
                     'fecha_emision' => $data['fecha_emision'] ?? now()->toDateString(),
                     'estado' => Certificado::ESTADO_GENERADO,
-                    'archivo_pdf_url' => Storage::disk('s3')->url($path),
+                    'archivo_pdf_url' => Storage::disk()->url($path),
                 ]);
 
                 $resultados[] = [
@@ -559,9 +559,18 @@ class CertificadoController extends Controller
         }
 
         $archivoUrl = $certificado->archivo_pdf_url;
-        $path = str_starts_with($archivoUrl, 'http')
-            ? ltrim(parse_url($archivoUrl, \PHP_URL_PATH) ?? '', '/')
-            : str_replace('/storage/', '', $archivoUrl);
+        $disk = app('config')->get('filesystems.default');
+        $diskUrl = app('config')->get("filesystems.disks.{$disk}.url");
+        $path = '';
+
+        if ($diskUrl && str_starts_with($archivoUrl, $diskUrl)) {
+            $path = ltrim(substr($archivoUrl, strlen(rtrim($diskUrl, '/'))), '/');
+        } elseif (str_starts_with($archivoUrl, 'http')) {
+            $path = ltrim(parse_url($archivoUrl, \PHP_URL_PATH) ?? '', '/');
+            $path = preg_replace('#^storage/#', '', $path);
+        } else {
+            $path = str_replace('/storage/', '', $archivoUrl);
+        }
 
         if (ArchivoEliminado::archivoFueEliminado(Certificado::class, $certificado->id, 'archivo_pdf_url')) {
             return response()->json([
@@ -569,7 +578,7 @@ class CertificadoController extends Controller
             ], Response::HTTP_NOT_FOUND);
         }
 
-        if (!Storage::disk('s3')->exists($path)) {
+        if (!Storage::disk()->exists($path)) {
             return response()->json([
                 'message' => 'El archivo PDF no se encuentra en el servidor',
             ], Response::HTTP_NOT_FOUND);
@@ -581,7 +590,7 @@ class CertificadoController extends Controller
         $catalogo = strtoupper(str_replace(' ', '_', $certificado->catalogoCurso->nombre ?? 'CERTIFICADO'));
         $filename = preg_replace('/[^A-Z0-9_]/', '', "{$nombres}_{$catalogo}") . '.pdf';
 
-        return Storage::disk('s3')->download($path, $filename);
+        return Storage::disk()->download($path, $filename);
     }
 
     public function historial(string $id): JsonResponse

@@ -12,30 +12,30 @@ class StorageCleanupService
 {
     const ALLOWED_FIELDS = [
         \App\Models\Certificado::class => [
-            'archivo_pdf_url' => ['disk' => 's3', 'prefix' => ''],
+            'archivo_pdf_url' => ['prefix' => ''],
         ],
         \App\Models\InscripcionTaller::class => [
-            'comprobante_url' => ['disk' => 's3', 'prefix' => ''],
-            'cedula_url' => ['disk' => 's3', 'prefix' => ''],
+            'comprobante_url' => ['prefix' => ''],
+            'cedula_url' => ['prefix' => ''],
         ],
         \App\Models\SolicitudInscripcion::class => [
-            'archivo_comprobante_url' => ['disk' => 's3', 'prefix' => ''],
-            'archivo_cedula_url' => ['disk' => 's3', 'prefix' => ''],
+            'archivo_comprobante_url' => ['prefix' => ''],
+            'archivo_cedula_url' => ['prefix' => ''],
         ],
         \App\Models\Matricula::class => [
-            'voucher_url' => ['disk' => 's3', 'prefix' => ''],
+            'voucher_url' => ['prefix' => ''],
         ],
         \App\Models\Persona::class => [
-            'cedula_photo_url' => ['disk' => 's3', 'prefix' => ''],
+            'cedula_photo_url' => ['prefix' => ''],
         ],
         \App\Models\Services\Equipo::class => [
-            'foto_url' => ['disk' => 's3', 'prefix' => ''],
+            'foto_url' => ['prefix' => ''],
         ],
         \App\Models\TransaccionIngreso::class => [
-            'comprobante_url' => ['disk' => 's3', 'prefix' => ''],
+            'comprobante_url' => ['prefix' => ''],
         ],
         \App\Models\TransaccionEgreso::class => [
-            'comprobante_url' => ['disk' => 's3', 'prefix' => ''],
+            'comprobante_url' => ['prefix' => ''],
         ],
     ];
 
@@ -47,6 +47,7 @@ class StorageCleanupService
     {
         $config = $this->validateField($model, $field);
         $path = $model->{$field};
+        $diskName = $config['disk'] ?? config('filesystems.default');
 
         if (empty($path)) {
             return ['eliminado' => false, 'mensaje' => 'El registro no tiene archivo asociado en el campo ' . $field];
@@ -57,11 +58,11 @@ class StorageCleanupService
         }
 
         $storagePath = $this->extractStoragePath($path, $config);
-        return DB::transaction(function () use ($model, $field, $config, $storagePath, $eliminadoPor, $accion, $path) {
-            if (Storage::disk($config['disk'])->exists($storagePath)) {
-                Storage::disk($config['disk'])->delete($storagePath);
+        return DB::transaction(function () use ($model, $field, $config, $storagePath, $eliminadoPor, $accion, $path, $diskName) {
+            if (Storage::disk($diskName)->exists($storagePath)) {
+                Storage::disk($diskName)->delete($storagePath);
 
-                if (Storage::disk($config['disk'])->exists($storagePath)) {
+                if (Storage::disk($diskName)->exists($storagePath)) {
                     Log::error("StorageCleanupService: No se pudo eliminar el archivo {$storagePath}");
                     throw new \RuntimeException("El archivo {$storagePath} no pudo eliminarse del almacenamiento");
                 }
@@ -140,7 +141,9 @@ class StorageCleanupService
             return false;
         }
 
-        $storagePath = $this->extractStoragePath($path, $config);        return Storage::disk($config['disk'])->exists($storagePath);
+        $diskName = $config['disk'] ?? config('filesystems.default');
+        $storagePath = $this->extractStoragePath($path, $config);
+        return Storage::disk($diskName)->exists($storagePath);
     }
 
     /**
@@ -168,11 +171,21 @@ class StorageCleanupService
      */
     private function extractStoragePath(string $path, array $config): string
     {
-        if ($config['disk'] === 's3') {
-            $parsed = parse_url($path);
-            return ltrim($parsed['path'] ?? '', '/');
+        $disk = $config['disk'] ?? config('filesystems.default');
+        $diskUrl = config("filesystems.disks.{$disk}.url");
+
+        if ($diskUrl && str_starts_with($path, $diskUrl)) {
+            return ltrim(substr($path, strlen(rtrim($diskUrl, '/'))), '/');
         }
-        return str_replace($config['prefix'], '', $path);
+
+        if (str_starts_with($path, 'http')) {
+            $parsed = parse_url($path);
+            $extracted = ltrim($parsed['path'] ?? '', '/');
+            return preg_replace('#^storage/#', '', $extracted);
+        }
+
+        $path = preg_replace('#^/storage/#', '', $path);
+        return str_replace($config['prefix'] ?? '', '', $path);
     }
 
     /**
@@ -210,9 +223,10 @@ class StorageCleanupService
             return;
         }
 
+        $diskName = $config['disk'] ?? config('filesystems.default');
         $storagePath = $this->extractStoragePath($path, $config);
-        if (Storage::disk($config['disk'])->exists($storagePath)) {
-            Storage::disk($config['disk'])->delete($storagePath);
+        if (Storage::disk($diskName)->exists($storagePath)) {
+            Storage::disk($diskName)->delete($storagePath);
         }
     }
 

@@ -134,7 +134,9 @@ class StaffRegistrationController extends Controller
             $validadorPersonaId,
             $request->observaciones_validacion,
             $request->pagos ?? [],
-            $request->metodo_pago ?? 'efectivo'
+            $request->metodo_pago ?? 'efectivo',
+            $request->has('precio_inscripcion') ? (float) $request->precio_inscripcion : null,
+            (float) ($request->inscripcion_cubierta ?? 0)
         );
 
         if (!$resultado['exito']) {
@@ -249,7 +251,7 @@ class StaffRegistrationController extends Controller
                     $totalAbonado += (float) $lp->monto_abonado;
                     $totalEsperado += (float) $lp->monto_ajustado;
                     return [
-                        'modulo_nombre' => $lp->modulo?->nombre_modulo ?? 'Módulo',
+                        'modulo_nombre' => $lp->tipo === 'inscripcion' ? 'Inscripción' : ($lp->modulo?->nombre_modulo ?? 'Módulo'),
                         'monto_ajustado' => (float) $lp->monto_ajustado,
                         'monto_abonado' => (float) $lp->monto_abonado,
                         'saldo' => max(0, (float) $lp->monto_ajustado - (float) $lp->monto_abonado),
@@ -352,8 +354,8 @@ class StaffRegistrationController extends Controller
 
         $file = $request->file('archivo');
         $filename = \Illuminate\Support\Str::uuid() . '.' . $file->getClientOriginalExtension();
-        $path = $file->storeAs('comprobantes', $filename, 's3');
-        $url = Storage::disk('s3')->url($path);
+        $path = $file->storeAs('comprobantes', $filename);
+        $url = Storage::disk()->url($path);
         $solicitud->update(['archivo_cedula_url' => $url]);
         $service->reviveFileField($solicitud, 'archivo_cedula_url');
         return response()->json(['data' => ['cedula_url' => $url], 'message' => 'Cédula subida']);
@@ -564,8 +566,8 @@ class StaffRegistrationController extends Controller
 
         $file = $request->file('archivo');
         $filename = \Illuminate\Support\Str::uuid() . '.' . $file->getClientOriginalExtension();
-        $path = $file->storeAs('comprobantes', $filename, 's3');
-        $url = Storage::disk('s3')->url($path);
+        $path = $file->storeAs('comprobantes', $filename);
+        $url = Storage::disk()->url($path);
         $solicitud->update(['archivo_comprobante_url' => $url]);
         $service->reviveFileField($solicitud, 'archivo_comprobante_url');
         return response()->json([

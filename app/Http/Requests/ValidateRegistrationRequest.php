@@ -30,6 +30,8 @@ class ValidateRegistrationRequest extends FormRequest
             'pagos.*.monto_ajustado' => 'nullable|numeric|min:0',
             'pagos.*.motivo_ajuste' => 'required_with:pagos.*.monto_ajustado|nullable|string|max:255',
             'metodo_pago' => 'nullable|string|in:efectivo,transferencia,deposito,tarjeta,otro',
+            'precio_inscripcion' => 'nullable|numeric|min:0.01',
+            'inscripcion_cubierta' => 'nullable|numeric|min:0',
         ];
     }
 

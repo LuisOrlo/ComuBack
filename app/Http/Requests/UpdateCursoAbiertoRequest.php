@@ -19,7 +19,7 @@ class UpdateCursoAbiertoRequest extends FormRequest
             'fecha_inicio' => 'sometimes|required|date|date_format:Y-m-d',
             'fecha_fin' => 'sometimes|required|date|date_format:Y-m-d|after_or_equal:fecha_inicio',
             'capacidad_maxima' => 'sometimes|required|integer|min:1|max:100',
-            'docente_id' => 'sometimes|required|uuid|exists:personas,id',
+            'docente_id' => 'sometimes|nullable|uuid|exists:personas,id',
             'es_activo' => 'boolean',
             'observaciones' => 'nullable|string|max:1000',
             'modalidad' => 'nullable|in:presencial,virtual',

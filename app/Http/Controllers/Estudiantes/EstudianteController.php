@@ -912,9 +912,12 @@ class EstudianteController extends Controller
                     'lineas_pago' => $matricula->lineasPago->map(function ($lp) {
                         return [
                             'id' => $lp->id,
+                            'tipo' => $lp->tipo,
                             'modulo' => [
                                 'id' => $lp->modulo?->id ?? null,
-                                'nombre' => $lp->modulo?->nombre_modulo ?? $lp->modulo?->nombre ?? 'Módulo',
+                                'nombre' => $lp->tipo === 'inscripcion'
+                                    ? 'Inscripción / Matrícula'
+                                    : ($lp->modulo?->nombre_modulo ?? $lp->modulo?->nombre ?? 'Módulo'),
                                 'numero_orden' => $lp->modulo?->numero_orden ?? $lp->orden,
                             ],
                             'monto_original' => (float) $lp->monto_original,

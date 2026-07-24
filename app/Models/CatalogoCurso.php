@@ -23,6 +23,7 @@ class CatalogoCurso extends Model
         'descripcion',
         'creditos',
         'horas_totales',
+        'precio_inscripcion',
         'modulos_default',
         'es_activo',
         'categoria',

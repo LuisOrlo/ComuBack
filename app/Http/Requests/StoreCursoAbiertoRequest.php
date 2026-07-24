@@ -20,7 +20,7 @@ class StoreCursoAbiertoRequest extends FormRequest
             'fecha_inicio' => 'required|date|date_format:Y-m-d',
             'fecha_fin' => 'required|date|date_format:Y-m-d|after:fecha_inicio',
             'capacidad_maxima' => 'required|integer|min:1|max:100',
-            'docente_id' => 'required|uuid|exists:personas,id',
+            'docente_id' => 'nullable|uuid|exists:personas,id',
             'es_activo' => 'boolean',
             'observaciones' => 'nullable|string|max:1000',
             'modalidad' => 'nullable|in:presencial,virtual',
@@ -50,7 +50,6 @@ class StoreCursoAbiertoRequest extends FormRequest
             'fecha_fin.after' => 'La fecha de fin debe ser posterior a la de inicio',
             'capacidad_maxima.required' => 'La capacidad máxima es obligatoria',
             'capacidad_maxima.min' => 'La capacidad mínima es 1 estudiante',
-            'docente_id.required' => 'El docente es obligatorio',
             'docente_id.exists' => 'El docente no existe',
         ];
     }

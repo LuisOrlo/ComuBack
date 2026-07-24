@@ -290,6 +290,7 @@ use Illuminate\Support\Facades\Route;
             Route::get('{id}/modulos', [CursoAbiertoController::class, 'modulos'])->name('cursos-abiertos.modulos');
             Route::get('{id}/estadisticas', [CursoAbiertoController::class, 'estadisticas'])->name('cursos-abiertos.estadisticas');
             Route::get('{id}/exportar', [CursoAbiertoController::class, 'exportar'])->name('cursos-abiertos.exportar');
+            Route::get('{id}/asistencia-pdf', [CursoAbiertoController::class, 'asistenciaPDF'])->name('cursos-abiertos.asistencia-pdf');
         });
 
         // HORARIOS
@@ -489,6 +490,7 @@ use Illuminate\Support\Facades\Route;
             Route::put('{id}', [TallerController::class, 'update'])->name('talleres.update');
             Route::delete('{id}', [TallerController::class, 'destroy'])->name('talleres.destroy');
             Route::post('cambiar-estado-masivo', [TallerController::class, 'cambiarEstadoMasivo'])->name('talleres.cambiar-estado-masivo');
+            Route::get('{id}/asistencia-pdf', [TallerController::class, 'asistenciaPDF'])->name('talleres.asistencia-pdf');
         });
 
         Route::prefix('talleres/{taller_id}/horarios')->group(function () {
@@ -624,6 +626,7 @@ Route::prefix('reports')->group(function () {
         Route::get('clases/{claseId}/asistencia', [InstructorPortalController::class, 'asistenciaClase'])->name('instructor.asistencia-clase');
         Route::post('clases/{claseId}/asistencia', [InstructorPortalController::class, 'registrarAsistencia'])->name('instructor.registrar-asistencia');
         Route::post('notas', [InstructorPortalController::class, 'registrarNotas'])->name('instructor.registrar-notas');
+        Route::get('cursos/{id}/asistencia-pdf', [InstructorPortalController::class, 'asistenciaPDF'])->name('instructor.asistencia-pdf');
     });
 
     // ========================================================================

@@ -82,7 +82,9 @@ class RegistrationStateService
         $validadorId = null,
         ?string $observaciones = null,
         array $pagos = [],
-        string $metodoPago = 'efectivo'
+        string $metodoPago = 'efectivo',
+        ?float $precioInscripcion = null,
+        float $inscripcionCubierta = 0
     ): array
     {
         try {
@@ -95,7 +97,7 @@ class RegistrationStateService
                 ];
             }
 
-            return DB::transaction(function () use ($solicitud, $validadorId, $observaciones, $pagos, $metodoPago) {
+            return DB::transaction(function () use ($solicitud, $validadorId, $observaciones, $pagos, $metodoPago, $precioInscripcion, $inscripcionCubierta) {
                 $solicitud->estado = SolicitudInscripcion::ESTADO_APROBADO;
                 $solicitud->validado_por = $validadorId ?? null;
                 $solicitud->observaciones_validacion = $observaciones;
@@ -108,11 +110,34 @@ class RegistrationStateService
                 }
 
                 $lineasPago = $this->crearLineasPagoModulo($solicitud, $matricula);
+                $lineasPagoIds = collect($lineasPago)->pluck('id')->toArray();
+
+                $inscripcionLinea = null;
+
+                if ($precioInscripcion && $precioInscripcion > 0) {
+                    $inscripcionCubierta = max(0, $inscripcionCubierta);
+                    $estado = $inscripcionCubierta >= $precioInscripcion ? 'pagado' : ($inscripcionCubierta > 0 ? 'abonado' : 'pendiente');
+                    $inscripcionLinea = LineaPagoModulo::create([
+                        'matricula_id' => $matricula->id,
+                        'modulo_id' => null,
+                        'tipo' => 'inscripcion',
+                        'monto_original' => $precioInscripcion,
+                        'monto_ajustado' => $precioInscripcion,
+                        'monto_abonado' => $inscripcionCubierta,
+                        'estado' => $estado,
+                        'orden' => 999,
+                    ]);
+                    $lineasPagoIds[] = $inscripcionLinea->id;
+                }
 
                 CuentaPorCobrar::where('matricula_id', $matricula->id)
                     ->update(['es_legacy' => true]);
 
-                $montoTotal = collect($lineasPago)->sum('monto_ajustado');
+                $todosLineasPago = collect($lineasPago);
+                if ($inscripcionLinea) {
+                    $todosLineasPago->push($inscripcionLinea);
+                }
+                $montoTotal = $todosLineasPago->sum('monto_ajustado');
                 $cuentaCobrar = CuentaPorCobrar::create([
                     'matricula_id' => $matricula->id,
                     'monto_total' => $montoTotal,
@@ -160,11 +185,26 @@ class RegistrationStateService
                             'referencia_pago' => $referencia,
                         ]);
                     }
+
+                    if ($inscripcionLinea && $inscripcionCubierta > 0) {
+                        TransaccionIngreso::create([
+                            'linea_pago_modulo_id' => $inscripcionLinea->id,
+                            'monto' => $inscripcionCubierta,
+                            'metodo_pago' => $metodoPago,
+                            'comprobante_url' => $solicitud->archivo_comprobante_url,
+                            'fecha_pago' => now(),
+                            'registrado_por' => $validadorId ?? auth()->user()->persona_id ?? null,
+                            'verificado_por' => $validadorId ?? auth()->user()->persona_id ?? null,
+                            'fecha_verificacion' => now(),
+                            'estado_verificacion' => TransaccionIngreso::VERIFICACION_APROBADO,
+                            'referencia_pago' => $referencia . '-insc',
+                        ]);
+                    }
                 }
 
                 if (! empty($pagos)) {
                     $totalPagado = collect($pagos)->sum('monto');
-                    $totalEsperado = collect($lineasPago)->sum('monto_ajustado');
+                    $totalEsperado = $todosLineasPago->sum('monto_ajustado');
                     $solicitud->update([
                         'monto_solicitado' => $totalPagado,
                         'tipo_pago' => $totalPagado >= $totalEsperado ? 'completo' : 'abono',
@@ -173,7 +213,7 @@ class RegistrationStateService
 
                 Cache::forget('finance.resumen');
 
-                $montosActuales = collect($lineasPago)->map(fn($l) => $l->refresh());
+                $montosActuales = $todosLineasPago->map(fn($l) => $l->refresh());
                 $montoTotalFinal = $montosActuales->sum('monto_ajustado');
                 $montoAbonadoFinal = $montosActuales->sum('monto_abonado');
                 $cuentaCobrar->update([
@@ -189,7 +229,7 @@ class RegistrationStateService
                     'mensaje' => 'Solicitud aprobada y pago registrado correctamente',
                     'matricula_id' => $matricula->id,
                     'cuenta_cobrar_id' => $cuentaCobrar->id,
-                    'lineas_pago_ids' => collect($lineasPago)->pluck('id')->toArray(),
+                    'lineas_pago_ids' => $lineasPagoIds,
                     'requiere_pago_inicial' => count($lineasPago) > 0,
                 ];
             });
