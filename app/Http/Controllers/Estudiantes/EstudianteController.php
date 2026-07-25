@@ -2312,6 +2312,32 @@ class EstudianteController extends Controller
                 'total' => (int) $item->total,
             ]);
 
+        $cursosPorCiudad = \App\Models\CursoAbierto::query()
+            ->join('core.ciudades', 'academic.cursos_abiertos.ciudad_id', '=', 'core.ciudades.id')
+            ->whereNotNull('academic.cursos_abiertos.ciudad_id')
+            ->selectRaw("core.ciudades.nombre as nombre, count(*) as total")
+            ->groupBy('core.ciudades.nombre')
+            ->get()
+            ->mapWithKeys(fn($item) => [
+                mb_strtolower(trim($item->nombre)) => [
+                    'nombre' => $item->nombre,
+                    'total' => (int) $item->total,
+                ],
+            ]);
+
+        $talleresPorCiudad = \App\Models\Taller::query()
+            ->join('core.ciudades', 'academic.talleres.ciudad_id', '=', 'core.ciudades.id')
+            ->whereNotNull('academic.talleres.ciudad_id')
+            ->selectRaw("core.ciudades.nombre as nombre, count(*) as total")
+            ->groupBy('core.ciudades.nombre')
+            ->get()
+            ->mapWithKeys(fn($item) => [
+                mb_strtolower(trim($item->nombre)) => [
+                    'nombre' => $item->nombre,
+                    'total' => (int) $item->total,
+                ],
+            ]);
+
         $todas = collect($internos)
             ->concat($externos)
             ->concat($talleres)
@@ -2319,9 +2345,33 @@ class EstudianteController extends Controller
             ->map(fn($grupo) => [
                 'ciudad' => $grupo->first()['ciudad'],
                 'total' => $grupo->sum('total'),
-            ])
-            ->sortByDesc('total')
-            ->values();
+                'cursos_activos' => (int) ($cursosPorCiudad[mb_strtolower(trim($grupo->first()['ciudad']))]['total'] ?? 0),
+                'talleres_activos' => (int) ($talleresPorCiudad[mb_strtolower(trim($grupo->first()['ciudad']))]['total'] ?? 0),
+            ]);
+
+        foreach ($cursosPorCiudad as $ciudadKey => $data) {
+            if (!$todas->contains(fn($item) => mb_strtolower(trim($item['ciudad'])) === $ciudadKey)) {
+                $todas->push([
+                    'ciudad' => $data['nombre'],
+                    'total' => 0,
+                    'cursos_activos' => $data['total'],
+                    'talleres_activos' => (int) ($talleresPorCiudad[$ciudadKey]['total'] ?? 0),
+                ]);
+            }
+        }
+
+        foreach ($talleresPorCiudad as $ciudadKey => $data) {
+            if (!$todas->contains(fn($item) => mb_strtolower(trim($item['ciudad'])) === $ciudadKey)) {
+                $todas->push([
+                    'ciudad' => $data['nombre'],
+                    'total' => 0,
+                    'cursos_activos' => (int) ($cursosPorCiudad[$ciudadKey]['total'] ?? 0),
+                    'talleres_activos' => $data['total'],
+                ]);
+            }
+        }
+
+        $todas = $todas->sortByDesc('total')->values();
 
         if ($request->filled('buscar')) {
             $buscar = mb_strtolower($request->buscar);
