@@ -1555,41 +1555,6 @@ ALTER SEQUENCE core.users_id_seq OWNED BY core.users.id;
 
 
 --
--- TOC entry 282 (class 1259 OID 38434)
--- Name: categorias_egreso; Type: TABLE; Schema: finance; Owner: -
---
-
-CREATE TABLE finance.categorias_egreso (
-    id integer NOT NULL,
-    nombre character varying(100) NOT NULL,
-    tipo_general character varying(50)
-);
-
-
---
--- TOC entry 283 (class 1259 OID 38437)
--- Name: categorias_egreso_id_seq; Type: SEQUENCE; Schema: finance; Owner: -
---
-
-CREATE SEQUENCE finance.categorias_egreso_id_seq
-    AS integer
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-
---
--- TOC entry 5593 (class 0 OID 0)
--- Dependencies: 283
--- Name: categorias_egreso_id_seq; Type: SEQUENCE OWNED BY; Schema: finance; Owner: -
---
-
-ALTER SEQUENCE finance.categorias_egreso_id_seq OWNED BY finance.categorias_egreso.id;
-
-
---
 -- TOC entry 284 (class 1259 OID 38438)
 -- Name: cuentas_por_cobrar; Type: TABLE; Schema: finance; Owner: -
 --
@@ -1661,7 +1626,7 @@ CREATE TABLE finance.resumen_caja (
 
 CREATE TABLE finance.transacciones_egreso (
     id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
-    categoria_id integer NOT NULL,
+    categoria character varying(100),
     descripcion text NOT NULL,
     monto numeric(10,2) NOT NULL,
     comprobante_url text,
@@ -2604,14 +2569,6 @@ ALTER TABLE ONLY core.users ALTER COLUMN id SET DEFAULT nextval('core.users_id_s
 
 
 --
--- TOC entry 4839 (class 2604 OID 38726)
--- Name: categorias_egreso id; Type: DEFAULT; Schema: finance; Owner: -
---
-
-ALTER TABLE ONLY finance.categorias_egreso ALTER COLUMN id SET DEFAULT nextval('finance.categorias_egreso_id_seq'::regclass);
-
-
---
 -- TOC entry 4891 (class 2604 OID 38727)
 -- Name: failed_jobs id; Type: DEFAULT; Schema: public; Owner: -
 --
@@ -3223,24 +3180,6 @@ ALTER TABLE ONLY core.users
 
 ALTER TABLE ONLY core.users
     ADD CONSTRAINT users_pkey PRIMARY KEY (id);
-
-
---
--- TOC entry 5160 (class 2606 OID 38859)
--- Name: categorias_egreso categorias_egreso_nombre_key; Type: CONSTRAINT; Schema: finance; Owner: -
---
-
-ALTER TABLE ONLY finance.categorias_egreso
-    ADD CONSTRAINT categorias_egreso_nombre_key UNIQUE (nombre);
-
-
---
--- TOC entry 5162 (class 2606 OID 38861)
--- Name: categorias_egreso categorias_egreso_pkey; Type: CONSTRAINT; Schema: finance; Owner: -
---
-
-ALTER TABLE ONLY finance.categorias_egreso
-    ADD CONSTRAINT categorias_egreso_pkey PRIMARY KEY (id);
 
 
 --
@@ -5390,15 +5329,6 @@ ALTER TABLE ONLY finance.horas_instructor
 
 ALTER TABLE ONLY finance.horas_instructor
     ADD CONSTRAINT horas_instructor_instructor_id_fkey FOREIGN KEY (instructor_id) REFERENCES people.personas(id);
-
-
---
--- TOC entry 5376 (class 2606 OID 39474)
--- Name: transacciones_egreso transacciones_egreso_categoria_id_fkey; Type: FK CONSTRAINT; Schema: finance; Owner: -
---
-
-ALTER TABLE ONLY finance.transacciones_egreso
-    ADD CONSTRAINT transacciones_egreso_categoria_id_fkey FOREIGN KEY (categoria_id) REFERENCES finance.categorias_egreso(id);
 
 
 --

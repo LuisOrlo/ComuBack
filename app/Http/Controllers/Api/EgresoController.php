@@ -14,7 +14,7 @@ class EgresoController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
-        $query = TransaccionEgreso::with(['categoria', 'registrador']);
+        $query = TransaccionEgreso::with(['registrador']);
 
         if ($desde = $request->get('fecha_desde')) {
             $query->where('fecha_pago', '>=', $desde);
@@ -23,7 +23,7 @@ class EgresoController extends Controller
             $query->where('fecha_pago', '<=', $hasta . ' 23:59:59');
         }
         if ($cat = $request->get('categoria')) {
-            $query->where('categoria_id', (int) $cat);
+            $query->where('categoria', $cat);
         }
         if ($search = $request->get('search')) {
             $query->where(function ($q) use ($search) {
@@ -33,16 +33,16 @@ class EgresoController extends Controller
         }
 
         $totalEgresado = (clone $query)->sum('monto');
-        $totalPersonal = (clone $query)->whereIn('categoria_id', [1, 2])->sum('monto');
-        $totalServicios = (clone $query)->whereIn('categoria_id', [3, 4, 5, 6, 7])->sum('monto');
-        $totalEquipos = (clone $query)->where('categoria_id', [8])->sum('monto');
+        $totalPersonal = (clone $query)->where('categoria', 'Personal')->sum('monto');
+        $totalServicios = (clone $query)->where('categoria', 'Servicios')->sum('monto');
+        $totalEquipos = (clone $query)->where('categoria', 'Equipos')->sum('monto');
         $totalVarios = max(0, $totalEgresado - $totalPersonal - $totalServicios - $totalEquipos);
 
         $previoInicio = date('Y-m-d', strtotime(($desde ?: now()->startOfMonth()->format('Y-m-d')) . ' -1 month'));
         $previoFin = date('Y-m-d', strtotime(($hasta ?: now()->endOfMonth()->format('Y-m-d')) . ' -1 month'));
         $previoTotal = (float) TransaccionEgreso::whereBetween('fecha_pago', [$previoInicio, $previoFin . ' 23:59:59'])->sum('monto');
-        $previoPersonal = (float) TransaccionEgreso::whereBetween('fecha_pago', [$previoInicio, $previoFin . ' 23:59:59'])->whereIn('categoria_id', [1, 2])->sum('monto');
-        $previoServicios = (float) TransaccionEgreso::whereBetween('fecha_pago', [$previoInicio, $previoFin . ' 23:59:59'])->whereIn('categoria_id', [3, 4, 5, 6, 7])->sum('monto');
+        $previoPersonal = (float) TransaccionEgreso::whereBetween('fecha_pago', [$previoInicio, $previoFin . ' 23:59:59'])->where('categoria', 'Personal')->sum('monto');
+        $previoServicios = (float) TransaccionEgreso::whereBetween('fecha_pago', [$previoInicio, $previoFin . ' 23:59:59'])->where('categoria', 'Servicios')->sum('monto');
         $previoVarios = max(0, $previoTotal - $previoPersonal - $previoServicios);
 
         $grafico = DB::table('finance.transacciones_egreso')
@@ -62,12 +62,10 @@ class EgresoController extends Controller
         $items = $query->orderBy($sortCol, $sortDir)
             ->paginate($request->get('per_page', 25));
 
-        $graficoCategorias = TransaccionEgreso::whereNotNull('id')->get()->groupBy(function ($e) {
-            if (in_array($e->categoria_id, [1, 2])) return 'Personal';
-            if (in_array($e->categoria_id, [3, 4, 5, 6, 7])) return 'Servicios';
-            if (in_array($e->categoria_id, [8])) return 'Equipos';
-            return 'Varios';
-        })->map(function ($g, $k) { return ['name' => $k, 'value' => (float) $g->sum('monto')]; })->values();
+        $graficoCategorias = TransaccionEgreso::whereNotNull('categoria')
+            ->get()->groupBy(fn($e) => $e->categoria)
+            ->map(function ($g, $k) { return ['name' => $k, 'value' => (float) $g->sum('monto')]; })
+            ->sortByDesc('value')->values();
 
         $graficoProveedores = TransaccionEgreso::whereNotNull('proveedor_beneficiario')
             ->where('proveedor_beneficiario', '!=', '')
@@ -77,8 +75,8 @@ class EgresoController extends Controller
 
         $data = $items->map(fn($e) => [
             'id' => $e->id,
-            'categoria_id' => $e->categoria_id,
-            'categoria_nombre' => $e->categoria?->nombre,
+            'categoria' => $e->categoria,
+            'categoria_nombre' => $e->categoria,
             'subcategoria' => $e->subcategoria,
             'descripcion' => $e->descripcion,
             'monto' => (float) $e->monto,
@@ -116,7 +114,7 @@ class EgresoController extends Controller
     public function store(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'categoria_id' => 'required|integer|exists:pgsql.finance.categorias_egreso,id',
+            'categoria' => 'required|string|max:100',
             'subcategoria' => 'nullable|string|max:100',
             'descripcion' => 'required|string',
             'monto' => 'required|numeric|min:0.01',
@@ -128,7 +126,7 @@ class EgresoController extends Controller
         ]);
 
         $egreso = TransaccionEgreso::create([
-            'categoria_id' => (int) $validated['categoria_id'],
+            'categoria' => $validated['categoria'],
             'subcategoria' => $validated['subcategoria'] ?? null,
             'descripcion' => $validated['descripcion'],
             'monto' => $validated['monto'],
@@ -150,12 +148,12 @@ class EgresoController extends Controller
 
     public function show($id): JsonResponse
     {
-        $e = TransaccionEgreso::with(['categoria', 'registrador'])->findOrFail($id);
+        $e = TransaccionEgreso::with(['registrador'])->findOrFail($id);
         return response()->json([
             'data' => [
                 'id' => $e->id,
-                'categoria_id' => $e->categoria_id,
-                'categoria_nombre' => $e->categoria?->nombre,
+                'categoria' => $e->categoria,
+                'categoria_nombre' => $e->categoria,
                 'subcategoria' => $e->subcategoria,
                 'descripcion' => $e->descripcion,
                 'monto' => (float) $e->monto,
@@ -174,7 +172,7 @@ class EgresoController extends Controller
         $egreso = TransaccionEgreso::findOrFail($id);
 
         $validated = $request->validate([
-            'categoria_id' => 'sometimes|integer|exists:pgsql.finance.categorias_egreso,id',
+            'categoria' => 'sometimes|string|max:100',
             'subcategoria' => 'nullable|string|max:100',
             'descripcion' => 'sometimes|string',
             'monto' => 'sometimes|numeric|min:0.01',
@@ -186,12 +184,11 @@ class EgresoController extends Controller
         ]);
 
         $data = array_intersect_key($validated, array_flip([
-            'categoria_id', 'subcategoria', 'descripcion', 'monto',
+            'categoria', 'subcategoria', 'descripcion', 'monto',
             'proveedor_beneficiario', 'metodo_pago', 'comprobante_url',
             'fecha_pago', 'notas',
         ]));
 
-        if (isset($data['categoria_id'])) $data['categoria_id'] = (int) $data['categoria_id'];
         $egreso->update($data);
 
         Cache::forget('finance.resumen');
@@ -213,7 +210,7 @@ class EgresoController extends Controller
 
         $nombreCompleto = trim("{$persona->nombres} {$persona->apellidos}");
 
-        $query = TransaccionEgreso::with(['categoria'])
+        $query = TransaccionEgreso::with(['registrador'])
             ->where('proveedor_beneficiario', $nombreCompleto)
             ->orderBy('fecha_pago', 'desc');
 
@@ -225,8 +222,8 @@ class EgresoController extends Controller
 
         $data = $items->map(fn($e) => [
             'id' => $e->id,
-            'categoria_id' => $e->categoria_id,
-            'categoria_nombre' => $e->categoria?->nombre,
+            'categoria' => $e->categoria,
+            'categoria_nombre' => $e->categoria,
             'descripcion' => $e->descripcion,
             'monto' => (float) $e->monto,
             'metodo_pago' => $e->metodo_pago ?? 'transferencia',
@@ -256,8 +253,12 @@ class EgresoController extends Controller
 
     public function categorias(): JsonResponse
     {
-        $cats = \App\Models\CategoriaEgreso::orderBy('id')->get();
-        return response()->json(['data' => $cats]);
+        $cats = TransaccionEgreso::whereNotNull('categoria')
+            ->where('categoria', '!=', '')
+            ->select('categoria')->distinct()->orderBy('categoria')->get()
+            ->map(fn($c) => ['id' => $c->categoria, 'nombre' => $c->categoria]);
+
+        return response()->json(['data' => $cats->values()]);
     }
 
     public function personalDisponible(): JsonResponse

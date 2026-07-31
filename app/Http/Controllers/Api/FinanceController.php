@@ -992,7 +992,7 @@ class FinanceController extends Controller
 
         $egresos = collect();
         if ($egresoIdsOnPage->isNotEmpty()) {
-            $egresos = TransaccionEgreso::with(['categoria', 'registrador'])
+            $egresos = TransaccionEgreso::with(['registrador'])
                 ->whereIn('id', $egresoIdsOnPage)
                 ->orderBy('fecha_pago', 'desc')
                 ->get()
@@ -1025,7 +1025,7 @@ class FinanceController extends Controller
                     'estudiante_nombre' => $m->proveedor_beneficiario,
                     'estudiante_cedula' => null,
                     'curso_nombre' => $m->descripcion,
-                    'categoria_nombre' => $m->categoria?->nombre,
+                    'categoria_nombre' => $m->categoria,
                     'modulo_nombre' => null,
                     'modulos_count' => 0,
                     'modulos_detalle' => [],

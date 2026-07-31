@@ -15,7 +15,7 @@ class TransaccionEgreso extends Model
     public $timestamps = false;
 
     protected $fillable = [
-        'categoria_id',
+        'categoria',
         'subcategoria',
         'descripcion',
         'monto',
@@ -33,11 +33,6 @@ class TransaccionEgreso extends Model
             'monto' => 'decimal:2',
             'fecha_pago' => 'datetime',
         ];
-    }
-
-    public function categoria(): BelongsTo
-    {
-        return $this->belongsTo(CategoriaEgreso::class, 'categoria_id');
     }
 
     public function registrador(): BelongsTo

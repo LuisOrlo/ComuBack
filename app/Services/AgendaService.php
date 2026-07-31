@@ -21,7 +21,6 @@ class AgendaService
         'PODCAST'       => ['color' => '#ec4899', 'label' => 'Podcast'],
         'STREAMING'     => ['color' => '#06b6d4', 'label' => 'Streaming'],
         'ASESORIA'      => ['color' => '#8b5cf6', 'label' => 'Asesoría'],
-        'ASESORIA'      => ['color' => '#8b5cf6', 'label' => 'Asesoría'],
     ];
 
     public function getEvents(?string $fechaInicio = null, ?string $fechaFin = null, ?array $tipos = null): Collection
@@ -432,7 +431,6 @@ class AgendaService
         $reserva = (array) $reserva;
         $event = $this->normalizeEvent($reserva, 'PODCAST');
         $event['detalle'] = [
-            'paquete' => $reserva['podcast_nombre'] ?? null,
             'precio_total' => $reserva['precio_total'] ?? null,
             'observaciones' => $reserva['observaciones'] ?? null,
         ];
