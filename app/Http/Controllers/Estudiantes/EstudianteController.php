@@ -32,13 +32,14 @@ class EstudianteController extends Controller
     {
         $internos = Persona::query()
             ->estudiantes()
-            ->with(['ciudad', 'perfilEstudiante', 'matriculas.cuentaPorCobrar', 'matriculas.lineasPago'])
+            ->with(['ciudad', 'perfilEstudiante', 'matriculas.cuentaPorCobrar', 'matriculas.lineasPago', 'matriculas.cursoAbierto.catalogo'])
             ->whereNull('deleted_at')
             ->when($request->filled('buscar'), function ($q) use ($request) {
                 $buscar = $request->buscar;
                 $q->where(function ($sub) use ($buscar) {
                     $sub->whereRaw('LOWER(nombres) LIKE ?', ["%{$buscar}%"])
                       ->orWhereRaw('LOWER(apellidos) LIKE ?', ["%{$buscar}%"])
+                      ->orWhereRaw("LOWER(COALESCE(nombres, '') || ' ' || COALESCE(apellidos, '')) LIKE ?", ["%{$buscar}%"])
                       ->orWhere('cedula', 'like', "%{$buscar}%");
                 });
             })
@@ -110,6 +111,8 @@ class EstudianteController extends Controller
                 $buscar = $request->buscar;
                 $q->where(function ($sub) use ($buscar) {
                     $sub->whereRaw('LOWER(nombres) LIKE ?', ["%{$buscar}%"])
+                      ->orWhereRaw('LOWER(apellidos) LIKE ?', ["%{$buscar}%"])
+                      ->orWhereRaw("LOWER(COALESCE(nombres, '') || ' ' || COALESCE(apellidos, '')) LIKE ?", ["%{$buscar}%"])
                       ->orWhere('cedula', 'like', "%{$buscar}%");
                 });
             })
@@ -201,6 +204,7 @@ class EstudianteController extends Controller
                 $q->where(function ($sub) use ($buscar) {
                     $sub->whereRaw('LOWER(nombres) LIKE ?', ["%{$buscar}%"])
                       ->orWhereRaw('LOWER(apellidos) LIKE ?', ["%{$buscar}%"])
+                      ->orWhereRaw("LOWER(COALESCE(nombres, '') || ' ' || COALESCE(apellidos, '')) LIKE ?", ["%{$buscar}%"])
                       ->orWhere('cedula', 'like', "%{$buscar}%");
                 });
             })
