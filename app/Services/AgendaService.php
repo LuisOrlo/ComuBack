@@ -639,6 +639,16 @@ class AgendaService
                 return $fecha->between($weekStart, $weekEnd);
             });
 
+            if ($weekEvents->isNotEmpty()) {
+                $weekMinMinutes = $weekEvents->min(fn($e) => $this->timeToMinutes($e['hora_inicio']));
+                $weekMaxMinutes = $weekEvents->max(fn($e) => $this->timeToMinutes($e['hora_fin']));
+                $weekMinHour = max(6, floor($weekMinMinutes / 60) - 1);
+                $weekMaxHour = min(22, ceil($weekMaxMinutes / 60) + 1);
+            } else {
+                $weekMinHour = 7;
+                $weekMaxHour = 21;
+            }
+
             $days = [];
             for ($d = 0; $d < 7; $d++) {
                 $date = $weekStart->copy()->addDays($d);
@@ -659,6 +669,9 @@ class AgendaService
                 'end' => $weekEnd->copy(),
                 'days' => $days,
                 'has_events' => !empty(array_filter($days, fn($d) => !empty($d['events']))),
+                'hours' => range($weekMinHour, $weekMaxHour),
+                'min_hour' => $weekMinHour,
+                'max_hour' => $weekMaxHour,
             ];
 
             $current->addWeek();

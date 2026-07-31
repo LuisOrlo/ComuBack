@@ -591,6 +591,7 @@ Route::prefix('reports')->group(function () {
         // ========================================================================
         Route::prefix('agenda')->group(function () {
             Route::get('/', [AgendaController::class, 'index'])->name('agenda.index');
+            Route::get('exportar/pdf', [AgendaController::class, 'exportarPdf'])->name('agenda.exportar-pdf');
             Route::get('{tipo_evento}/{referencia_id}', [AgendaController::class, 'show'])->name('agenda.show');
         });
 

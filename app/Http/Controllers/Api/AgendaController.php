@@ -4,10 +4,12 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\AgendaRequest;
+use App\Services\AgendaPdfService;
 use App\Services\AgendaService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Carbon\Carbon;
 
 class AgendaController extends Controller
@@ -74,6 +76,41 @@ class AgendaController extends Controller
 
         return response()->json([
             'data' => $event,
+        ]);
+    }
+
+    /**
+     * GET /api/academic/agenda/exportar/pdf
+     *
+     * Genera y descarga el PDF de la agenda (mensual o semanal) renderizado en servidor.
+     */
+    public function exportarPdf(Request $request, AgendaPdfService $pdfService): Response
+    {
+        $validated = $request->validate([
+            'vista'        => 'required|in:mes,semana',
+            'fecha_inicio' => 'required|date',
+            'fecha_fin'    => 'required|date|after_or_equal:fecha_inicio',
+            'tipos'        => 'nullable|array',
+            'tipos.*'      => 'string',
+            'titulo'       => 'nullable|string|max:120',
+        ]);
+
+        $fechaInicio = Carbon::parse($validated['fecha_inicio']);
+        $fechaFin    = Carbon::parse($validated['fecha_fin']);
+        $tipos       = $validated['tipos'] ?? [];
+        $titulo      = $validated['titulo'] ?? 'AGENDA GENERAL';
+
+        $pdf = $validated['vista'] === 'mes'
+            ? $pdfService->generateMonthPdf($fechaInicio, $fechaFin, $tipos, $titulo)
+            : $pdfService->generateWeekPdf($fechaInicio, $fechaFin, $tipos, $titulo);
+
+        $nombreArchivo = $validated['vista'] === 'mes'
+            ? 'AGENDA_MENSUAL_' . $fechaInicio->format('Y_m') . '.pdf'
+            : 'AGENDA_SEMANAL_' . $fechaInicio->format('Y_m_d') . '.pdf';
+
+        return response($pdf, 200, [
+            'Content-Type'        => 'application/pdf',
+            'Content-Disposition' => 'attachment; filename="' . $nombreArchivo . '"',
         ]);
     }
 }
