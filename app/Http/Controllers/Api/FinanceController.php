@@ -1856,7 +1856,7 @@ class FinanceController extends Controller
         $totales['otros'] = max(0, $totales['total'] - $totales['cursos'] - $totales['talleres'] - $totales['servicios']);
 
         // ── Egresos totals ──────────────────────────────────────────────────
-        $egresoQuery = TransaccionEgreso::with('categoria')
+        $egresoQuery = TransaccionEgreso::query()
             ->when($desde, fn($q) => $q->where('fecha_pago', '>=', $desde))
             ->when($hasta, fn($q) => $q->where('fecha_pago', '<=', $hasta . ' 23:59:59'))
             ->when($metodo, fn($q) => $q->where('metodo_pago', $metodo));
@@ -1954,7 +1954,7 @@ class FinanceController extends Controller
                 'fecha_pago' => $e->fecha_pago?->format('Y-m-d'),
                 'concepto' => $e->descripcion,
                 'estudiante_nombre' => $e->proveedor_beneficiario,
-                'categoria' => $e->categoria?->nombre ?? '—',
+                'categoria' => $e->categoria ?: '—',
                 'monto' => (float) $e->monto,
                 'metodo_pago' => $e->metodo_pago,
                 'comprobante_url' => $e->comprobante_url,

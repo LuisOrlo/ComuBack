@@ -7,6 +7,7 @@ use App\Http\Requests\ValidateRegistrationRequest;
 use App\Http\Requests\RejectRegistrationRequest;
 use App\Models\SolicitudInscripcion;
 use App\Models\Persona;
+use App\Models\Horario;
 use App\Services\RegistrationStateService;
 use App\Services\StorageCleanupService;
 use Illuminate\Http\JsonResponse;
@@ -94,8 +95,12 @@ class StaffRegistrationController extends Controller
         $solicitud = SolicitudInscripcion::with([
             'estudiante:id,nombres,apellidos,cedula,correo,celular',
             'participanteExterno:id,nombres,apellidos,correo,celular,cedula,ocupacion,direccion,ciudad,estado_civil,fecha_nacimiento,edad',
-            'cursoAbierto:id,catalogo_curso_id,precio_base,capacidad_maxima,estudiantes_inscritos,fecha_inicio,fecha_fin',
-            'cursoAbierto.catalogo:id,nombre,descripcion,categoria',
+            'cursoAbierto:id,catalogo_curso_id,nombre_instancia,precio_base,capacidad_maxima,estudiantes_inscritos,fecha_inicio,fecha_fin,modalidad,docente_id,ciudad_id,horario_id',
+            'cursoAbierto.catalogo:id,nombre,descripcion,categoria,color',
+            'cursoAbierto.docente:id,nombres,apellidos',
+            'cursoAbierto.ciudad:id,nombre',
+            'cursoAbierto.horario:id,nombre_referencial,dia_semana,hora_inicio,hora_fin,es_activo',
+            'cursoAbierto.horario.diasSemana',
             'validador:id,nombres,apellidos,correo',
         ])->find($id);
 
@@ -236,6 +241,9 @@ class StaffRegistrationController extends Controller
             'estudiante.perfilEstudiante',
             'participanteExterno',
             'cursoAbierto.catalogo',
+            'cursoAbierto.docente',
+            'cursoAbierto.ciudad',
+            'cursoAbierto.horario.diasSemana',
             'validador',
         ]);
 
@@ -287,8 +295,11 @@ class StaffRegistrationController extends Controller
             ],
             'curso' => $solicitud->cursoAbierto ? [
                 'id' => $solicitud->cursoAbierto->id,
-                'nombre' => $solicitud->cursoAbierto->catalogo?->nombre,
+                'nombre' => $solicitud->cursoAbierto->nombre_instancia ?: $solicitud->cursoAbierto->catalogo?->nombre,
+                'nombre_catalogo' => $solicitud->cursoAbierto->catalogo?->nombre,
                 'descripcion' => $solicitud->cursoAbierto->catalogo?->descripcion,
+                'color' => $solicitud->cursoAbierto->catalogo?->color,
+                'modalidad' => $solicitud->cursoAbierto->modalidad,
                 'precio_base' => $solicitud->cursoAbierto->precio_base,
                 'capacidad' => [
                     'maxima' => $solicitud->cursoAbierto->capacidad_maxima,
@@ -299,6 +310,17 @@ class StaffRegistrationController extends Controller
                     'inicio' => $solicitud->cursoAbierto->fecha_inicio,
                     'fin_estimada' => $solicitud->cursoAbierto->fecha_fin,
                 ],
+                'docente' => $solicitud->cursoAbierto->docente ? [
+                    'id' => $solicitud->cursoAbierto->docente->id,
+                    'nombre' => trim(($solicitud->cursoAbierto->docente->nombres ?? '') . ' ' . ($solicitud->cursoAbierto->docente->apellidos ?? '')),
+                ] : null,
+                'ciudad' => $solicitud->cursoAbierto->ciudad?->nombre,
+                'horario' => $solicitud->cursoAbierto->horario ? [
+                    'descripcion' => $this->descripcionHorario($solicitud->cursoAbierto->horario),
+                    'dias_semana' => $solicitud->cursoAbierto->horario->obtenerDiasSemana(),
+                    'hora_inicio' => $solicitud->cursoAbierto->horario->hora_inicio,
+                    'hora_fin' => $solicitud->cursoAbierto->horario->hora_fin,
+                ] : null,
             ] : null,
             'pago' => [
                 'monto_solicitado' => $solicitud->monto_solicitado,
@@ -337,6 +359,15 @@ class StaffRegistrationController extends Controller
                 'actualizado' => $solicitud->updated_at,
             ],
         ];
+    }
+
+    private function descripcionHorario(?Horario $horario): ?string
+    {
+        if (!$horario) return null;
+        $dias = implode('-', $horario->obtenerDiasNombres());
+        $inicio = substr((string) $horario->hora_inicio, 0, 5);
+        $fin = substr((string) $horario->hora_fin, 0, 5);
+        return "{$dias} {$inicio}-{$fin}";
     }
 
     /**
