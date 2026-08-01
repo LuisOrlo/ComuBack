@@ -1002,10 +1002,38 @@ class FinanceController extends Controller
         $ek = $egresos;
         $ik = $ingresos;
 
+        // ── Agrupar pagos de módulos por referencia (una aprobación = un pago) ──
+        $grupoRefs = $ik->filter(fn($m) => $m->referencia_pago && $m->linea_pago_modulo_id)
+            ->map(fn($m) => preg_replace('/-insc$/', '', $m->referencia_pago))
+            ->unique()
+            ->values();
+
+        $grupos = collect();
+        if ($grupoRefs->isNotEmpty()) {
+            $grupos = TransaccionIngreso::with([
+                'lineaPagoModulo.modulo',
+                'lineaPagoModulo.matricula.estudiante',
+                'lineaPagoModulo.matricula.solicitudInscripcion.estudiante',
+                'lineaPagoModulo.matricula.solicitudInscripcion.participanteExterno',
+                'lineaPagoModulo.matricula.cursoAbierto.catalogo',
+            ])
+                ->whereNotNull('referencia_pago')
+                ->whereNotNull('linea_pago_modulo_id')
+                ->where(function ($q) use ($grupoRefs) {
+                    foreach ($grupoRefs as $ref) {
+                        $q->orWhere('referencia_pago', $ref)
+                          ->orWhere('referencia_pago', $ref . '-insc');
+                    }
+                })
+                ->orderBy('fecha_pago', 'desc')
+                ->get()
+                ->groupBy(fn($m) => preg_replace('/-insc$/', '', $m->referencia_pago));
+        }
+
         $pageKeys = $unionIds->map(fn($item) => $item->tipo_movimiento === 'ingreso' ? "i_{$item->id}" : "e_{$item->id}");
 
         // ── Map items → response shape ────────────────────────────────────────
-        $data = $pageKeys->map(function ($key) use ($ek, $ik) {
+        $data = $pageKeys->map(function ($key) use ($ek, $ik, $grupos) {
             $m = str_starts_with($key, 'e_') ? ($ek[$key] ?? null) : ($ik[$key] ?? null);
             if (!$m) return null;
 
@@ -1029,6 +1057,57 @@ class FinanceController extends Controller
                     'modulo_nombre' => null,
                     'modulos_count' => 0,
                     'modulos_detalle' => [],
+                    'cuenta_por_cobrar' => null,
+                ];
+            }
+
+            // ── Pago agrupado (una aprobación de módulos = un pago) ──────────
+            $grupoKey = ($m->referencia_pago && $m->linea_pago_modulo_id)
+                ? preg_replace('/-insc$/', '', $m->referencia_pago)
+                : null;
+
+            if ($grupoKey && $grupos->has($grupoKey)) {
+                $grupo = $grupos->get($grupoKey);
+                $rep = $grupo->sortBy(fn($x) => [$x->created_at?->format('Y-m-d H:i:s.u') ?? '', $x->id])
+                    ->first();
+
+                if (! $rep || $rep->id !== $m->id) {
+                    return null; // solo se muestra en la página que contiene al representante
+                }
+
+                $mat = $rep->lineaPagoModulo?->matricula;
+                $estudiante = $mat?->estudiante
+                    ?? $mat?->solicitudInscripcion?->estudiante
+                    ?? $mat?->solicitudInscripcion?->participanteExterno;
+                $cursoNombre = $mat?->cursoAbierto?->catalogo?->nombre;
+                $montoTotal = round((float) $grupo->sum('monto'), 2);
+                $detalle = $grupo->filter(fn($x) => $x->lineaPagoModulo?->modulo?->nombre_modulo)
+                    ->map(fn($x) => [
+                        'id' => $x->id,
+                        'modulo_nombre' => $x->lineaPagoModulo->modulo->nombre_modulo,
+                        'monto' => (float) $x->monto,
+                    ])
+                    ->values();
+
+                return [
+                    'id' => $rep->id,
+                    'tipo_movimiento' => 'ingreso',
+                    'tipo' => 'agrupado',
+                    'referencia_pago' => $grupoKey,
+                    'monto' => $montoTotal,
+                    'monto_total' => $montoTotal,
+                    'metodo_pago' => $rep->metodo_pago,
+                    'fecha_pago' => $rep->fecha_pago?->toISOString(),
+                    'estado_verificacion' => $rep->estado_verificacion,
+                    'comprobante_url' => $rep->comprobante_url,
+                    'observaciones' => $rep->observaciones,
+                    'estudiante_nombre' => $estudiante ? trim(($estudiante->nombres ?? '') . ' ' . ($estudiante->apellidos ?? '')) : null,
+                    'estudiante_cedula' => $estudiante?->cedula ?? null,
+                    'curso_nombre' => $cursoNombre,
+                    'categoria_nombre' => null,
+                    'modulo_nombre' => null,
+                    'modulos_count' => $detalle->count(),
+                    'modulos_detalle' => $detalle,
                     'cuenta_por_cobrar' => null,
                 ];
             }
@@ -1091,7 +1170,7 @@ class FinanceController extends Controller
                     ? [['id' => $base['id'], 'modulo_nombre' => $base['modulo_nombre'], 'monto' => $base['monto']]]
                     : [],
             ]);
-        })->values();
+        })->filter()->values();
 
         $purgados = \App\Models\ArchivoEliminado::where(function ($q) use ($pageKeys, $ek, $ik) {
             $egresoIds = $pageKeys->filter(fn($k) => str_starts_with($k, 'e_'))
@@ -1799,7 +1878,10 @@ class FinanceController extends Controller
         $categoriaFilter = $request->get('categoria');
         if ($categoriaFilter) {
             if ($categoriaFilter === 'cursos') {
-                $query->whereHas('cuentaPorCobrar', fn($q) => $q->whereNotNull('matricula_id'));
+                $query->where(function ($q) {
+                    $q->whereHas('cuentaPorCobrar', fn($sq) => $sq->whereNotNull('matricula_id'))
+                      ->orWhereNotNull('linea_pago_modulo_id');
+                });
             } elseif ($categoriaFilter === 'talleres') {
                 $query->whereHas('cuentaPorCobrar', fn($q) => $q->whereNotNull('inscripcion_taller_id'));
             } else {
@@ -1888,7 +1970,7 @@ class FinanceController extends Controller
         $ingresoModels = $query->orderBy($sortCol, $sortDir)->get();
         $egresoModels = $egresoQuery->orderBy('fecha_pago', $sortDir)->get();
 
-        $ingresoMapped = $ingresoModels->map(function ($t) {
+        $mapIngreso = function ($t) {
             $cp = $t->cuentaPorCobrar;
             $cat = 'Otros';
             if ($cp) {
@@ -1945,6 +2027,38 @@ class FinanceController extends Controller
                 'comprobante_url' => $t->comprobante_url,
                 'estado_verificacion' => $t->estado_verificacion,
             ];
+        };
+
+        // Agrupar pagos de módulos de una misma aprobación (misma referencia_pago,
+        // incluyendo la inscripción `-insc`) en un solo pago mostrado.
+        $ingresoMapped = collect();
+        $ingresoModels->groupBy(function ($t) {
+            if (! $t->referencia_pago || ! $t->linea_pago_modulo_id) {
+                return 's:' . $t->id;
+            }
+            return 'g:' . preg_replace('/-insc$/', '', $t->referencia_pago);
+        })->each(function ($grp, $key) use (&$ingresoMapped, $mapIngreso) {
+            if (str_starts_with($key, 's:')) {
+                $ingresoMapped->push($mapIngreso($grp->first()));
+                return;
+            }
+
+            $rep = $grp->sortBy(fn($x) => [$x->created_at?->format('Y-m-d H:i:s.u') ?? '', $x->id])
+                ->first() ?? $grp->first();
+            $detalle = $grp->filter(fn($x) => $x->lineaPagoModulo?->modulo?->nombre_modulo)
+                ->map(fn($x) => [
+                    'id' => $x->id,
+                    'modulo_nombre' => $x->lineaPagoModulo->modulo->nombre_modulo,
+                    'monto' => (float) $x->monto,
+                ])
+                ->values();
+
+            $item = $mapIngreso($rep);
+            $item['monto'] = round((float) $grp->sum('monto'), 2);
+            $item['modulos_count'] = $detalle->count();
+            $item['modulos_detalle'] = $detalle;
+
+            $ingresoMapped->push($item);
         });
 
         $egresoMapped = $egresoModels->map(function ($e) {
