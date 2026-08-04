@@ -22,7 +22,7 @@ class CursoAbiertoController extends Controller
     public function index(Request $request)
     {
         $query = CursoAbierto::with([
-            'catalogo:id,nombre,categoria',
+            'catalogo:id,nombre,categoria,color,imagen',
             'ciudad:id,nombre',
             'horario.diasSemana',
             'docente:id,nombres,apellidos',

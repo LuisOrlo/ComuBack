@@ -90,7 +90,6 @@ class EstudianteController extends Controller
                         return $m->cursoAbierto->precio_base ?? 0;
                     }),
                     'perfil_estudiante' => $p->perfilEstudiante ? [
-                        'fecha_nacimiento' => $p->perfilEstudiante->fecha_nacimiento?->format('Y-m-d'),
                         'notas_internas' => $p->perfilEstudiante->notas_internas,
                         'primera_matricula' => $p->perfilEstudiante->primera_matricula?->format('Y-m-d') ?? ($totalMatriculas > 0 ? $p->matriculas->pluck('fecha_inscripcion')->filter()->sort()->first()?->format('Y-m-d') : null),
                         'ultima_matricula' => $p->perfilEstudiante->ultima_matricula?->format('Y-m-d') ?? ($totalMatriculas > 0 ? $p->matriculas->pluck('fecha_inscripcion')->filter()->sort()->last()?->format('Y-m-d') : null),
@@ -136,12 +135,6 @@ class EstudianteController extends Controller
                     ->filter()
                     ->map(fn($d) => $d instanceof Carbon ? $d : Carbon::parse($d))
                     ->sort();
-                $fechaNacimiento = $c->fecha_nacimiento;
-                if ($fechaNacimiento) {
-                    $fechaNacimiento = $fechaNacimiento instanceof Carbon
-                        ? $fechaNacimiento->format('Y-m-d')
-                        : Carbon::parse($fechaNacimiento)->format('Y-m-d');
-                }
                 $cuentas = $solicitudes->flatMap(fn($s) => $s->cuentasPorCobrar)->filter();
                 $estados = $cuentas->pluck('estado')->unique();
 
@@ -182,7 +175,6 @@ class EstudianteController extends Controller
                         'ocupacion' => $c->ocupacion,
                         'direccion' => $c->direccion,
                         'estado_civil' => $c->estado_civil,
-                        'fecha_nacimiento' => $fechaNacimiento,
                         'primera_matricula' => $fechasSolicitudes->isNotEmpty() ? $fechasSolicitudes->first()->format('Y-m-d') : null,
                         'ultima_matricula' => $fechasSolicitudes->isNotEmpty() ? $fechasSolicitudes->last()->format('Y-m-d') : null,
                         'total_cursos' => $totalSolicitudes,
@@ -252,7 +244,6 @@ class EstudianteController extends Controller
                     'ocupacion' => $primera->ocupacion,
                     'direccion' => $primera->direccion,
                     'estado_civil' => $primera->estado_civil,
-                    'fecha_nacimiento' => $primera->fecha_nacimiento,
                     'notas_internas' => null,
                 ],
             ]);
@@ -361,13 +352,6 @@ class EstudianteController extends Controller
             $primeraMatricula = $fechasMatriculas->isNotEmpty() ? $fechasMatriculas->first()->format('Y-m-d') : null;
             $ultimaMatricula = $fechasMatriculas->isNotEmpty() ? $fechasMatriculas->last()->format('Y-m-d') : null;
 
-            $fechaNacimiento = $cliente->fecha_nacimiento;
-            if ($fechaNacimiento) {
-                $fechaNacimiento = $fechaNacimiento instanceof Carbon
-                    ? $fechaNacimiento->format('Y-m-d')
-                    : Carbon::parse($fechaNacimiento)->format('Y-m-d');
-            }
-
             return response()->json([
                 'datos' => [
                     'id' => $cliente->id,
@@ -387,7 +371,6 @@ class EstudianteController extends Controller
                         'ocupacion' => $cliente->ocupacion,
                         'direccion' => $cliente->direccion,
                         'estado_civil' => $cliente->estado_civil,
-                        'fecha_nacimiento' => $fechaNacimiento,
                         'primera_matricula' => $primeraMatricula,
                         'ultima_matricula' => $ultimaMatricula,
                         'total_cursos' => $totalCursos,
@@ -437,9 +420,6 @@ class EstudianteController extends Controller
                         'ocupacion' => $inscripcionTaller->ocupacion ?? null,
                         'direccion' => $inscripcionTaller->direccion ?? null,
                         'estado_civil' => $inscripcionTaller->estado_civil ?? null,
-                        'fecha_nacimiento' => $inscripcionTaller->fecha_nacimiento
-                            ? (\Carbon\Carbon::parse($inscripcionTaller->fecha_nacimiento)->format('Y-m-d'))
-                            : null,
                         'primera_matricula' => $inscripcionTaller->fecha_inscripcion ?? null,
                         'ultima_matricula' => $inscripcionTaller->fecha_inscripcion ?? null,
                         'total_cursos' => 1,
@@ -658,7 +638,6 @@ class EstudianteController extends Controller
 
             PerfilEstudiante::create([
                 'persona_id' => $persona->id,
-                'fecha_nacimiento' => $datos['fecha_nacimiento'] ?? null,
                 'notas_internas' => $datos['notas_internas'] ?? null,
                 'ocupacion' => $datos['ocupacion'] ?? null,
                 'direccion' => $datos['direccion'] ?? null,
@@ -686,7 +665,6 @@ class EstudianteController extends Controller
 
         DB::transaction(function () use ($estudiante, $datos) {
             $datosPerfil = array_intersect_key($datos, array_flip([
-                'fecha_nacimiento',
                 'notas_internas',
                 'ocupacion',
                 'direccion',
@@ -1560,6 +1538,35 @@ class EstudianteController extends Controller
             ->whereHas('solicitudesInscripcion', fn($q) => $q->whereIn('estado', ['aprobado', 'matricula_creada']))
             ->count();
 
+        $cedulasExistentes = Persona::query()
+            ->estudiantes()
+            ->whereNotNull('cedula')
+            ->pluck('cedula')
+            ->merge(ClienteExterno::query()
+                ->whereHas('solicitudesInscripcion', fn($q) => $q->whereIn('estado', ['aprobado', 'matricula_creada']))
+                ->whereNotNull('cedula')
+                ->pluck('cedula'))
+            ->unique()
+            ->filter()
+            ->values();
+
+        $talleresNuevosCount = \App\Models\InscripcionTaller::query()
+            ->whereNotNull('nombres')
+            ->whereIn('estado', ['activo', 'completado'])
+            ->where(function ($q) use ($cedulasExistentes) {
+                $q->whereNull('cedula')
+                  ->orWhere(function ($sq) use ($cedulasExistentes) {
+                      $sq->whereNotNull('cedula')
+                         ->whereNotIn('cedula', $cedulasExistentes->isEmpty() ? [''] : $cedulasExistentes);
+                  });
+            })
+            ->get()
+            ->groupBy(function ($ins) {
+                if (!empty($ins->cedula)) return 'cedula:' . $ins->cedula;
+                return 'nombre:' . mb_strtolower(trim(($ins->nombres ?? '') . ' ' . ($ins->apellidos ?? '')));
+            })
+            ->count();
+
         $internosCiudad = Persona::query()
             ->estudiantes()
             ->whereNull('deleted_at')
@@ -1637,7 +1644,7 @@ class EstudianteController extends Controller
 
         return response()->json([
         'datos' => [
-            'total_estudiantes' => $internosCount + $externosCount,
+            'total_estudiantes' => $internosCount + $externosCount + $talleresNuevosCount,
             'por_ciudad' => $porCiudad,
                 'matriculas_por_estado' => $matriculasStats,
                 'promedio_general' => round((float) $promedioGeneral, 2),

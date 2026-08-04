@@ -73,7 +73,6 @@ class RegistrationController extends Controller
                     'direccion' => $validated['direccion'] ?? null,
                     'ciudad' => $validated['ciudad'] ?? null,
                     'estado_civil' => $validated['estado_civil'] ?? null,
-                    'fecha_nacimiento' => $validated['fecha_nacimiento'] ?? null,
                     'edad' => $validated['edad'] ?? null,
                 ]
             );
@@ -149,7 +148,6 @@ class RegistrationController extends Controller
                 'direccion' => $validated['direccion'] ?? $perfil->direccion,
                 'ciudad' => $validated['ciudad'] ?? $perfil->ciudad,
                 'estado_civil' => $validated['estado_civil'] ?? $perfil->estado_civil,
-                'fecha_nacimiento' => $validated['fecha_nacimiento'] ?? $perfil->fecha_nacimiento,
             ])->save();
         }
 

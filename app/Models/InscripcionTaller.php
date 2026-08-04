@@ -24,7 +24,6 @@ class InscripcionTaller extends Model
         'ocupacion',
         'direccion',
         'estado_civil',
-        'fecha_nacimiento',
         'edad',
         'fecha_inscripcion',
         'estado',
@@ -43,7 +42,6 @@ class InscripcionTaller extends Model
     protected $casts = [
         'fecha_inscripcion' => 'date',
         'fecha_pago' => 'date',
-        'fecha_nacimiento' => 'date',
         'monto_pagado' => 'decimal:2',
         'pago_verificado' => 'boolean',
         'edad' => 'integer',

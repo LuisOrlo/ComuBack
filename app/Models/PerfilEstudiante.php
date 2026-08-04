@@ -15,7 +15,6 @@ class PerfilEstudiante extends Model
 
     protected $fillable = [
         'persona_id',
-        'fecha_nacimiento',
         'genero',
         'ocupacion',
         'direccion',
@@ -27,7 +26,6 @@ class PerfilEstudiante extends Model
     protected function casts(): array
     {
         return [
-            'fecha_nacimiento' => 'date',
             'primera_matricula' => 'date',
             'ultima_matricula' => 'date',
             'total_cursos' => 'integer',

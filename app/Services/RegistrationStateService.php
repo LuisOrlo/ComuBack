@@ -361,7 +361,6 @@ class RegistrationStateService
                             'ocupacion' => $externo->ocupacion,
                             'estado_civil' => $externo->estado_civil,
                             'edad' => $externo->edad,
-                            'fecha_nacimiento' => $externo->fecha_nacimiento,
                             'ciudad' => $externo->ciudad,
                         ]
                     );
@@ -373,6 +372,15 @@ class RegistrationStateService
                     ]);
                     $externo->update(['es_cliente' => false]);
                 }
+            }
+
+            $existing = Matricula::withTrashed()
+                ->where('estudiante_id', $estudianteId)
+                ->where('curso_abierto_id', $solicitud->curso_abierto_id)
+                ->first();
+
+            if ($existing) {
+                throw new Exception('El estudiante ya está inscrito en este curso');
             }
 
             $matricula = Matricula::create([

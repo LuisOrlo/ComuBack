@@ -59,7 +59,6 @@ class EstudianteResource extends JsonResource
 
                 return [
                     'id' => $this->perfilEstudiante->id,
-                    'fecha_nacimiento' => $this->perfilEstudiante->fecha_nacimiento?->format('Y-m-d'),
                     'notas_internas' => $this->perfilEstudiante->notas_internas,
                     'primera_matricula' => $primeraMatricula instanceof Carbon ? $primeraMatricula->format('Y-m-d') : ($primeraMatricula ? Carbon::parse($primeraMatricula)->format('Y-m-d') : null),
                     'ultima_matricula' => $ultimaMatricula instanceof Carbon ? $ultimaMatricula->format('Y-m-d') : ($ultimaMatricula ? Carbon::parse($ultimaMatricula)->format('Y-m-d') : null),

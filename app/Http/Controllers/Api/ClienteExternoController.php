@@ -59,7 +59,6 @@ class ClienteExternoController extends Controller
             'direccion' => 'nullable|string|max:255',
             'ocupacion' => 'nullable|string|max:100',
             'estado_civil' => 'nullable|string|max:20',
-            'fecha_nacimiento' => 'nullable|date',
             'observaciones' => 'nullable|string',
         ]);
 
@@ -96,7 +95,6 @@ class ClienteExternoController extends Controller
             'direccion' => 'nullable|string|max:255',
             'ocupacion' => 'nullable|string|max:100',
             'estado_civil' => 'nullable|string|max:20',
-            'fecha_nacimiento' => 'nullable|date',
             'edad' => 'nullable|integer',
         ]);
 

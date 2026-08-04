@@ -144,7 +144,6 @@ class InstructorPortalController extends Controller
                     'celular' => $cliente->celular,
                     'ciudad' => $cliente->ciudad,
                     'perfil_estudiante' => [
-                        'fecha_nacimiento' => $cliente->fecha_nacimiento,
                         'ocupacion' => $cliente->ocupacion,
                         'direccion' => $cliente->direccion,
                         'estado_civil' => $cliente->estado_civil,

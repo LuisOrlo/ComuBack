@@ -9,7 +9,6 @@ use App\Http\Requests\StoreCatalogoCursoRequest;
 use App\Http\Requests\UpdateCatalogoCursoRequest;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
-use Illuminate\Support\Facades\Storage;
 use Carbon\Carbon;
 
 class CatalogoCursoController extends Controller
@@ -71,25 +70,6 @@ class CatalogoCursoController extends Controller
     {
         CatalogoCurso::findOrFail($id)->delete();
         return response()->json(['message' => 'Eliminado exitosamente']);
-    }
-
-    /**
-     * POST /api/academic/catalogos-cursos/upload-imagen
-     * Subir imagen para un catálogo
-     */
-    public function uploadImagen(Request $request)
-    {
-        $request->validate([
-            'imagen' => 'required|image|mimes:jpeg,png,jpg,webp|max:2048',
-        ]);
-
-        $path = $request->file('imagen')->store('catalogos');
-        $url = Storage::disk()->url($path);
-
-        return response()->json([
-            'data' => ['url' => $url, 'path' => $path],
-            'message' => 'Imagen subida exitosamente'
-        ]);
     }
 
     /**

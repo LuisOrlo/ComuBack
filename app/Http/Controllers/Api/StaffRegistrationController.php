@@ -34,7 +34,7 @@ class StaffRegistrationController extends Controller
     {
         $query = SolicitudInscripcion::with([
             'estudiante:id,nombres,apellidos,correo',
-            'participanteExterno:id,nombres,apellidos,correo,celular,cedula,ocupacion,direccion,ciudad,estado_civil,fecha_nacimiento,edad',
+            'participanteExterno:id,nombres,apellidos,correo,celular,cedula,ocupacion,direccion,ciudad,estado_civil,edad',
             'cursoAbierto:id,catalogo_curso_id,precio_base,capacidad_maxima,estudiantes_inscritos',
             'cursoAbierto.catalogo:id,nombre,categoria',
         ]);
@@ -94,7 +94,7 @@ class StaffRegistrationController extends Controller
     {
         $solicitud = SolicitudInscripcion::with([
             'estudiante:id,nombres,apellidos,cedula,correo,celular',
-            'participanteExterno:id,nombres,apellidos,correo,celular,cedula,ocupacion,direccion,ciudad,estado_civil,fecha_nacimiento,edad',
+            'participanteExterno:id,nombres,apellidos,correo,celular,cedula,ocupacion,direccion,ciudad,estado_civil,edad',
             'cursoAbierto:id,catalogo_curso_id,nombre_instancia,precio_base,capacidad_maxima,estudiantes_inscritos,fecha_inicio,fecha_fin,modalidad,docente_id,ciudad_id,horario_id',
             'cursoAbierto.catalogo:id,nombre,descripcion,categoria,color',
             'cursoAbierto.docente:id,nombres,apellidos',
@@ -233,6 +233,64 @@ class StaffRegistrationController extends Controller
     }
 
     /**
+     * GET /api/academic/solicitudes-inscripcion/{id}/adjacent
+     * Obtener IDs de la solicitud anterior y siguiente para navegación rápida
+     */
+    public function adjacent(Request $request, string $id): JsonResponse
+    {
+        $current = SolicitudInscripcion::findOrFail($id);
+
+        $query = SolicitudInscripcion::query();
+
+        if ($request->has('estado')) {
+            $query->where('estado', $request->estado);
+        } else {
+            $query->where('estado', 'pendiente_validacion');
+        }
+
+        if ($request->has('search')) {
+            $query->search($request->search);
+        }
+
+        if ($request->has('curso_abierto_id')) {
+            $query->where('curso_abierto_id', $request->curso_abierto_id);
+        }
+
+        if ($request->has('fecha_desde')) {
+            $query->whereDate('created_at', '>=', $request->fecha_desde);
+        }
+
+        if ($request->has('fecha_hasta')) {
+            $query->whereDate('created_at', '<=', $request->fecha_hasta);
+        }
+
+        $ids = $query->orderByDesc('created_at')->pluck('id');
+        $total = $ids->count();
+        $position = $ids->search($id);
+
+        if ($position === false) {
+            return response()->json([
+                'prev_id'      => null,
+                'next_id'      => $total > 0 ? $ids->first() : null,
+                'first_id'     => $total > 0 ? $ids->first() : null,
+                'position'     => 0,
+                'total'        => $total,
+                'stale'        => true,
+                'stale_estado' => $current->estado,
+            ]);
+        }
+
+        return response()->json([
+            'prev_id'   => $position > 0 ? $ids[$position - 1] : null,
+            'next_id'   => $position < $total - 1 ? $ids[$position + 1] : null,
+            'first_id'  => null,
+            'position'  => $position + 1,
+            'total'     => $total,
+            'stale'     => false,
+        ]);
+    }
+
+    /**
      * Formatear solicitud detallada
      */
     private function formatearSolicitudDetallada(SolicitudInscripcion $solicitud): array
@@ -287,7 +345,7 @@ class StaffRegistrationController extends Controller
                             'correo', 'celular', 'ciudad_id',
                         ]) ?? [],
                         $solicitud->estudiante?->perfilEstudiante?->only([
-                            'fecha_nacimiento', 'ocupacion', 'direccion',
+                            'ocupacion', 'direccion',
                             'ciudad', 'estado_civil', 'edad',
                         ]) ?? [],
                     )
@@ -433,7 +491,6 @@ class StaffRegistrationController extends Controller
             'direccion' => 'nullable|string|max:1000',
             'ciudad' => 'nullable|string|max:100',
             'estado_civil' => 'nullable|string|max:20',
-            'fecha_nacimiento' => 'nullable|date',
             'edad' => 'nullable|integer|min:0|max:150',
         ]);
 
@@ -458,7 +515,6 @@ class StaffRegistrationController extends Controller
                     'direccion' => $validated['direccion'] ?? null,
                     'ciudad' => $validated['ciudad'] ?? null,
                     'estado_civil' => $validated['estado_civil'] ?? null,
-                    'fecha_nacimiento' => $validated['fecha_nacimiento'] ?? null,
                     'edad' => $validated['edad'] ?? null,
                 ], fn($v) => $v !== null);
 
@@ -477,7 +533,6 @@ class StaffRegistrationController extends Controller
                     'direccion' => $validated['direccion'] ?? null,
                     'ciudad' => $validated['ciudad'] ?? null,
                     'estado_civil' => $validated['estado_civil'] ?? null,
-                    'fecha_nacimiento' => $validated['fecha_nacimiento'] ?? null,
                     'edad' => $validated['edad'] ?? null,
                 ], fn($v) => $v !== null);
 

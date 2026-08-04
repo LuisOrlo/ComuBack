@@ -35,7 +35,7 @@ use App\Http\Controllers\Api\AulaController;
 use App\Http\Controllers\Api\CertificadoController;
 use App\Http\Controllers\Api\FileAccessController;
 use App\Http\Controllers\Api\ReservaAulaController;
-use App\Http\Controllers\Api\ClienteExternoController;
+use App\Http\Controllers\Api\ClaseController;
 use App\Http\Controllers\Api\EquipoController;
 use App\Http\Controllers\Api\AlquilerEquipoController;
 use App\Http\Controllers\Api\PaquetePodcastController;
@@ -229,6 +229,7 @@ use Illuminate\Support\Facades\Route;
             Route::patch('{id}/actualizar-curso', [StaffRegistrationController::class, 'updateCurso'])->name('solicitudes-inscripcion.update-curso');
             Route::post('{id}/cedula', [StaffRegistrationController::class, 'uploadCedula'])->name('solicitudes-inscripcion.cedula');
             Route::post('{id}/comprobante', [StaffRegistrationController::class, 'uploadComprobante'])->name('solicitudes-inscripcion.comprobante');
+            Route::get('{id}/adjacent', [StaffRegistrationController::class, 'adjacent'])->name('solicitudes-inscripcion.adjacent');
             Route::delete('{id}/archivo', [StaffRegistrationController::class, 'deleteArchivo'])->name('solicitudes-inscripcion.delete-archivo');
             Route::delete('{id}', [StaffRegistrationController::class, 'destroy'])->name('solicitudes-inscripcion.destroy');
         });
@@ -259,6 +260,13 @@ use Illuminate\Support\Facades\Route;
         });
         Route::get('ops/staff-disponible', [TareaStaffController::class, 'staffDisponible']);
 
+        // CLASES (gestion de dias de clase)
+        Route::prefix('clases')->group(function () {
+            Route::get('{id}', [ClaseController::class, 'show'])->name('clases.show');
+            Route::put('{id}', [ClaseController::class, 'update'])->name('clases.update');
+            Route::delete('{id}', [ClaseController::class, 'destroy'])->name('clases.destroy');
+        });
+
         // HORAS INSTRUCTOR
         Route::prefix('horas-instructor')->group(function () {
             Route::get('/', [HorasInstructorController::class, 'index'])->name('horas-instructor.index');
@@ -272,7 +280,6 @@ use Illuminate\Support\Facades\Route;
         Route::prefix('catalogos-cursos')->group(function () {
             Route::get('/', [CatalogoCursoController::class, 'index'])->name('catalogos.index');
             Route::post('/', [CatalogoCursoController::class, 'store'])->name('catalogos.store');
-            Route::post('upload-imagen', [CatalogoCursoController::class, 'uploadImagen'])->name('catalogos.upload-imagen');
             Route::get('{id}', [CatalogoCursoController::class, 'show'])->name('catalogos.show');
             Route::put('{id}', [CatalogoCursoController::class, 'update'])->name('catalogos.update');
             Route::delete('{id}', [CatalogoCursoController::class, 'destroy'])->name('catalogos.destroy');

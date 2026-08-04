@@ -52,7 +52,6 @@ class StoreRegistrationRequest extends FormRequest
             'direccion' => 'nullable|string|max:1000',
             'ciudad' => 'nullable|string|max:100',
             'estado_civil' => 'nullable|string|max:20',
-            'fecha_nacimiento' => 'nullable|date',
             'edad' => 'nullable|integer|min:0|max:150',
             
             // Curso y pago
@@ -98,7 +97,6 @@ class StoreRegistrationRequest extends FormRequest
             'direccion.max' => 'La dirección no debe tener más de 1000 caracteres',
             'ciudad.max' => 'La ciudad no debe tener más de 100 caracteres',
             'estado_civil.max' => 'El estado civil no debe tener más de 20 caracteres',
-            'fecha_nacimiento.date' => 'La fecha de nacimiento no es válida',
             'edad.integer' => 'La edad debe ser un número entero',
             'edad.min' => 'La edad debe ser un valor positivo',
             'edad.max' => 'La edad ingresada no es válida',
