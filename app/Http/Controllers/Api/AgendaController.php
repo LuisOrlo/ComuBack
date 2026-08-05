@@ -54,6 +54,7 @@ class AgendaController extends Controller
                 ['tipo' => 'PODCAST', 'label' => 'Podcast', 'color' => '#ec4899'],
                 ['tipo' => 'STREAMING', 'label' => 'Streaming', 'color' => '#06b6d4'],
                 ['tipo' => 'ASESORIA', 'label' => 'Asesorías', 'color' => '#8b5cf6'],
+                ['tipo' => 'RADIO', 'label' => 'Radio', 'color' => '#ef4444'],
             ],
         ]);
     }

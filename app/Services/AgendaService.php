@@ -21,6 +21,7 @@ class AgendaService
         'PODCAST'       => ['color' => '#ec4899', 'label' => 'Podcast'],
         'STREAMING'     => ['color' => '#06b6d4', 'label' => 'Streaming'],
         'ASESORIA'      => ['color' => '#8b5cf6', 'label' => 'Asesoría'],
+        'RADIO'         => ['color' => '#ef4444', 'label' => 'Radio'],
     ];
 
     public function getEvents(?string $fechaInicio = null, ?string $fechaFin = null, ?array $tipos = null): Collection
@@ -54,6 +55,10 @@ class AgendaService
             $allEvents = $allEvents->concat($this->getAsesorias($fechaInicio, $fechaFin));
         }
 
+        if (!$tipos || in_array('RADIO', $tipos)) {
+            $allEvents = $allEvents->concat($this->getReservasRadio($fechaInicio, $fechaFin));
+        }
+
         return $allEvents->sortBy([
             ['fecha', 'asc'],
             ['hora_inicio', 'asc'],
@@ -82,6 +87,9 @@ class AgendaService
                 break;
             case 'ASESORIA':
                 $event = $this->getAsesoriaDetail($referenciaId);
+                break;
+            case 'RADIO':
+                $event = $this->getReservaRadioDetail($referenciaId);
                 break;
         }
 
@@ -594,6 +602,82 @@ class AgendaService
             'notas_sesion' => $asesoria['notas_sesion'] ?? null,
             'precio' => $asesoria['precio'] ?? null,
             'cliente' => trim(($asesoria['cliente_nombres'] ?? '') . ' ' . ($asesoria['cliente_apellidos'] ?? '')),
+        ];
+
+        return $event;
+    }
+
+    // ========================================================================
+    // RESERVAS DE RADIO
+    // ========================================================================
+
+    private function getReservasRadio(string $fechaInicio, string $fechaFin): Collection
+    {
+        return DB::connection('pgsql')
+            ->table('services.reservas_radio as rr')
+            ->join('services.tarifas_radio as tr', 'rr.tarifa_id', '=', 'tr.id')
+            ->leftJoin('people.personas as pp', 'rr.persona_id', '=', 'pp.id')
+            ->leftJoin('people.personas as po', 'rr.operador_id', '=', 'po.id')
+            ->leftJoin('people.clientes_externos as ce', 'rr.cliente_externo_id', '=', 'ce.id')
+            ->whereBetween('rr.fecha_reserva', [$fechaInicio, $fechaFin])
+            ->select(
+                'rr.id as referencia_id',
+                DB::raw("'RADIO' as tipo_evento"),
+                DB::raw("('Radio: ' || tr.nombre || ' - ' || COALESCE(pp.nombres || ' ' || pp.apellidos, ce.nombres || ' ' || COALESCE(ce.apellidos, ''))) as titulo"),
+                'rr.fecha_reserva as fecha',
+                'rr.hora_inicio',
+                'rr.hora_fin',
+                DB::raw('NULL as instructor_id'),
+                DB::raw("COALESCE(pp.nombres || ' ' || pp.apellidos, ce.nombres || ' ' || COALESCE(ce.apellidos, '')) as instructor_nombre"),
+                'tr.nombre as tarifa_nombre',
+                'rr.estado',
+                DB::raw("'#ef4444' as color")
+            )
+            ->get()
+            ->map(fn($row) => $this->normalizeEvent((array) $row, 'RADIO'));
+    }
+
+    private function getReservaRadioDetail(string $id): ?array
+    {
+        $reserva = DB::connection('pgsql')
+            ->table('services.reservas_radio as rr')
+            ->join('services.tarifas_radio as tr', 'rr.tarifa_id', '=', 'tr.id')
+            ->leftJoin('people.personas as pp', 'rr.persona_id', '=', 'pp.id')
+            ->leftJoin('people.personas as po', 'rr.operador_id', '=', 'po.id')
+            ->leftJoin('people.clientes_externos as ce', 'rr.cliente_externo_id', '=', 'ce.id')
+            ->where('rr.id', $id)
+            ->select(
+                'rr.id as referencia_id',
+                DB::raw("'RADIO' as tipo_evento"),
+                DB::raw("('Radio: ' || tr.nombre || ' - ' || COALESCE(pp.nombres || ' ' || pp.apellidos, ce.nombres || ' ' || COALESCE(ce.apellidos, ''))) as titulo"),
+                'rr.fecha_reserva as fecha',
+                'rr.hora_inicio',
+                'rr.hora_fin',
+                DB::raw('NULL as instructor_id'),
+                DB::raw("COALESCE(pp.nombres || ' ' || pp.apellidos, ce.nombres || ' ' || COALESCE(ce.apellidos, '')) as instructor_nombre"),
+                'tr.nombre as tarifa_nombre',
+                'rr.precio_total',
+                'rr.observaciones',
+                'rr.incluye_operador',
+                'po.nombres as operador_nombres',
+                'po.apellidos as operador_apellidos',
+                'rr.estado',
+                DB::raw("'#ef4444' as color")
+            )
+            ->first();
+
+        if (!$reserva) {
+            return null;
+        }
+
+        $reserva = (array) $reserva;
+        $event = $this->normalizeEvent($reserva, 'RADIO');
+        $event['detalle'] = [
+            'tarifa' => $reserva['tarifa_nombre'] ?? null,
+            'precio_total' => $reserva['precio_total'] ?? null,
+            'incluye_operador' => $reserva['incluye_operador'] ?? null,
+            'observaciones' => $reserva['observaciones'] ?? null,
+            'operador' => trim(($reserva['operador_nombres'] ?? '') . ' ' . ($reserva['operador_apellidos'] ?? '')),
         ];
 
         return $event;

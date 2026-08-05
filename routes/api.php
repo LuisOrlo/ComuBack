@@ -18,6 +18,7 @@ use App\Http\Controllers\Api\ReportController;
 use App\Http\Controllers\Api\TallerController;
 use App\Http\Controllers\Api\HorarioTallerController;
 use App\Http\Controllers\Api\InscripcionTallerController;
+use App\Http\Controllers\Api\ClienteExternoController;
 use App\Http\Controllers\Api\ParticipanteExternoController;
 use App\Http\Controllers\Api\AsistenciaTallerController;
 use App\Http\Controllers\Api\CursoPersonalizadoController;
@@ -392,6 +393,7 @@ use Illuminate\Support\Facades\Route;
             Route::put('{id}', [ReservaPodcastController::class, 'update'])->name('reservas-podcast.update');
             Route::delete('{id}', [ReservaPodcastController::class, 'destroy'])->name('reservas-podcast.destroy');
             Route::post('{id}/pago', [ReservaPodcastController::class, 'registrarPago'])->name('reservas-podcast.pago');
+            Route::post('{id}/estado', [ReservaPodcastController::class, 'cambiarEstado'])->name('reservas-podcast.estado');
         });
 
         // SERVICIOS - TRABAJOS EDICION DE VIDEO

@@ -34,6 +34,14 @@ class AlquilerEquipoController extends Controller
             });
         }
 
+        if ($request->filled('cedula')) {
+            $cedula = $request->cedula;
+            $query->where(function ($q) use ($cedula) {
+                $q->whereHas('persona', fn($s) => $s->where('cedula', $cedula))
+                  ->orWhereHas('clienteExterno', fn($s) => $s->where('cedula', $cedula));
+            });
+        }
+
         $alquileres = $query->orderBy('fecha_entrega', 'desc')
             ->paginate($request->get('per_page', 15));
 

@@ -18,7 +18,7 @@ class AgendaRequest extends FormRequest
             'fecha_fin' => 'nullable|date|date_format:Y-m-d|after_or_equal:fecha_inicio',
             'tipo' => 'nullable|string',
             'tipos' => 'nullable|array',
-            'tipos.*' => 'string|in:CLASE_CURSO,TALLER,ALQUILER_AULA,PODCAST,STREAMING,ASESORIA',
+            'tipos.*' => 'string|in:CLASE_CURSO,TALLER,ALQUILER_AULA,PODCAST,STREAMING,ASESORIA,RADIO',
             'per_page' => 'nullable|integer|min:1|max:500',
         ];
     }

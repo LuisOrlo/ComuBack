@@ -242,6 +242,27 @@ class ReservaPodcastController extends Controller
         ]);
     }
 
+    public function cambiarEstado(Request $request, $id)
+    {
+        $validated = $request->validate([
+            'estado' => 'required|in:pendiente,reservado,confirmado,en_progreso,completado,cancelado',
+        ]);
+
+        $reserva = ReservaPodcast::findOrFail($id);
+        $estado = $validated['estado'] === 'pendiente' ? 'reservado' : $validated['estado'];
+
+        $reserva->update(['estado' => $estado]);
+
+        Cache::forget('finance.resumen');
+
+        return response()->json([
+            'message' => 'Estado actualizado correctamente.',
+            'data' => $this->formatReserva($reserva->fresh()->load([
+                'paquete.items', 'persona', 'clienteExterno', 'asignacionesPersonal.persona',
+            ])),
+        ]);
+    }
+
     private function formatReserva(ReservaPodcast $r)
     {
         $paquete = null;
