@@ -26,6 +26,7 @@ class CursoAbiertoController extends Controller
             'ciudad:id,nombre',
             'horario.diasSemana',
             'docente:id,nombres,apellidos',
+            'modulos',
         ])
             ->withCount(['matriculas as estudiantes_inscritos']);
 

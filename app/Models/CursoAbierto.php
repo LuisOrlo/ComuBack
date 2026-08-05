@@ -46,6 +46,76 @@ class CursoAbierto extends Model
     protected $hidden = ['created_at', 'updated_at', 'deleted_at'];
 
     // ========================================================================
+    // ACCESSORS
+    // ========================================================================
+
+    /**
+     * Deriva el estado real del curso a partir de los mdulos y fechas
+     * cuando la columna en DB an tiene el valor default 'pendiente'.
+     */
+    public function getEstadoAttribute($value): string
+    {
+        if ($value && $value !== 'pendiente') {
+            return $value;
+        }
+
+        return $this->calcularEstadoReal();
+    }
+
+    private function calcularEstadoReal(): string
+    {
+        $hoy = Carbon::now();
+
+        if (!$this->fecha_inicio) {
+            return 'pendiente';
+        }
+
+        $inicio = Carbon::parse($this->fecha_inicio);
+
+        if ($hoy < $inicio) {
+            return 'pendiente';
+        }
+
+        $modulos = $this->relationLoaded('modulos')
+            ? $this->modulos
+            : $this->modulos()->get();
+
+        if ($modulos->isNotEmpty()) {
+            $todosFinalizados = $modulos->every(function ($modulo) use ($hoy) {
+                if (!$modulo->fecha_fin) {
+                    return false;
+                }
+                return Carbon::parse($modulo->fecha_fin)->endOfDay() < $hoy;
+            });
+
+            if ($todosFinalizados) {
+                return 'completado';
+            }
+
+            $algunoIniciado = $modulos->contains(function ($modulo) use ($hoy) {
+                if (!$modulo->fecha_inicio) {
+                    return false;
+                }
+                return Carbon::parse($modulo->fecha_inicio)->startOfDay() <= $hoy;
+            });
+
+            if ($algunoIniciado) {
+                return 'en_progreso';
+            }
+
+            return 'pendiente';
+        }
+
+        $fin = $this->fecha_fin ? Carbon::parse($this->fecha_fin) : null;
+
+        if ($fin && $hoy > $fin->endOfDay()) {
+            return 'completado';
+        }
+
+        return 'en_progreso';
+    }
+
+    // ========================================================================
     // RELACIONES
     // ========================================================================
 
