@@ -1255,6 +1255,57 @@ class FinanceController extends Controller
             'verificador',
         ])->findOrFail($id);
 
+        // Buscar transacciones hermanas con la misma referencia de pago (múltiples módulos)
+        $hermanas = collect([]);
+        $montoTotal = (float) $t->monto;
+        $tieneMultiplesModulos = false;
+        $modulosDetalle = [];
+
+        if ($t->referencia_pago) {
+            $hermanas = TransaccionIngreso::with('lineaPagoModulo.modulo')
+                ->where('referencia_pago', $t->referencia_pago)
+                ->where('id', '!=', $t->id)
+                ->whereNotNull('linea_pago_modulo_id')
+                ->get();
+
+            if ($hermanas->isNotEmpty()) {
+                $tieneMultiplesModulos = true;
+                // Incluir la transacción actual en el total
+                $montoTotal = $hermanas->sum('monto') + (float) $t->monto;
+
+                // Agregar el módulo de la transacción actual
+                if ($t->lineaPagoModulo?->modulo) {
+                    $modulosDetalle[] = [
+                        'modulo_nombre' => $t->lineaPagoModulo->modulo->nombre_modulo,
+                        'monto' => (float) $t->monto,
+                    ];
+                }
+
+                // Agregar módulos de las hermanas
+                foreach ($hermanas as $h) {
+                    if ($h->lineaPagoModulo?->modulo) {
+                        $modulosDetalle[] = [
+                            'modulo_nombre' => $h->lineaPagoModulo->modulo->nombre_modulo,
+                            'monto' => (float) $h->monto,
+                        ];
+                    }
+                }
+            }
+
+            // Buscar transacción de inscripción asociada (referencia con sufijo -insc)
+            if ($t->referencia_pago && !str_ends_with($t->referencia_pago, '-insc')) {
+                $transInscripcion = TransaccionIngreso::where('referencia_pago', $t->referencia_pago . '-insc')->first();
+                if ($transInscripcion) {
+                    $tieneMultiplesModulos = true;
+                    $montoTotal += (float) $transInscripcion->monto;
+                    $modulosDetalle[] = [
+                        'modulo_nombre' => 'Inscripción / Matrícula',
+                        'monto' => (float) $transInscripcion->monto,
+                    ];
+                }
+            }
+        }
+
         $estudiante = null;
         $cursoNombre = null;
         $moduloNombre = null;
@@ -1336,7 +1387,7 @@ class FinanceController extends Controller
         return response()->json([
             'datos' => [
                 'id' => $t->id,
-                'monto' => (float) $t->monto,
+                'monto' => $montoTotal,
                 'metodo_pago' => $t->metodo_pago,
                 'fecha_pago' => $t->fecha_pago?->format('Y-m-d H:i'),
                 'estado_verificacion' => $t->estado_verificacion,
@@ -1349,6 +1400,8 @@ class FinanceController extends Controller
                 'curso_nombre' => $cursoNombre,
                 'modulo_nombre' => $moduloNombre,
                 'taller_nombre' => $tallerNombre,
+                'tiene_multiples_modulos' => $tieneMultiplesModulos,
+                'modulos' => $modulosDetalle,
                 'cuenta_por_cobrar' => $t->cuentaPorCobrar,
                 'linea_pago_modulo' => $lineaData,
                 'registrado_por' => $t->registrador ? trim(($t->registrador->nombres ?? '') . ' ' . ($t->registrador->apellidos ?? '')) : null,

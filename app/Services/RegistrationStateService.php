@@ -116,15 +116,14 @@ class RegistrationStateService
 
                 if ($precioInscripcion && $precioInscripcion > 0) {
                     $inscripcionCubierta = max(0, $inscripcionCubierta);
-                    $estado = $inscripcionCubierta >= $precioInscripcion ? 'pagado' : ($inscripcionCubierta > 0 ? 'abonado' : 'pendiente');
                     $inscripcionLinea = LineaPagoModulo::create([
                         'matricula_id' => $matricula->id,
                         'modulo_id' => null,
                         'tipo' => 'inscripcion',
                         'monto_original' => $precioInscripcion,
                         'monto_ajustado' => $precioInscripcion,
-                        'monto_abonado' => $inscripcionCubierta,
-                        'estado' => $estado,
+                        'monto_abonado' => 0,
+                        'estado' => 'pendiente',
                         'orden' => 999,
                     ]);
                     $lineasPagoIds[] = $inscripcionLinea->id;
@@ -172,7 +171,7 @@ class RegistrationStateService
                             $linea->refresh();
                         }
 
-                        TransaccionIngreso::create([
+                        $transaccion = TransaccionIngreso::create([
                             'linea_pago_modulo_id' => $linea->id,
                             'monto' => (float) $pago['monto'],
                             'metodo_pago' => $metodoPago,
@@ -184,10 +183,11 @@ class RegistrationStateService
                             'estado_verificacion' => TransaccionIngreso::VERIFICACION_APROBADO,
                             'referencia_pago' => $referencia,
                         ]);
+                        $linea->aplicarTransaccion($transaccion);
                     }
 
                     if ($inscripcionLinea && $inscripcionCubierta > 0) {
-                        TransaccionIngreso::create([
+                        $transInsc = TransaccionIngreso::create([
                             'linea_pago_modulo_id' => $inscripcionLinea->id,
                             'monto' => $inscripcionCubierta,
                             'metodo_pago' => $metodoPago,
@@ -199,11 +199,12 @@ class RegistrationStateService
                             'estado_verificacion' => TransaccionIngreso::VERIFICACION_APROBADO,
                             'referencia_pago' => $referencia . '-insc',
                         ]);
+                        $inscripcionLinea->aplicarTransaccion($transInsc);
                     }
                 }
 
                 if (! empty($pagos)) {
-                    $totalPagado = collect($pagos)->sum('monto');
+                    $totalPagado = collect($pagos)->sum('monto') + $inscripcionCubierta;
                     $totalEsperado = $todosLineasPago->sum('monto_ajustado');
                     $solicitud->update([
                         'monto_solicitado' => $totalPagado,
@@ -215,13 +216,8 @@ class RegistrationStateService
 
                 $montosActuales = $todosLineasPago->map(fn($l) => $l->refresh());
                 $montoTotalFinal = $montosActuales->sum('monto_ajustado');
-                $montoAbonadoFinal = $montosActuales->sum('monto_abonado');
                 $cuentaCobrar->update([
                     'monto_total' => $montoTotalFinal,
-                    'monto_abonado' => $montoAbonadoFinal,
-                    'estado' => $montoAbonadoFinal >= $montoTotalFinal
-                        ? CuentaPorCobrar::ESTADO_PAGADO
-                        : ($montoAbonadoFinal > 0 ? CuentaPorCobrar::ESTADO_ABONADO : CuentaPorCobrar::ESTADO_PENDIENTE),
                 ]);
 
                 return [

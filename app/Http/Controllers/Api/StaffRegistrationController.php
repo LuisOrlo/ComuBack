@@ -313,23 +313,36 @@ class StaffRegistrationController extends Controller
             if ($matricula?->lineasPago) {
                 $totalAbonado = 0;
                 $totalEsperado = 0;
-                $lineas = $matricula->lineasPago->sortBy('orden')->map(function ($lp) use (&$totalAbonado, &$totalEsperado) {
+                $modulosList = [];
+                $inscripcionData = null;
+
+                foreach ($matricula->lineasPago->sortBy('orden') as $lp) {
                     $totalAbonado += (float) $lp->monto_abonado;
                     $totalEsperado += (float) $lp->monto_ajustado;
-                    return [
+                    $linea = [
+                        'id' => $lp->id,
+                        'tipo' => $lp->tipo,
                         'modulo_nombre' => $lp->tipo === 'inscripcion' ? 'Inscripción' : ($lp->modulo?->nombre_modulo ?? 'Módulo'),
                         'monto_ajustado' => (float) $lp->monto_ajustado,
                         'monto_abonado' => (float) $lp->monto_abonado,
                         'saldo' => max(0, (float) $lp->monto_ajustado - (float) $lp->monto_abonado),
                         'estado' => $lp->estado,
                     ];
-                })->values()->toArray();
+
+                    if ($lp->tipo === 'inscripcion') {
+                        $inscripcionData = $linea;
+                    } else {
+                        $modulosList[] = $linea;
+                    }
+                }
+
                 $lineasPago = [
-                    'modulos' => $lineas,
+                    'modulos' => $modulosList,
+                    'inscripcion' => $inscripcionData,
                     'total_abonado' => $totalAbonado,
                     'total_esperado' => $totalEsperado,
-                    'modulos_count' => count($lineas),
-                    'modulos_pagados' => $matricula->lineasPago->filter(fn($lp) => $lp->estaPagada())->count(),
+                    'modulos_count' => count($modulosList),
+                    'modulos_pagados' => $matricula->lineasPago->filter(fn($lp) => $lp->tipo !== 'inscripcion' && $lp->estaPagada())->count(),
                 ];
             }
         }
@@ -634,6 +647,52 @@ class StaffRegistrationController extends Controller
                 'mensaje' => "Error al actualizar curso: {$e->getMessage()}",
             ], Response::HTTP_UNPROCESSABLE_ENTITY);
         }
+    }
+
+    /**
+     * PATCH /api/academic/solicitudes-inscripcion/{id}/actualizar-lineas-pago
+     * Actualizar montos abonados de las líneas de pago de una matrícula aprobada
+     */
+    public function updateLineasPago(string $id, Request $request)
+    {
+        $solicitud = SolicitudInscripcion::findOrFail($id);
+
+        if ($solicitud->estado !== SolicitudInscripcion::ESTADO_MATRICULA_CREADA) {
+            return response()->json([
+                'mensaje' => 'Solo se pueden editar las líneas de pago de matrículas aprobadas',
+            ], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        $matricula = \App\Models\Matricula::where('solicitud_inscripcion_id', $id)->first();
+        if (! $matricula) {
+            return response()->json([
+                'mensaje' => 'No se encontró la matrícula asociada a esta solicitud',
+            ], Response::HTTP_NOT_FOUND);
+        }
+
+        $validated = $request->validate([
+            'lineas' => 'required|array|min:1',
+            'lineas.*.id' => 'required|string|uuid',
+            'lineas.*.monto_abonado' => 'required|numeric|min:0',
+            'lineas.*.motivo_ajuste' => 'nullable|string|max:255',
+        ]);
+
+        $lineasActualizadas = collect($validated['lineas'])->map(function ($linea) use ($matricula) {
+            $lineaPago = $matricula->lineasPago()->where('id', $linea['id'])->first();
+            if (! $lineaPago) {
+                throw new \Exception("Línea de pago {$linea['id']} no encontrada en esta matrícula");
+            }
+            if ($linea['monto_abonado'] > $lineaPago->monto_ajustado) {
+                throw new \Exception("El monto abonado no puede exceder el monto ajustado ({$lineaPago->monto_ajustado})");
+            }
+            $lineaPago->update(['monto_abonado' => $linea['monto_abonado']]);
+            return $lineaPago->fresh();
+        });
+
+        return response()->json([
+            'mensaje' => 'Líneas de pago actualizadas correctamente',
+            'data' => $this->formatearSolicitudDetallada($solicitud->refresh()),
+        ]);
     }
 
     /**

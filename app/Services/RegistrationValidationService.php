@@ -60,7 +60,7 @@ class RegistrationValidationService
         }
 
         // 3. Validar que el curso está en estado válido para inscripción
-        if ($curso->estado !== 'pendiente' && $curso->estado !== 'confirmado') {
+        if ($curso->estado !== 'pendiente' && $curso->estado !== 'confirmado' && $curso->estado !== 'en_progreso') {
             $errores[] = 'El curso no está disponible para inscripciones';
         }
 

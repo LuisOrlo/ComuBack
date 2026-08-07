@@ -228,6 +228,7 @@ use Illuminate\Support\Facades\Route;
             Route::patch('{id}/actualizar-estudiante', [StaffRegistrationController::class, 'updateEstudiante'])->name('solicitudes-inscripcion.update-estudiante');
             Route::patch('{id}/actualizar-pago', [StaffRegistrationController::class, 'updatePago'])->name('solicitudes-inscripcion.update-pago');
             Route::patch('{id}/actualizar-curso', [StaffRegistrationController::class, 'updateCurso'])->name('solicitudes-inscripcion.update-curso');
+            Route::patch('{id}/actualizar-lineas-pago', [StaffRegistrationController::class, 'updateLineasPago'])->name('solicitudes-inscripcion.update-lineas-pago');
             Route::post('{id}/cedula', [StaffRegistrationController::class, 'uploadCedula'])->name('solicitudes-inscripcion.cedula');
             Route::post('{id}/comprobante', [StaffRegistrationController::class, 'uploadComprobante'])->name('solicitudes-inscripcion.comprobante');
             Route::get('{id}/adjacent', [StaffRegistrationController::class, 'adjacent'])->name('solicitudes-inscripcion.adjacent');
