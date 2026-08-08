@@ -650,6 +650,108 @@ class StaffRegistrationController extends Controller
     }
 
     /**
+     * POST /api/academic/solicitudes-inscripcion/{id}/reconciliar-curso
+     * Cambio de curso con reasignación de lineas_pago para matrículas aprobadas
+     */
+    public function reconciliarCurso(string $id, Request $request)
+    {
+        $solicitud = SolicitudInscripcion::findOrFail($id);
+
+        if ($solicitud->estado !== SolicitudInscripcion::ESTADO_MATRICULA_CREADA) {
+            return response()->json([
+                'mensaje' => 'La reconciliación de pagos solo aplica a matrículas aprobadas',
+            ], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        $matricula = \App\Models\Matricula::where('solicitud_inscripcion_id', $id)->first();
+        if (! $matricula) {
+            return response()->json([
+                'mensaje' => 'No se encontró la matrícula asociada',
+            ], Response::HTTP_NOT_FOUND);
+        }
+
+        $validated = $request->validate([
+            'curso_abierto_id' => 'required|uuid|exists:cursos_abiertos,id',
+            'lineas' => 'required|array|min:1',
+            'lineas.*.modulo_id' => 'nullable|uuid|exists:modulos,id',
+            'lineas.*.tipo' => 'required|string|in:modulo,inscripcion',
+            'lineas.*.monto_abonado' => 'required|numeric|min:0',
+            'lineas.*.monto_ajustado' => 'required|numeric|min:0',
+        ]);
+
+        $nuevoCurso = \App\Models\CursoAbierto::findOrFail($validated['curso_abierto_id']);
+        $cupo = ($nuevoCurso->capacidad_maxima ?? 0) - $nuevoCurso->matriculas()->count();
+        if ($cupo <= 0 && $nuevoCurso->id !== $solicitud->curso_abierto_id) {
+            return response()->json([
+                'mensaje' => 'El curso seleccionado no tiene cupo disponible',
+            ], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        DB::transaction(function () use ($matricula, $solicitud, $validated) {
+            // 1. Guardar IDs de transacciones viejas (ordenadas por fecha)
+            $viejosTxIds = \App\Models\TransaccionIngreso::whereHas('lineaPagoModulo', function ($q) use ($matricula) {
+                $q->where('matricula_id', $matricula->id);
+            })->orderBy('fecha_pago')->pluck('id');
+
+            // 2. Desvincular y eliminar líneas de pago viejas
+            \App\Models\TransaccionIngreso::whereIn('id', $viejosTxIds)
+                ->update(['linea_pago_modulo_id' => null]);
+            $matricula->lineasPago()->delete();
+
+            // 3. Crear nuevas líneas de pago (con orden explícito)
+            $nuevasLineas = [];
+            foreach ($validated['lineas'] as $orden => $linea) {
+                $lp = $matricula->lineasPago()->create([
+                    'modulo_id' => $linea['modulo_id'],
+                    'tipo' => $linea['tipo'],
+                    'monto_original' => $linea['monto_ajustado'],
+                    'monto_ajustado' => $linea['monto_ajustado'],
+                    'monto_abonado' => $linea['monto_abonado'],
+                    'orden' => $orden,
+                    'estado' => match(true) {
+                        $linea['monto_abonado'] >= $linea['monto_ajustado'] => 'pagado',
+                        $linea['monto_abonado'] > 0 => 'abonado',
+                        default => 'pendiente',
+                    },
+                ]);
+                $nuevasLineas[] = $lp;
+            }
+
+            // 4. Re-asignar transacciones viejas a nuevas líneas (en orden)
+            foreach ($viejosTxIds as $i => $txId) {
+                if (! isset($nuevasLineas[$i])) break;
+                $linea = $nuevasLineas[$i];
+                \App\Models\TransaccionIngreso::where('id', $txId)->update([
+                    'linea_pago_modulo_id' => $linea->id,
+                    'monto' => $linea->monto_abonado,
+                ]);
+            }
+
+            // 5. Actualizar curso en solicitud y matrícula
+            $solicitud->update(['curso_abierto_id' => $validated['curso_abierto_id']]);
+            $matricula->update(['curso_abierto_id' => $validated['curso_abierto_id']]);
+
+            // 6. Sincronizar cuenta por cobrar (monto_total + monto_abonado)
+            $totalAbonado = $matricula->lineasPago()->sum('monto_abonado');
+            $totalAjustado = $matricula->lineasPago()->sum('monto_ajustado');
+            $matricula->cuentaPorCobrar()?->update([
+                'monto_total' => $totalAjustado,
+                'monto_abonado' => $totalAbonado,
+                'estado' => match(true) {
+                    $totalAbonado >= $totalAjustado => 'pagado',
+                    $totalAbonado > 0 => 'abonado',
+                    default => 'pendiente',
+                },
+            ]);
+        });
+
+        return response()->json([
+            'mensaje' => 'Curso actualizado y pagos reconciliados correctamente',
+            'data' => $this->formatearSolicitudDetallada($solicitud->refresh()),
+        ]);
+    }
+
+    /**
      * PATCH /api/academic/solicitudes-inscripcion/{id}/actualizar-lineas-pago
      * Actualizar montos abonados de las líneas de pago de una matrícula aprobada
      */
@@ -677,16 +779,56 @@ class StaffRegistrationController extends Controller
             'lineas.*.motivo_ajuste' => 'nullable|string|max:255',
         ]);
 
-        $lineasActualizadas = collect($validated['lineas'])->map(function ($linea) use ($matricula) {
-            $lineaPago = $matricula->lineasPago()->where('id', $linea['id'])->first();
-            if (! $lineaPago) {
-                throw new \Exception("Línea de pago {$linea['id']} no encontrada en esta matrícula");
+        DB::transaction(function () use ($validated, $matricula) {
+            $matriculaId = $matricula->id;
+
+            foreach ($validated['lineas'] as $linea) {
+                $lineaPago = $matricula->lineasPago()->where('id', $linea['id'])->first();
+                if (! $lineaPago) {
+                    throw new \Exception("Línea de pago {$linea['id']} no encontrada en esta matrícula");
+                }
+                if ($linea['monto_abonado'] > $lineaPago->monto_ajustado) {
+                    throw new \Exception("El monto abonado no puede exceder el monto ajustado ({$lineaPago->monto_ajustado})");
+                }
+
+                $estado = match(true) {
+                    $linea['monto_abonado'] >= $lineaPago->monto_ajustado => 'pagado',
+                    $linea['monto_abonado'] > 0 => 'abonado',
+                    default => 'pendiente',
+                };
+
+                DB::update("
+                    UPDATE finance.lineas_pago_modulo SET
+                        monto_abonado = ?,
+                        estado = ?::t_estado_pago,
+                        updated_at = NOW()
+                    WHERE id = ?
+                ", [$linea['monto_abonado'], $estado, $linea['id']]);
+
+                DB::update("
+                    UPDATE finance.transacciones_ingreso SET
+                        monto = ?
+                    WHERE linea_pago_modulo_id = ?
+                ", [$linea['monto_abonado'], $linea['id']]);
             }
-            if ($linea['monto_abonado'] > $lineaPago->monto_ajustado) {
-                throw new \Exception("El monto abonado no puede exceder el monto ajustado ({$lineaPago->monto_ajustado})");
-            }
-            $lineaPago->update(['monto_abonado' => $linea['monto_abonado']]);
-            return $lineaPago->fresh();
+
+            $totalAbonado = DB::table('finance.lineas_pago_modulo')
+                ->where('matricula_id', $matriculaId)
+                ->sum('monto_abonado');
+
+            $cuentaEstado = match(true) {
+                $totalAbonado >= ($matricula->cuentaPorCobrar?->monto_total ?? 0) => 'pagado',
+                $totalAbonado > 0 => 'abonado',
+                default => 'pendiente',
+            };
+
+            DB::update("
+                UPDATE finance.cuentas_por_cobrar SET
+                    monto_abonado = ?,
+                    estado = ?::t_estado_pago,
+                    updated_at = NOW()
+                WHERE matricula_id = ?
+            ", [$totalAbonado, $cuentaEstado, $matriculaId]);
         });
 
         return response()->json([

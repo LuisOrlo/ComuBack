@@ -229,6 +229,7 @@ use Illuminate\Support\Facades\Route;
             Route::patch('{id}/actualizar-pago', [StaffRegistrationController::class, 'updatePago'])->name('solicitudes-inscripcion.update-pago');
             Route::patch('{id}/actualizar-curso', [StaffRegistrationController::class, 'updateCurso'])->name('solicitudes-inscripcion.update-curso');
             Route::patch('{id}/actualizar-lineas-pago', [StaffRegistrationController::class, 'updateLineasPago'])->name('solicitudes-inscripcion.update-lineas-pago');
+            Route::post('{id}/reconciliar-curso', [StaffRegistrationController::class, 'reconciliarCurso'])->name('solicitudes-inscripcion.reconciliar-curso');
             Route::post('{id}/cedula', [StaffRegistrationController::class, 'uploadCedula'])->name('solicitudes-inscripcion.cedula');
             Route::post('{id}/comprobante', [StaffRegistrationController::class, 'uploadComprobante'])->name('solicitudes-inscripcion.comprobante');
             Route::get('{id}/adjacent', [StaffRegistrationController::class, 'adjacent'])->name('solicitudes-inscripcion.adjacent');
@@ -654,6 +655,7 @@ Route::prefix('reports')->group(function () {
         Route::get('historial', [FinanceController::class, 'getHistorial'])->name('finanzas.historial');
         Route::get('transacciones/{id}/detalle', [FinanceController::class, 'getTransaccionDetalle'])->name('finanzas.transacciones.detalle');
         Route::post('transacciones/{id}/verificar', [FinanceController::class, 'verificarTransaccion'])->name('finanzas.transacciones.verificar');
+        Route::patch('transacciones/{id}', [FinanceController::class, 'updateTransaccion'])->name('finanzas.transacciones.update');
         Route::get('cursos/{cursoId}/estudiante/{matriculaId}/financiero', [FinanceController::class, 'getEstudianteFinancieroCurso'])->name('finanzas.cursos.estudiante.financiero');
         Route::get('cursos/{id}/financiero', [FinanceController::class, 'getCursoFinanciero'])->name('finanzas.cursos.financiero');
         Route::get('talleres/{id}/financiero', [FinanceController::class, 'getTallerFinanciero'])->name('finanzas.talleres.financiero');

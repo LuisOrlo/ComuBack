@@ -909,6 +909,41 @@ class FinanceController extends Controller
         ]);
     }
 
+    /**
+     * PATCH /api/finanzas/transacciones/{id}
+     * Editar monto, mtodo y observaciones de un pago aprobado
+     */
+    public function updateTransaccion(Request $request, $id): JsonResponse
+    {
+        $validated = $request->validate([
+            'monto' => 'sometimes|numeric|min:0.01',
+            'metodo_pago' => 'sometimes|string|in:efectivo,transferencia,deposito,tarjeta,otro',
+            'observaciones' => 'sometimes|nullable|string|max:500',
+        ]);
+
+        $transaccion = TransaccionIngreso::findOrFail($id);
+
+        if ($transaccion->estado_verificacion !== TransaccionIngreso::VERIFICACION_APROBADO) {
+            return response()->json(['mensaje' => 'Slo se pueden editar transacciones aprobadas'], 422);
+        }
+
+        $updateData = [];
+        if (isset($validated['monto'])) $updateData['monto'] = $validated['monto'];
+        if (isset($validated['metodo_pago'])) $updateData['metodo_pago'] = $validated['metodo_pago'];
+        if (array_key_exists('observaciones', $validated)) $updateData['observaciones'] = $validated['observaciones'];
+
+        if (empty($updateData)) {
+            return response()->json(['mensaje' => 'No hay campos para actualizar'], 422);
+        }
+
+        $transaccion->update($updateData);
+
+        return response()->json([
+            'mensaje' => 'Transaccin actualizada correctamente',
+            'datos' => $transaccion->fresh(),
+        ]);
+    }
+
     public function getHistorial(Request $request): JsonResponse
     {
         $perPage = min((int) $request->get('per_page', 50), 100);

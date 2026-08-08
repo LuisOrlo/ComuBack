@@ -19,6 +19,7 @@ class CourseTransferService
         $alternativos = CursoAbierto::where('catalogo_curso_id', $cursoActual->catalogo_curso_id)
             ->where('id', '!=', $cursoActual->id)
             ->where('es_activo', true)
+            ->where('fecha_inicio', '>', now()->subDays(7))
             ->with(['ciudad', 'horario.diasSemana'])
             ->get()
             ->filter(fn($c) => $c->hayEspacios())
@@ -45,7 +46,7 @@ class CourseTransferService
         return $alternativos;
     }
 
-    public function transferir(string $matriculaId, string $cursoAbiertoNuevoId, ?string $motivo = null): array
+    public function transferir(string $matriculaId, string $cursoAbiertoNuevoId, ?string $motivo = null, array $lineas = []): array
     {
         return DB::transaction(function () use ($matriculaId, $cursoAbiertoNuevoId, $motivo) {
             $matriculaOrigen = Matricula::findOrFail($matriculaId);
@@ -108,20 +109,38 @@ class CourseTransferService
                 $cuentaActual->update(['es_legacy' => true]);
             }
 
-            // Crear líneas de pago por módulo para el nuevo curso
-            $modulosNuevosParaPago = $cursoNuevo->modulos()->orderBy('numero_orden')->get();
-            foreach ($modulosNuevosParaPago as $i => $modulo) {
-                $precioBase = $modulo->precio_base ?? 0;
+            // Crear líneas de pago con montos del payload de reconciliación
+            foreach ($lineas as $i => $l) {
                 LineaPagoModulo::create([
                     'matricula_id' => $nuevaMatricula->id,
-                    'modulo_id' => $modulo->id,
-                    'monto_original' => $precioBase,
-                    'monto_ajustado' => $precioBase,
-                    'monto_abonado' => 0,
-                    'estado' => LineaPagoModulo::ESTADO_PENDIENTE,
+                    'modulo_id' => $l['modulo_id'] ?? null,
+                    'tipo' => $l['tipo'] ?? 'modulo',
+                    'monto_original' => $l['monto_ajustado'],
+                    'monto_ajustado' => $l['monto_ajustado'],
+                    'monto_abonado' => $l['monto_abonado'],
+                    'estado' => match(true) {
+                        $l['monto_abonado'] >= $l['monto_ajustado'] => LineaPagoModulo::ESTADO_PAGADO,
+                        $l['monto_abonado'] > 0 => LineaPagoModulo::ESTADO_ABONADO,
+                        default => LineaPagoModulo::ESTADO_PENDIENTE,
+                    },
                     'orden' => $i,
                 ]);
             }
+
+            // Crear nueva cuenta por cobrar
+            $totalAjustado = array_sum(array_column($lineas, 'monto_ajustado'));
+            $totalAbonado = array_sum(array_column($lineas, 'monto_abonado'));
+            CuentaPorCobrar::create([
+                'matricula_id' => $nuevaMatricula->id,
+                'solicitud_inscripcion_id' => $matriculaOrigen->solicitud_inscripcion_id,
+                'monto_total' => $totalAjustado,
+                'monto_abonado' => $totalAbonado,
+                'estado' => match(true) {
+                    $totalAbonado >= $totalAjustado => CuentaPorCobrar::ESTADO_PAGADO,
+                    $totalAbonado > 0 => CuentaPorCobrar::ESTADO_ABONADO,
+                    default => CuentaPorCobrar::ESTADO_PENDIENTE,
+                },
+            ]);
 
             $diferenciaPrecio = (float) $cursoNuevo->precio_base - (float) $cursoViejo->precio_base;
 

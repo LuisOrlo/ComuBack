@@ -28,7 +28,7 @@ class CursoAbiertoController extends Controller
             'docente:id,nombres,apellidos',
             'modulos',
         ])
-            ->withCount(['matriculas as estudiantes_inscritos']);
+            ->withCount(['matriculas as total_matriculas']);
 
         if ($request->has('catalogo_curso_id')) {
             $query->where('catalogo_curso_id', $request->catalogo_curso_id);

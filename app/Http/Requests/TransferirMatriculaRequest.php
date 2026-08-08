@@ -16,6 +16,11 @@ class TransferirMatriculaRequest extends FormRequest
         return [
             'curso_abierto_nuevo_id' => ['required', 'string', 'uuid', 'exists:pgsql.academic.cursos_abiertos,id'],
             'motivo' => ['nullable', 'string', 'max:500'],
+            'lineas' => ['nullable', 'array', 'min:1'],
+            'lineas.*.modulo_id' => ['nullable', 'uuid', 'exists:pgsql.academic.modulos,id'],
+            'lineas.*.tipo' => ['required', 'string', 'in:modulo,inscripcion'],
+            'lineas.*.monto_abonado' => ['required', 'numeric', 'min:0'],
+            'lineas.*.monto_ajustado' => ['required', 'numeric', 'min:0'],
         ];
     }
 

@@ -91,26 +91,28 @@ class TallerController extends Controller
 
         $fechas = $this->obtenerFechasRango($data['fecha'], $data['fecha_fin'] ?? null);
 
-        if (!empty($data['fecha_fin'])) {
-            $conflicto = $validator->validarTallerRango(
-                $data['instructor_id'],
-                $fechas,
-                $horarios
-            );
-        } else {
-            $conflicto = $validator->validarTaller(
-                $data['instructor_id'],
-                $data['fecha'],
-                $data['hora_inicio'],
-                $data['hora_fin']
-            );
-        }
+        if (!empty($data['instructor_id'] ?? null)) {
+            if (!empty($data['fecha_fin'])) {
+                $conflicto = $validator->validarTallerRango(
+                    $data['instructor_id'],
+                    $fechas,
+                    $horarios
+                );
+            } else {
+                $conflicto = $validator->validarTaller(
+                    $data['instructor_id'],
+                    $data['fecha'],
+                    $data['hora_inicio'],
+                    $data['hora_fin']
+                );
+            }
 
-        if (!$conflicto['valido']) {
-            return response()->json([
-                'mensaje' => 'Conflicto de horario detectado',
-                'errores' => $conflicto['errores'],
-            ], 409);
+            if (!$conflicto['valido']) {
+                return response()->json([
+                    'mensaje' => 'Conflicto de horario detectado',
+                    'errores' => $conflicto['errores'],
+                ], 409);
+            }
         }
 
         $taller = DB::transaction(function () use ($data, $horarios) {

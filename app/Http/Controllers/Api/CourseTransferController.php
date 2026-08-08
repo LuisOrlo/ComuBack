@@ -38,7 +38,8 @@ class CourseTransferController extends Controller
             $resultado = $this->courseTransferService->transferir(
                 $matriculaId,
                 $request->input('curso_abierto_nuevo_id'),
-                $request->input('motivo')
+                $request->input('motivo'),
+                $request->input('lineas', []),
             );
 
             return response()->json($resultado, Response::HTTP_OK);

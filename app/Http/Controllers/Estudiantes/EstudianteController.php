@@ -947,6 +947,19 @@ class EstudianteController extends Controller
                         'estado_verificacion' => $t->estado_verificacion,
                         'observaciones' => $t->observaciones,
                     ]));
+                    foreach ($matricula->lineasPago as $lp) {
+                        $transacciones = $transacciones->concat($lp->transacciones->map(fn($t) => [
+                            'id' => $t->id,
+                            'cuenta_id' => $cuenta->id,
+                            'concepto' => $concepto,
+                            'monto' => (float) $t->monto,
+                            'metodo_pago' => $t->metodo_pago,
+                            'comprobante_url' => $t->comprobante_url,
+                            'fecha_pago' => $t->fecha_pago?->format('Y-m-d'),
+                            'estado_verificacion' => $t->estado_verificacion,
+                            'observaciones' => $t->observaciones,
+                        ]));
+                    }
                 } elseif ($matricula->solicitudInscripcion && $matricula->solicitudInscripcion->cuentasPorCobrar->isNotEmpty()) {
                     foreach ($matricula->solicitudInscripcion->cuentasPorCobrar as $cuentaSolicitud) {
                         $cuentas->push([
