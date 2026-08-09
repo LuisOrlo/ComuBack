@@ -187,8 +187,19 @@ class ClienteExternoController extends Controller
         $equipoIds = AlquilerEquipo::where('cliente_externo_id', $id)->pluck('id');
         $edicionIds = TrabajoEdicion::where('cliente_externo_id', $id)->pluck('id');
 
-        $cuentas = CuentaPorCobrar::with('transacciones')
-            ->where(function ($q) use ($radioIds, $aulaIds, $podcastIds, $equipoIds, $edicionIds) {
+        $tieneServicios = $radioIds->isNotEmpty() || $aulaIds->isNotEmpty() || $podcastIds->isNotEmpty() || $equipoIds->isNotEmpty() || $edicionIds->isNotEmpty();
+        if (!$tieneServicios) {
+            return response()->json(['data' => []]);
+        }
+
+        $cuentas = CuentaPorCobrar::with([
+            'transacciones',
+            'reservaRadio.tarifa',
+            'reservaAula.aula',
+            'reservaPodcast.paquete',
+            'alquilerEquipo.equipo',
+            'edicionVideo',
+        ])->where(function ($q) use ($radioIds, $aulaIds, $podcastIds, $equipoIds, $edicionIds) {
                 if ($radioIds->isNotEmpty()) $q->orWhereIn('reserva_radio_id', $radioIds);
                 if ($aulaIds->isNotEmpty()) $q->orWhereIn('reserva_aula_id', $aulaIds);
                 if ($podcastIds->isNotEmpty()) $q->orWhereIn('reserva_podcast_id', $podcastIds);

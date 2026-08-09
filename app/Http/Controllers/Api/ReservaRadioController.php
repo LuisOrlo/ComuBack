@@ -174,18 +174,25 @@ class ReservaRadioController extends Controller
     {
         $reserva = ReservaRadio::findOrFail($id);
 
-        $validated = $request->validate([
-            'tarifa_id' => 'sometimes|integer|exists:tarifas_radio,id',
-            'persona_id' => 'nullable|uuid|exists:personas,id',
-            'cliente_externo_id' => 'nullable|uuid|exists:clientes_externos,id',
-            'fecha_reserva' => 'sometimes|date',
-            'hora_inicio' => 'sometimes|date_format:H:i',
-            'hora_fin' => 'sometimes|date_format:H:i|after:hora_inicio',
-            'incluye_operador' => 'boolean',
-            'operador_id' => 'nullable|uuid|exists:personas,id',
-            'observaciones' => 'nullable|string',
-            'estado' => 'sometimes|string|in:reservado,confirmado,en_progreso,completado,cancelado',
-        ]);
+        \Illuminate\Support\Facades\Log::debug('reservas-radio.update request', ['id' => $id, 'input' => $request->all(), 'content_type' => $request->header('Content-Type')]);
+
+        try {
+            $validated = $request->validate([
+                'tarifa_id' => 'sometimes|integer|exists:tarifas_radio,id',
+                'persona_id' => 'nullable|uuid|exists:personas,id',
+                'cliente_externo_id' => 'nullable|uuid|exists:clientes_externos,id',
+                'fecha_reserva' => 'sometimes|date',
+                'hora_inicio' => 'sometimes|date_format:H:i',
+                'hora_fin' => 'sometimes|date_format:H:i|after:hora_inicio',
+                'incluye_operador' => 'boolean',
+                'operador_id' => 'nullable|uuid|exists:personas,id',
+                'observaciones' => 'nullable|string',
+                'estado' => 'sometimes|string|in:reservado,confirmado,en_progreso,completado,cancelado',
+            ]);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            \Illuminate\Support\Facades\Log::debug('reservas-radio.update validation failed', ['id' => $id, 'errors' => $e->errors(), 'input' => $request->all()]);
+            throw $e;
+        }
 
         $data = [];
         if (isset($validated['tarifa_id'])) $data['tarifa_id'] = (int) $validated['tarifa_id'];

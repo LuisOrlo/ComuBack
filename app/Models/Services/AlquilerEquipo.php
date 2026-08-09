@@ -3,10 +3,12 @@
 namespace App\Models\Services;
 
 use App\Models\ClienteExterno;
+use App\Models\CuentaPorCobrar;
 use App\Models\Persona;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class AlquilerEquipo extends Model
 {
@@ -61,6 +63,11 @@ class AlquilerEquipo extends Model
     public function clienteExterno(): BelongsTo
     {
         return $this->belongsTo(ClienteExterno::class, 'cliente_externo_id');
+    }
+
+    public function cuentaPorCobrar(): HasOne
+    {
+        return $this->hasOne(CuentaPorCobrar::class, 'alquiler_equipo_id');
     }
 
     public static function actualizarVencidos(): int

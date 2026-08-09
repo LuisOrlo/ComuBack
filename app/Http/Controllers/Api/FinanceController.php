@@ -775,16 +775,14 @@ class FinanceController extends Controller
                 'fecha_verificacion' => now(),
             ]);
 
-            $cuenta->monto_abonado += $request->monto;
-            $nuevoSaldo = $cuenta->monto_total - $cuenta->monto_abonado;
-            $cuenta->estado = $nuevoSaldo <= 0 ? 'pagado' : 'abonado';
-            $cuenta->save();
+            DB::commit();
 
+            $cuenta->refresh();
+            $nuevoSaldo = $cuenta->monto_total - $cuenta->monto_abonado;
             if ($nuevoSaldo <= 0 && $cuenta->reserva_podcast_id) {
                 $cuenta->reservaPodcast()->update(['estado' => 'completado']);
             }
 
-            DB::commit();
             Cache::forget('finance.resumen');
             return response()->json([
                 'mensaje' => 'Pago registrado correctamente',
@@ -985,6 +983,7 @@ class FinanceController extends Controller
         // ── UNION con LIMIT/OFFSET a nivel BD ──
         $unionIds = $ingresoIdsQuery->unionAll($egresoIdsQuery)
             ->orderBy('fecha_pago', 'desc')
+            ->orderBy('id', 'desc')
             ->offset(($currentPage - 1) * $perPage)
             ->limit($perPage)
             ->get();
@@ -2055,8 +2054,8 @@ class FinanceController extends Controller
         $sortDir = $orderDir === 'asc' ? 'asc' : 'desc';
 
         // ── Fetch all ingresos + egresos, merge, sort, paginate ──────────────
-        $ingresoModels = $query->orderBy($sortCol, $sortDir)->get();
-        $egresoModels = $egresoQuery->orderBy('fecha_pago', $sortDir)->get();
+        $ingresoModels = $query->orderBy($sortCol, $sortDir)->orderBy('id', $sortDir)->get();
+        $egresoModels = $egresoQuery->orderBy('fecha_pago', $sortDir)->orderBy('id', $sortDir)->get();
 
         $mapIngreso = function ($t) {
             $cp = $t->cuentaPorCobrar;

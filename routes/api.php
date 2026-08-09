@@ -374,6 +374,7 @@ use Illuminate\Support\Facades\Route;
             Route::get('vencidos', [AlquilerEquipoController::class, 'vencidos'])->name('alquileres-equipos.vencidos');
             Route::post('{id}/entregar', [AlquilerEquipoController::class, 'entregar'])->name('alquileres-equipos.entregar');
             Route::get('{id}', [AlquilerEquipoController::class, 'show'])->name('alquileres-equipos.show');
+            Route::put('{id}', [AlquilerEquipoController::class, 'update'])->name('alquileres-equipos.update');
             Route::post('{id}/devolver', [AlquilerEquipoController::class, 'devolver'])->name('alquileres-equipos.devolver');
             Route::delete('{id}', [AlquilerEquipoController::class, 'destroy'])->name('alquileres-equipos.destroy');
         });

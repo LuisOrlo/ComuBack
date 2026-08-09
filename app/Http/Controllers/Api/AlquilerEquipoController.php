@@ -17,7 +17,7 @@ class AlquilerEquipoController extends Controller
     {
         AlquilerEquipo::actualizarVencidos();
 
-        $query = AlquilerEquipo::with(['equipo', 'persona', 'clienteExterno']);
+        $query = AlquilerEquipo::with(['equipo', 'persona', 'clienteExterno', 'cuentaPorCobrar']);
 
         if ($request->filled('equipo_id')) {
             $query->where('equipo_id', $request->equipo_id);
@@ -107,6 +107,76 @@ class AlquilerEquipoController extends Controller
         ], Response::HTTP_CREATED);
     }
 
+    public function update(Request $request, string $id): JsonResponse
+    {
+        $alquiler = AlquilerEquipo::findOrFail($id);
+
+        if ($alquiler->estado === 'devuelto') {
+            return response()->json(['message' => 'No se puede editar un alquiler ya devuelto'], 422);
+        }
+
+        $validated = $request->validate([
+            'equipo_id' => 'required|uuid|exists:equipos,id',
+            'persona_id' => 'nullable|uuid|exists:personas,id',
+            'cliente_externo_id' => 'nullable|uuid|exists:clientes_externos,id',
+            'fecha_entrega' => 'required|date',
+            'fecha_devolucion_esperada' => 'required|date|after:fecha_entrega',
+            'foto_salida' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:5120',
+            'observaciones' => 'nullable|string',
+            'precio_total' => 'required|numeric|min:0',
+        ]);
+
+        if (empty($validated['persona_id']) && empty($validated['cliente_externo_id'])) {
+            return response()->json(['message' => 'Debe especificar un responsable'], 422);
+        }
+
+        if (!empty($validated['persona_id']) && !empty($validated['cliente_externo_id'])) {
+            return response()->json(['message' => 'Solo puede especificar un tipo de responsable'], 422);
+        }
+
+        // Si cambia el equipo: liberar el anterior y ocupar el nuevo
+        if ($validated['equipo_id'] !== $alquiler->equipo_id) {
+            $nuevoEquipo = Equipo::findOrFail($validated['equipo_id']);
+
+            if ($nuevoEquipo->estado !== 'disponible') {
+                return response()->json(['message' => 'El equipo seleccionado no está disponible para alquiler'], 422);
+            }
+
+            $alquiler->equipo()->update(['estado' => 'disponible']);
+            $nuevoEquipo->update(['estado' => 'alquilado']);
+        }
+
+        if ($request->hasFile('foto_salida')) {
+            $path = $request->file('foto_salida')->store('alquileres');
+            $validated['foto_salida_url'] = Storage::disk()->url($path);
+        }
+
+        // Si hay abonos registrados, el nuevo total no puede ser menor a lo abonado
+        $cuenta = $alquiler->cuentaPorCobrar;
+        if ($cuenta && (float) $cuenta->monto_abonado > (float) $validated['precio_total']) {
+            return response()->json([
+                'message' => 'El monto total no puede ser menor al monto ya abonado ('.$cuenta->monto_abonado.')',
+            ], 422);
+        }
+
+        $alquiler->update($validated);
+
+        if ($cuenta && (float) $cuenta->monto_total !== (float) $validated['precio_total']) {
+            $saldo = (float) $validated['precio_total'] - (float) $cuenta->monto_abonado;
+
+            $cuenta->update([
+                'monto_total' => $validated['precio_total'],
+                'estado' => $saldo <= 0 ? CuentaPorCobrar::ESTADO_PAGADO
+                    : ((float) $cuenta->monto_abonado > 0 ? CuentaPorCobrar::ESTADO_ABONADO : CuentaPorCobrar::ESTADO_PENDIENTE),
+            ]);
+        }
+
+        return response()->json([
+            'message' => 'Alquiler actualizado exitosamente',
+            'data' => $alquiler->fresh(['equipo', 'persona', 'clienteExterno', 'cuentaPorCobrar']),
+        ]);
+    }
+
     public function entregar(string $id): JsonResponse
     {
         $alquiler = AlquilerEquipo::findOrFail($id);
@@ -130,7 +200,7 @@ class AlquilerEquipoController extends Controller
 
     public function show(string $id): JsonResponse
     {
-        $alquiler = AlquilerEquipo::with(['equipo', 'persona', 'clienteExterno'])->findOrFail($id);
+        $alquiler = AlquilerEquipo::with(['equipo', 'persona', 'clienteExterno', 'cuentaPorCobrar'])->findOrFail($id);
         return response()->json(['data' => $alquiler]);
     }
 
