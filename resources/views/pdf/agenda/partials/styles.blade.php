@@ -7,15 +7,17 @@ body {
     color: #010101;
     margin: 0;
     padding: 0;
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
 }
 
 .pdf-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-end;
+    display: table;
+    width: 100%;
     margin-bottom: 14px;
+}
+
+.pdf-header-main {
+    display: table-cell;
+    vertical-align: bottom;
 }
 
 .pdf-header-main h1 {
@@ -34,19 +36,17 @@ body {
 }
 
 .pdf-legend {
-    display: flex;
-    gap: 12px;
-    flex-wrap: wrap;
+    display: table-cell;
+    text-align: right;
+    vertical-align: bottom;
     max-width: 55%;
-    justify-content: flex-end;
 }
 
 .legend-item {
     font-size: 9px;
     color: #464646;
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
+    display: inline;
+    margin-left: 8px;
     white-space: nowrap;
 }
 
@@ -56,4 +56,6 @@ body {
     border-radius: 50%;
     display: inline-block;
     flex-shrink: 0;
+    margin-right: 2px;
+    vertical-align: middle;
 }
