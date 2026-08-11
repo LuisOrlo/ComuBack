@@ -801,6 +801,7 @@ class FinanceController extends Controller
             'cuentaPorCobrar.matricula.estudiante',
             'cuentaPorCobrar.solicitudInscripcion.estudiante',
             'cuentaPorCobrar.solicitudInscripcion.participanteExterno',
+            'cuentaPorCobrar.inscripcionTaller.taller',
             'registrador:id,nombres,apellidos',
             'verificador:id,nombres,apellidos'
         ]);
@@ -1722,7 +1723,7 @@ class FinanceController extends Controller
                 'id' => $t->id,
                 'monto' => (float) $t->monto,
                 'metodo_pago' => $t->metodo_pago,
-                'fecha_pago' => $t->fecha_pago?->format('Y-m-d H:i'),
+                'fecha_pago' => $t->fecha_pago?->toDateString(),
                 'estado_verificacion' => $t->estado_verificacion,
                 'comprobante_url' => $t->comprobante_url,
                 'observaciones' => $t->observaciones,
@@ -2046,7 +2047,11 @@ class FinanceController extends Controller
                   ->orWhereHas('cuentaPorCobrar.edicionVideo.clienteExterno', fn($sq) =>
                     $sq->where('nombres', 'ilike', "%{$search}%")->orWhere('apellidos', 'ilike', "%{$search}%"))
                   ->orWhereHas('cuentaPorCobrar.alquilerEquipo.clienteExterno', fn($sq) =>
-                    $sq->where('nombres', 'ilike', "%{$search}%")->orWhere('apellidos', 'ilike', "%{$search}%"));
+                    $sq->where('nombres', 'ilike', "%{$search}%")->orWhere('apellidos', 'ilike', "%{$search}%"))
+                  ->orWhereHas('cuentaPorCobrar.inscripcionTaller', fn($sq) =>
+                    $sq->where('nombres', 'ilike', "%{$search}%")
+                       ->orWhere('apellidos', 'ilike', "%{$search}%")
+                       ->orWhere('cedula', 'ilike', "%{$search}%"));
             });
         }
 

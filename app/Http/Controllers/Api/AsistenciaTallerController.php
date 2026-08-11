@@ -47,14 +47,6 @@ class AsistenciaTallerController extends Controller
         $taller = Taller::findOrFail($request->taller_id);
 
         $fecha = \Carbon\Carbon::parse($request->fecha_sesion);
-        if ($fecha->lt($taller->fecha) || $fecha->gt($taller->fecha_fin ?? $taller->fecha)) {
-            return response()->json([
-                'message' => 'La fecha de la sesión está fuera del rango del taller',
-                'fecha_inicio_taller' => $taller->fecha,
-                'fecha_fin_taller' => $taller->fecha_fin ?? $taller->fecha,
-                'fecha_sesion' => $fecha,
-            ], 422);
-        }
 
         if (AsistenciaTaller::where(['taller_id' => $request->taller_id, 'fecha_sesion' => $fecha])->exists()) {
             return response()->json(['message' => 'Ya existe registro de asistencia para esa fecha'], 422);

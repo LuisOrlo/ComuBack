@@ -520,6 +520,7 @@ use Illuminate\Support\Facades\Route;
         Route::prefix('inscripciones-talleres')->group(function () {
             Route::get('/', [InscripcionTallerController::class, 'listarPendientes'])->name('inscripciones-talleres.index');
             Route::post('inscribir-desde-perfil', [InscripcionTallerController::class, 'inscribirDesdePerfil'])->name('inscripciones-talleres.inscribir-desde-perfil');
+            Route::get('{id}/adjacent', [InscripcionTallerController::class, 'adjacent'])->name('inscripciones-talleres.adjacent');
             Route::get('{id}', [InscripcionTallerController::class, 'show'])->name('inscripciones-talleres.show');
             Route::put('{id}', [InscripcionTallerController::class, 'update'])->name('inscripciones-talleres.update');
             Route::put('{id}/estado', [InscripcionTallerController::class, 'updateEstado'])->name('inscripciones-talleres.update-estado');

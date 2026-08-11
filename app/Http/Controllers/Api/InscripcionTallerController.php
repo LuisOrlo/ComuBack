@@ -258,7 +258,7 @@ class InscripcionTallerController extends Controller
                     'cuenta_cobrar_id' => $cuenta->id,
                     'monto' => $request->monto_pagado,
                     'metodo_pago' => $inscripcion->metodo_pago,
-                    'fecha_pago' => $inscripcion->fecha_pago ?? now()->toDateString(),
+                    'fecha_pago' => $request->fecha_pago ?? $inscripcion->fecha_pago ?? now()->toDateString(),
                     'comprobante_url' => $inscripcion->comprobante_url,
                     'estado_verificacion' => 'aprobado',
                     'registrado_por' => $personaId,
@@ -382,6 +382,67 @@ class InscripcionTallerController extends Controller
 
         return response()->json([
             'mensaje' => 'Archivo eliminado del almacenamiento. El registro se conserva como constancia histórica.',
+        ]);
+    }
+
+    public function adjacent(Request $request, string $id): JsonResponse
+    {
+        $current = InscripcionTaller::findOrFail($id);
+
+        $query = InscripcionTaller::query();
+
+        if ($request->filled('estado')) {
+            $query->where('estado', $request->estado);
+        }
+
+        if ($request->filled('pago_verificado')) {
+            $query->where('pago_verificado', $request->pago_verificado === 'true');
+        }
+
+        if ($request->filled('search')) {
+            $s = $request->search;
+            $query->where(function ($q) use ($s) {
+                $q->where('nombres', 'ilike', "%{$s}%")
+                  ->orWhere('apellidos', 'ilike', "%{$s}%")
+                  ->orWhere('cedula', 'ilike', "%{$s}%");
+            });
+        }
+
+        if ($request->filled('taller_id')) {
+            $query->where('taller_id', $request->taller_id);
+        }
+
+        if ($request->filled('fecha_desde')) {
+            $query->whereDate('fecha_inscripcion', '>=', $request->fecha_desde);
+        }
+
+        if ($request->filled('fecha_hasta')) {
+            $query->whereDate('fecha_inscripcion', '<=', $request->fecha_hasta);
+        }
+
+        $ids = $query->orderByDesc('fecha_inscripcion')->pluck('id');
+        $total = $ids->count();
+        $position = $ids->search($id);
+
+        if ($position === false) {
+            return response()->json([
+                'prev_id'      => null,
+                'next_id'      => $total > 0 ? $ids->first() : null,
+                'first_id'     => $total > 0 ? $ids->first() : null,
+                'position'     => 0,
+                'total'        => $total,
+                'stale'        => true,
+                'stale_estado' => $current->estado,
+            ]);
+        }
+
+        return response()->json([
+            'prev_id'   => $position > 0 ? $ids[$position - 1] : null,
+            'next_id'   => $position < $total - 1 ? $ids[$position + 1] : null,
+            'first_id'  => null,
+            'position'  => $position + 1,
+            'total'     => $total,
+            'stale'     => false,
         ]);
     }
 
