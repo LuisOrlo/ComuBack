@@ -528,4 +528,36 @@ class InstructorPortalController extends Controller
             'porcentaje' => round(($asistidas / $totalClases) * 100, 2)
         ];
     }
+
+    /**
+     * Listar sesiones de asistencia de un taller (para instructor)
+     */
+    public function asistenciasTaller($tallerId, Request $request): JsonResponse
+    {
+        return app(AsistenciaTallerController::class)->index($tallerId, $request);
+    }
+
+    /**
+     * Listar estudiantes de una sesión de taller (para instructor)
+     */
+    public function estudiantesAsistenciaTaller($tallerId, $sesionId): JsonResponse
+    {
+        return app(AsistenciaTallerController::class)->listEstudiantes($tallerId, $sesionId);
+    }
+
+    /**
+     * Actualizar asistencia de una sesión de taller (para instructor)
+     */
+    public function actualizarAsistenciaTaller(Request $request, $sesionId): JsonResponse
+    {
+        return app(AsistenciaTallerController::class)->update($request, $sesionId);
+    }
+
+    /**
+     * Descargar PDF de asistencia de taller (para instructor)
+     */
+    public function asistenciaTallerPDF($tallerId): JsonResponse
+    {
+        return app(TallerController::class)->asistenciaPDF($tallerId);
+    }
 }

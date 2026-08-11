@@ -826,6 +826,51 @@ class FinanceController extends Controller
     {
         $response = DB::transaction(function () use ($request) {
             $resultados = [];
+            $pagoUnificado = $request->boolean('pago_unificado', false);
+
+            if ($pagoUnificado && count($request->pagos) > 1) {
+                $total = collect($request->pagos)->sum('monto');
+                $primerPago = $request->pagos[0];
+
+                $transaccion = TransaccionIngreso::create([
+                    'linea_pago_modulo_id' => $primerPago['linea_pago_modulo_id'],
+                    'monto' => $total,
+                    'metodo_pago' => $primerPago['metodo_pago'],
+                    'fecha_pago' => $primerPago['fecha_pago'] ?? now(),
+                    'comprobante_url' => $primerPago['comprobante_url'] ?? null,
+                    'registrado_por' => auth()->user()->persona_id ?? auth()->id(),
+                    'estado_verificacion' => TransaccionIngreso::VERIFICACION_APROBADO,
+                ]);
+
+                foreach ($request->pagos as $pago) {
+                    $linea = LineaPagoModulo::findOrFail($pago['linea_pago_modulo_id']);
+                    if (! empty($pago['monto_ajustado']) && $pago['monto_ajustado'] != $linea->monto_ajustado) {
+                        $linea->update([
+                            'monto_ajustado' => $pago['monto_ajustado'],
+                            'motivo_ajuste' => $pago['motivo_ajuste'] ?? null,
+                            'ajustado_por' => auth()->user()->persona_id ?? auth()->id(),
+                            'fecha_ajuste' => now(),
+                        ]);
+                        $linea->refresh();
+                    }
+                    $linea->increment('monto_abonado', $pago['monto']);
+                    $linea->refresh();
+
+                    $resultados[] = [
+                        'linea_pago_modulo_id' => $linea->id,
+                        'transaccion_id' => $transaccion->id,
+                        'nuevo_estado' => $linea->estado,
+                        'monto_abonado' => (float) $linea->monto_abonado,
+                        'monto_ajustado' => (float) $linea->monto_ajustado,
+                    ];
+                }
+
+                return response()->json([
+                    'mensaje' => 'Pago registrado correctamente',
+                    'transaccion_id' => $transaccion->id,
+                    'pagos' => $resultados,
+                ], 201);
+            }
 
             foreach ($request->pagos as $pago) {
                 $linea = LineaPagoModulo::findOrFail($pago['linea_pago_modulo_id']);

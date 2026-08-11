@@ -269,6 +269,14 @@ class EstudianteController extends Controller
             $todos = $todos->filter(fn ($e) => $e['estado_pago'] === $estado);
         }
 
+        if ($request->filled('ciudad')) {
+            $ciudad = mb_strtolower($request->ciudad);
+            $todos = $todos->filter(function ($e) use ($ciudad) {
+                $nombre = $e['ciudad']['nombre'] ?? null;
+                return $nombre && mb_strtolower($nombre) === $ciudad;
+            });
+        }
+
         if ($request->filled('con_faltas') && $request->boolean('con_faltas')) {
             $personaIds = $todos->pluck('id')->toArray();
             $estudianteIdsConFaltas = DB::table('academic.asistencias')
@@ -294,6 +302,13 @@ class EstudianteController extends Controller
 
         $baseParaStats = $todos;
 
+        $ciudades = $baseParaStats
+            ->pluck('ciudad.nombre')
+            ->filter()
+            ->unique()
+            ->sort()
+            ->values();
+
         $stats = [
             'todos' => $baseParaStats->count(),
             'deudor' => $baseParaStats->where('estado_pago', 'deudor')->count(),
@@ -309,6 +324,7 @@ class EstudianteController extends Controller
         return response()->json([
             'datos' => $paginated,
             'stats' => $stats,
+            'ciudades' => $ciudades,
             'meta' => [
                 'actual' => $pagina,
                 'ultima_pagina' => (int) ceil($total / max($porPagina, 1)),

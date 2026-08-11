@@ -55,6 +55,7 @@ class StorePagoInicialRequest extends FormRequest
             'pagos.*.metodo_pago' => 'required|string|in:efectivo,transferencia',
             'pagos.*.fecha_pago' => 'nullable|date',
             'pagos.*.comprobante_url' => 'nullable|string',
+            'pago_unificado' => 'nullable|boolean',
         ];
     }
 

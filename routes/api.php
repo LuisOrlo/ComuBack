@@ -640,6 +640,11 @@ Route::prefix('reports')->group(function () {
         Route::post('clases/{claseId}/asistencia', [InstructorPortalController::class, 'registrarAsistencia'])->name('instructor.registrar-asistencia');
         Route::post('notas', [InstructorPortalController::class, 'registrarNotas'])->name('instructor.registrar-notas');
         Route::get('cursos/{id}/asistencia-pdf', [InstructorPortalController::class, 'asistenciaPDF'])->name('instructor.asistencia-pdf');
+        // Talleres
+        Route::get('talleres/{tallerId}/asistencias', [InstructorPortalController::class, 'asistenciasTaller'])->name('instructor.talleres.asistencias');
+        Route::get('talleres/{tallerId}/asistencias/{sesionId}/estudiantes', [InstructorPortalController::class, 'estudiantesAsistenciaTaller'])->name('instructor.talleres.asistencias.estudiantes');
+        Route::put('talleres/asistencias/{sesionId}', [InstructorPortalController::class, 'actualizarAsistenciaTaller'])->name('instructor.talleres.actualizar-asistencia');
+        Route::get('talleres/{tallerId}/asistencia-pdf', [InstructorPortalController::class, 'asistenciaTallerPDF'])->name('instructor.talleres.asistencia-pdf');
     });
 
     // ========================================================================

@@ -387,7 +387,7 @@ class CursoAbiertoController extends Controller
     public function matriculas($id)
     {
         $curso = CursoAbierto::findOrFail($id);
-        $matriculas = $curso->matriculas()->with(['estudiante.perfilEstudiante', 'solicitudInscripcion.estudiante.perfilEstudiante', 'solicitudInscripcion.participanteExterno'])->paginate(15);
+        $matriculas = $curso->matriculas()->with(['estudiante.perfilEstudiante', 'solicitudInscripcion.estudiante.perfilEstudiante', 'solicitudInscripcion.participanteExterno', 'notas'])->paginate(15);
         return response()->json(['data' => $matriculas->items(), 'meta' => ['total' => $matriculas->total()]]);
     }
 
