@@ -3,8 +3,8 @@
 namespace App\Services;
 
 use App\Support\Agenda\DayEventLayout;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Carbon\Carbon;
-use Spatie\Browsershot\Browsershot;
 
 class AgendaPdfService
 {
@@ -67,12 +67,11 @@ class AgendaPdfService
 
     private function renderPdf(string $html): string
     {
-        return Browsershot::html($html)
-            ->format('A4')
-            ->landscape()
-            ->margins(8, 8, 8, 8)
-            ->showBackground()
-            ->waitUntilNetworkIdle()
-            ->pdf();
+        $pdf = Pdf::loadHTML($html)
+            ->setPaper('a4', 'landscape');
+
+        $pdf->getDomPDF()->getOptions()->set('defaultFont', 'DejaVu Sans');
+
+        return $pdf->output();
     }
 }

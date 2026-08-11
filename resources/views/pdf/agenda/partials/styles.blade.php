@@ -1,3 +1,5 @@
+@page { margin: 8mm; }
+
 * { box-sizing: border-box; }
 
 body {
