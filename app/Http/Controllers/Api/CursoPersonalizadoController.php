@@ -157,7 +157,7 @@ class CursoPersonalizadoController extends Controller
         $curso = CursoPersonalizado::findOrFail($request->curso_personalizado_id);
 
         // Validar que la fecha de inicio no haya pasado
-        if ($curso->fecha_inicio <= now()->toDateString()) {
+        if ($curso->fecha_inicio <= now()->timezone('America/Guayaquil')->toDateString()) {
             return response()->json([
                 'message' => 'No se puede inscribir después de la fecha de inicio del curso',
             ], 422);
@@ -193,7 +193,7 @@ class CursoPersonalizadoController extends Controller
         $curso->participantesExternos()->attach(
             $request->participante_externo_id,
             [
-                'fecha_inscripcion' => now()->toDateString(),
+                'fecha_inscripcion' => now()->timezone('America/Guayaquil')->toDateString(),
                 'estado' => 'inscrito',
             ]
         );
