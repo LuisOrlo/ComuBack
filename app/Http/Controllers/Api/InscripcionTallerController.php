@@ -94,6 +94,7 @@ class InscripcionTallerController extends Controller
             'direccion' => 'nullable|string|max:500',
             'estado_civil' => 'nullable|string|max:20',
             'edad' => 'nullable|integer|min:0|max:150',
+            'nivel_educativo' => 'nullable|string|in:educacion inicial,general basica,bachillerato,tecnico/tecnologico,superior,otro',
             'tipo_pago' => 'required|in:completo,abono',
             'monto_pagado' => 'required|numeric|min:0',
             'metodo_pago' => 'nullable|string|max:50',
@@ -147,12 +148,13 @@ class InscripcionTallerController extends Controller
                 'direccion' => $validated['direccion'] ?? null,
                 'estado_civil' => $validated['estado_civil'] ?? null,
                 'edad' => $validated['edad'] ?? null,
-                'fecha_inscripcion' => now()->toDateString(),
+                'nivel_educativo' => $validated['nivel_educativo'] ?? null,
+                'fecha_inscripcion' => now()->timezone('America/Guayaquil')->toDateString(),
                 'estado' => 'activo',
                 'tipo_pago' => $validated['tipo_pago'],
                 'monto_pagado' => $validated['monto_pagado'],
                 'metodo_pago' => $validated['metodo_pago'] ?? null,
-                'fecha_pago' => $validated['fecha_pago'] ?? now()->toDateString(),
+                'fecha_pago' => $validated['fecha_pago'] ?? now()->timezone('America/Guayaquil')->toDateString(),
             ];
 
             if ($request->hasFile('comprobante')) {
@@ -210,7 +212,7 @@ class InscripcionTallerController extends Controller
             $updateData = [
                 'pago_verificado' => true,
                 'metodo_pago' => $request->metodo_pago ?? $inscripcion->metodo_pago,
-                'fecha_pago' => $request->fecha_pago ?? now()->toDateString(),
+                'fecha_pago' => $request->fecha_pago ?? now()->timezone('America/Guayaquil')->toDateString(),
             ];
 
             if ($request->has('monto_pagado')) {
@@ -258,7 +260,7 @@ class InscripcionTallerController extends Controller
                     'cuenta_cobrar_id' => $cuenta->id,
                     'monto' => $request->monto_pagado,
                     'metodo_pago' => $inscripcion->metodo_pago,
-                    'fecha_pago' => $request->fecha_pago ?? $inscripcion->fecha_pago ?? now()->toDateString(),
+                    'fecha_pago' => $request->fecha_pago ?? $inscripcion->fecha_pago ?? now()->timezone('America/Guayaquil')->toDateString(),
                     'comprobante_url' => $inscripcion->comprobante_url,
                     'estado_verificacion' => 'aprobado',
                     'registrado_por' => $personaId,
@@ -312,6 +314,7 @@ class InscripcionTallerController extends Controller
             'direccion' => 'nullable|string|max:500',
             'estado_civil' => 'nullable|string|max:20',
             'edad' => 'nullable|integer|min:0|max:150',
+            'nivel_educativo' => 'nullable|string|in:educacion inicial,general basica,bachillerato,tecnico/tecnologico,superior,otro',
             'tipo_pago' => 'sometimes|in:completo,abono',
             'monto_pagado' => 'sometimes|numeric|min:0',
             'metodo_pago' => 'nullable|string|max:50',
@@ -522,7 +525,7 @@ class InscripcionTallerController extends Controller
                 'monto_pagado' => $validated['monto_pagado'],
                 'tipo_pago' => $validated['monto_pagado'] >= ($taller->precio ?? 0) ? 'completo' : 'abono',
                 'metodo_pago' => $validated['metodo_pago'] ?? 'efectivo',
-                'fecha_pago' => now()->toDateString(),
+                'fecha_pago' => now()->timezone('America/Guayaquil')->toDateString(),
                 'estado' => 'activo',
                 'pago_verificado' => true,
             ]);
