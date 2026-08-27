@@ -22,7 +22,7 @@ class SecretariaDashboardController extends Controller
 {
     public function index(): JsonResponse
     {
-        $pagosPendientesHoy = TransaccionIngreso::whereDate('fecha_pago', today())
+        $pagosPendientesHoy = TransaccionIngreso::whereDate('fecha_pago', now()->timezone('America/Guayaquil')->toDateString())
             ->where('estado_verificacion', 'pendiente')
             ->count();
 
@@ -84,7 +84,7 @@ class SecretariaDashboardController extends Controller
 
     public function agendaHoy(): JsonResponse
     {
-        $today = now()->toDateString();
+        $today = now()->timezone('America/Guayaquil')->toDateString();
         $events = app(AgendaService::class)->getEvents($today, $today);
 
         $grouped = $events->groupBy('tipo_evento')->map(fn($items, $tipo) => [
@@ -108,7 +108,7 @@ class SecretariaDashboardController extends Controller
             ->table('academic.asistencias as a')
             ->join('academic.matriculas as m', 'a.matricula_id', '=', 'm.id')
             ->join('academic.clases as c', 'a.clase_id', '=', 'c.id')
-            ->where('c.fecha_clase', '>=', now()->subDays(30)->toDateString())
+            ->where('c.fecha_clase', '>=', now()->timezone('America/Guayaquil')->subDays(30)->toDateString())
             ->where('m.estado', 'activo')
             ->select('m.estudiante_id')
             ->selectRaw('COUNT(*) as total_clases')
@@ -149,8 +149,8 @@ class SecretariaDashboardController extends Controller
 
     public function reservasProximas(): JsonResponse
     {
-        $hoy = now()->toDateString();
-        $limite = now()->addDays(3)->toDateString();
+        $hoy = now()->timezone('America/Guayaquil')->toDateString();
+        $limite = now()->timezone('America/Guayaquil')->addDays(3)->toDateString();
 
         $aulas = ReservaAula::with(['aula:id,nombre', 'persona:id,nombres,apellidos', 'clienteExterno:id,nombres,apellidos'])
             ->whereBetween('fecha_reserva', [$hoy, $limite])

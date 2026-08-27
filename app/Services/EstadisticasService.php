@@ -125,20 +125,20 @@ class EstadisticasService
     public function flujoFinanciero(): array
     {
         return Cache::remember($this->cacheKey('flujo'), now()->addMinutes(15), function () {
-            $ingresosMensuales = TransaccionIngreso::selectRaw("to_char(fecha_pago, 'YYYY-MM') as mes, SUM(monto) as total")
-                ->where('fecha_pago', '>=', now()->subMonths(12)->startOfMonth()->format('Y-m-d'))
+            $ingresosMensuales = TransaccionIngreso::selectRaw("to_char(fecha_pago AT TIME ZONE 'America/Guayaquil', 'YYYY-MM') as mes, SUM(monto) as total")
+                ->where('fecha_pago', '>=', now()->timezone('America/Guayaquil')->subMonths(12)->startOfMonth()->toDateString())
                 ->where('fecha_pago', '<=', $this->rangoHasta())
                 ->where('estado_verificacion', 'aprobado')
-                ->groupBy(DB::raw("to_char(fecha_pago, 'YYYY-MM')"))
-                ->orderBy(DB::raw("to_char(fecha_pago, 'YYYY-MM')"))
+                ->groupBy(DB::raw("to_char(fecha_pago AT TIME ZONE 'America/Guayaquil', 'YYYY-MM')"))
+                ->orderBy(DB::raw("to_char(fecha_pago AT TIME ZONE 'America/Guayaquil', 'YYYY-MM')"))
                 ->get()->keyBy('mes');
 
             $egresosMensuales = DB::table('finance.transacciones_egreso')
-                ->selectRaw("to_char(fecha_pago, 'YYYY-MM') as mes, SUM(monto) as total")
-                ->where('fecha_pago', '>=', now()->subMonths(12)->startOfMonth()->format('Y-m-d'))
+                ->selectRaw("to_char(fecha_pago AT TIME ZONE 'America/Guayaquil', 'YYYY-MM') as mes, SUM(monto) as total")
+                ->where('fecha_pago', '>=', now()->timezone('America/Guayaquil')->subMonths(12)->startOfMonth()->toDateString())
                 ->where('fecha_pago', '<=', $this->rangoHasta())
-                ->groupBy(DB::raw("to_char(fecha_pago, 'YYYY-MM')"))
-                ->orderBy(DB::raw("to_char(fecha_pago, 'YYYY-MM')"))
+                ->groupBy(DB::raw("to_char(fecha_pago AT TIME ZONE 'America/Guayaquil', 'YYYY-MM')"))
+                ->orderBy(DB::raw("to_char(fecha_pago AT TIME ZONE 'America/Guayaquil', 'YYYY-MM')"))
                 ->get()->keyBy('mes');
 
             $mesesKeys = $ingresosMensuales->keys()->merge($egresosMensuales->keys())->unique()->sort()->values();
