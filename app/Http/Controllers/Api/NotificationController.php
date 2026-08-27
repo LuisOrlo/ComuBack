@@ -6,11 +6,14 @@ use App\Http\Controllers\Controller;
 use App\Models\SolicitudInscripcion;
 use App\Models\InscripcionTaller;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Cache;
 
 class NotificationController extends Controller
 {
     public function index()
     {
+        return response()->json(
+            Cache::remember('notifications:index', 30, function () {
         $solicitudes = SolicitudInscripcion::where('estado', 'pendiente_validacion')
             ->where('created_at', '>=', Carbon::now()->subDays(14))
             ->with([
@@ -82,16 +85,18 @@ class NotificationController extends Controller
                         'curso' => $item['curso'],
                         'color' => $item['color'],
                         'monto' => $item['monto'],
-                        'metodo_pago' => $item['metodo_pago'],
+'metodo_pago' => $item['metodo_pago'],
                         'hora' => $item['hora'],
                     ];
-                })->values(),
+                })->values()->all(),
             ];
-        })->values();
+        })->values()->all();
 
-        return response()->json([
-            'pendientes' => $count,
-            'recientes' => $grouped,
-        ]);
+                return [
+                    'pendientes' => $count,
+                    'recientes' => $grouped,
+                ];
+            })
+        );
     }
 }

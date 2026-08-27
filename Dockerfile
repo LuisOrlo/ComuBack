@@ -40,6 +40,7 @@ RUN docker-php-ext-configure gd --with-freetype --with-jpeg \
         fileinfo \
         mbstring \
         exif \
+        opcache \
     && pecl install redis \
     && docker-php-ext-enable redis
 
@@ -55,6 +56,8 @@ RUN ln -s /etc/apache2/sites-available/000-default.conf /etc/apache2/sites-enabl
 
 COPY docker/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+
+COPY docker/opcache.ini /usr/local/etc/php/conf.d/opcache.ini
 
 COPY --from=composer /app/vendor /var/www/html/vendor
 COPY --from=assets /app/public/build /var/www/html/public/build

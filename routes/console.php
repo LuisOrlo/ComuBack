@@ -9,3 +9,5 @@ Artisan::command('inspire', function () {
 })->purpose('Display an inspiring quote');
 
 Schedule::command('storage:cleanup --days=90')->daily();
+
+Schedule::command('sanctum:prune-expired')->daily();

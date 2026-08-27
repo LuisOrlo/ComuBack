@@ -21,6 +21,7 @@ class PerfilEstudiante extends Model
         'estado_civil',
         'edad',
         'ciudad',
+        'nivel_educativo',
     ];
 
     protected function casts(): array

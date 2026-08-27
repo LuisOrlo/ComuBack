@@ -32,75 +32,61 @@ class EstudianteController extends Controller
     {
         $internos = Persona::query()
             ->estudiantes()
-            ->with(['ciudad', 'perfilEstudiante', 'matriculas.cuentaPorCobrar', 'matriculas.lineasPago', 'matriculas.cursoAbierto.catalogo'])
+            ->with(['ciudad', 'perfilEstudiante'])
             ->whereNull('deleted_at')
             ->when($request->filled('buscar'), function ($q) use ($request) {
                 $buscar = $request->buscar;
                 $q->where(function ($sub) use ($buscar) {
-                    $sub->whereRaw('LOWER(nombres) LIKE ?', ["%{$buscar}%"])
-                      ->orWhereRaw('LOWER(apellidos) LIKE ?', ["%{$buscar}%"])
-                      ->orWhereRaw("LOWER(COALESCE(nombres, '') || ' ' || COALESCE(apellidos, '')) LIKE ?", ["%{$buscar}%"])
-                      ->orWhere('cedula', 'like', "%{$buscar}%");
+                    $sub->where('nombres', $this->likeOperator(), "%{$buscar}%")
+                      ->orWhere('apellidos', $this->likeOperator(), "%{$buscar}%")
+                      ->orWhereRaw(
+                          $this->isPgsql()
+                              ? "COALESCE(nombres, '') || ' ' || COALESCE(apellidos, '') ILIKE ?"
+                              : "LOWER(COALESCE(nombres, '') || ' ' || COALESCE(apellidos, '')) LIKE ?",
+                          [$this->isPgsql() ? "%{$buscar}%" : "%" . mb_strtolower($buscar) . "%"]
+                      )
+                      ->orWhere('cedula', $this->likeOperator(), "%{$buscar}%");
                 });
             })
             ->orderBy('nombres')
-            ->get()
-            ->map(function ($p) {
-                $totalMatriculas = $p->matriculas->count();
-                $cuentas = $p->matriculas->map(fn($m) => $m->cuentaPorCobrar)->filter();
-                $estadosCuentas = $cuentas->pluck('estado')->unique();
-                $estadosLineas = $p->matriculas->flatMap(fn($m) => $m->lineasPago->pluck('estado'))->unique();
+            ->get();
 
-                $estadoPago = 'ninguno';
-                if ($totalMatriculas > 0) {
-                    $tienePendiente = $estadosCuentas->contains('pendiente') || $estadosLineas->contains('pendiente');
-                    $tieneAbonado = $estadosCuentas->contains('abonado') || $estadosLineas->contains('abonado');
-                    $tienePagado = ($cuentas->count() > 0 && $estadosCuentas->every(fn($e) => $e === 'pagado'))
-                        || ($cuentas->isEmpty() && $estadosLineas->isNotEmpty() && $estadosLineas->every(fn($e) => $e === 'pagado'));
+        $resumenInternos = $this->resumenFinancieroEstudiantes($internos->pluck('id')->all());
 
-                    if ($cuentas->count() < $totalMatriculas && $estadosLineas->isEmpty()) {
-                        $estadoPago = 'deudor';
-                    } elseif ($tienePendiente) {
-                        $estadoPago = 'deudor';
-                    } elseif ($tieneAbonado) {
-                        $estadoPago = 'abonado';
-                    } elseif ($tienePagado) {
-                        $estadoPago = 'al_dia';
-                    } else {
-                        $estadoPago = 'deudor';
-                    }
-                }
+        $internos = $internos->map(function ($p) use ($resumenInternos) {
+            $resumen = $resumenInternos->get($p->id) ?? [];
+            $totalMatriculas = (int) ($resumen['total_cursos'] ?? 0);
+            $estadoPago = $resumen['estado_pago'] ?? 'ninguno';
+            $saldoPendiente = (float) ($resumen['saldo_pendiente'] ?? 0);
+            $primeraMatricula = $resumen['primera_matricula'] ?? null;
+            $ultimaMatricula = $resumen['ultima_matricula'] ?? null;
 
-                return [
-                    'id' => $p->id,
-                    'tipo' => 'estudiante',
-                    'nombres' => $p->nombres,
-                    'apellidos' => $p->apellidos,
-                    'cedula' => $p->cedula,
-                    'correo' => $p->correo,
-                    'celular' => $p->celular,
-                    'ciudad' => $p->ciudad ? (is_string($p->ciudad) ? ['nombre' => $p->ciudad] : ['nombre' => $p->ciudad->nombre]) : null,
-                    'es_activo' => $p->es_activo,
-                    'total_cursos' => $p->matriculas->count(),
-                    'estado_pago' => $estadoPago,
-                    'saldo_pendiente' => $p->matriculas->sum(function($m) {
-                        if ($m->cuentaPorCobrar) {
-                            return $m->cuentaPorCobrar->monto_total - $m->cuentaPorCobrar->monto_abonado;
-                        }
-                        return $m->cursoAbierto->precio_base ?? 0;
-                    }),
-                    'perfil_estudiante' => $p->perfilEstudiante ? [
-                        'notas_internas' => $p->perfilEstudiante->notas_internas,
-                        'primera_matricula' => $p->perfilEstudiante->primera_matricula?->format('Y-m-d') ?? ($totalMatriculas > 0 ? $p->matriculas->pluck('fecha_inscripcion')->filter()->sort()->first()?->format('Y-m-d') : null),
-                        'ultima_matricula' => $p->perfilEstudiante->ultima_matricula?->format('Y-m-d') ?? ($totalMatriculas > 0 ? $p->matriculas->pluck('fecha_inscripcion')->filter()->sort()->last()?->format('Y-m-d') : null),
-                        'total_cursos' => $p->perfilEstudiante->total_cursos ?? $totalMatriculas,
-                        'ocupacion' => $p->perfilEstudiante->ocupacion,
-                        'direccion' => $p->perfilEstudiante->direccion,
-                        'estado_civil' => $p->perfilEstudiante->estado_civil,
-                        'edad' => $p->perfilEstudiante->edad,
-                    ] : null,
-                ];
-            });
+            return [
+                'id' => $p->id,
+                'tipo' => 'estudiante',
+                'nombres' => $p->nombres,
+                'apellidos' => $p->apellidos,
+                'cedula' => $p->cedula,
+                'correo' => $p->correo,
+                'celular' => $p->celular,
+                'ciudad' => $p->ciudad ? (is_string($p->ciudad) ? ['nombre' => $p->ciudad] : ['nombre' => $p->ciudad->nombre]) : null,
+                'es_activo' => $p->es_activo,
+                'total_cursos' => $totalMatriculas,
+                'estado_pago' => $estadoPago,
+                'saldo_pendiente' => $saldoPendiente,
+                'perfil_estudiante' => $p->perfilEstudiante ? [
+                    'notas_internas' => $p->perfilEstudiante->notas_internas,
+                    'primera_matricula' => $p->perfilEstudiante->primera_matricula?->format('Y-m-d') ?? ($totalMatriculas > 0 && $primeraMatricula ? Carbon::parse($primeraMatricula)->format('Y-m-d') : null),
+                    'ultima_matricula' => $p->perfilEstudiante->ultima_matricula?->format('Y-m-d') ?? ($totalMatriculas > 0 && $ultimaMatricula ? Carbon::parse($ultimaMatricula)->format('Y-m-d') : null),
+                    'total_cursos' => $p->perfilEstudiante->total_cursos ?? $totalMatriculas,
+                    'ocupacion' => $p->perfilEstudiante->ocupacion,
+                    'direccion' => $p->perfilEstudiante->direccion,
+                    'estado_civil' => $p->perfilEstudiante->estado_civil,
+                    'edad' => $p->perfilEstudiante->edad,
+                    'nivel_educativo' => $p->perfilEstudiante->nivel_educativo,
+                ] : null,
+            ];
+        });
 
         $clientesData = ClienteExterno::query()
             ->whereHas('solicitudesInscripcion', fn ($q) =>
@@ -109,10 +95,15 @@ class EstudianteController extends Controller
             ->when($request->filled('buscar'), function ($q) use ($request) {
                 $buscar = $request->buscar;
                 $q->where(function ($sub) use ($buscar) {
-                    $sub->whereRaw('LOWER(nombres) LIKE ?', ["%{$buscar}%"])
-                      ->orWhereRaw('LOWER(apellidos) LIKE ?', ["%{$buscar}%"])
-                      ->orWhereRaw("LOWER(COALESCE(nombres, '') || ' ' || COALESCE(apellidos, '')) LIKE ?", ["%{$buscar}%"])
-                      ->orWhere('cedula', 'like', "%{$buscar}%");
+                    $sub->where('nombres', $this->likeOperator(), "%{$buscar}%")
+                      ->orWhere('apellidos', $this->likeOperator(), "%{$buscar}%")
+                      ->orWhereRaw(
+                          $this->isPgsql()
+                              ? "COALESCE(nombres, '') || ' ' || COALESCE(apellidos, '') ILIKE ?"
+                              : "LOWER(COALESCE(nombres, '') || ' ' || COALESCE(apellidos, '')) LIKE ?",
+                          [$this->isPgsql() ? "%{$buscar}%" : "%" . mb_strtolower($buscar) . "%"]
+                      )
+                      ->orWhere('cedula', $this->likeOperator(), "%{$buscar}%");
                 });
             })
             ->with([
@@ -175,6 +166,7 @@ class EstudianteController extends Controller
                         'ocupacion' => $c->ocupacion,
                         'direccion' => $c->direccion,
                         'estado_civil' => $c->estado_civil,
+                        'nivel_educativo' => $c->nivel_educativo,
                         'primera_matricula' => $fechasSolicitudes->isNotEmpty() ? $fechasSolicitudes->first()->format('Y-m-d') : null,
                         'ultima_matricula' => $fechasSolicitudes->isNotEmpty() ? $fechasSolicitudes->last()->format('Y-m-d') : null,
                         'total_cursos' => $totalSolicitudes,
@@ -194,10 +186,15 @@ class EstudianteController extends Controller
             ->when($request->filled('buscar'), function ($q) use ($request) {
                 $buscar = $request->buscar;
                 $q->where(function ($sub) use ($buscar) {
-                    $sub->whereRaw('LOWER(nombres) LIKE ?', ["%{$buscar}%"])
-                      ->orWhereRaw('LOWER(apellidos) LIKE ?', ["%{$buscar}%"])
-                      ->orWhereRaw("LOWER(COALESCE(nombres, '') || ' ' || COALESCE(apellidos, '')) LIKE ?", ["%{$buscar}%"])
-                      ->orWhere('cedula', 'like', "%{$buscar}%");
+                    $sub->where('nombres', $this->likeOperator(), "%{$buscar}%")
+                      ->orWhere('apellidos', $this->likeOperator(), "%{$buscar}%")
+                      ->orWhereRaw(
+                          $this->isPgsql()
+                              ? "COALESCE(nombres, '') || ' ' || COALESCE(apellidos, '') ILIKE ?"
+                              : "LOWER(COALESCE(nombres, '') || ' ' || COALESCE(apellidos, '')) LIKE ?",
+                          [$this->isPgsql() ? "%{$buscar}%" : "%" . mb_strtolower($buscar) . "%"]
+                      )
+                      ->orWhere('cedula', $this->likeOperator(), "%{$buscar}%");
                 });
             })
             ->orderBy('nombres')
@@ -244,6 +241,7 @@ class EstudianteController extends Controller
                     'ocupacion' => $primera->ocupacion,
                     'direccion' => $primera->direccion,
                     'estado_civil' => $primera->estado_civil,
+                    'nivel_educativo' => $primera->nivel_educativo,
                     'notas_internas' => null,
                 ],
             ]);
@@ -317,7 +315,7 @@ class EstudianteController extends Controller
         ];
 
         $total = $todos->count();
-        $porPagina = (int) ($request->input('por_pagina', 15));
+        $porPagina = (int) ($request->input('per_page', 15));
         $pagina = (int) ($request->input('page', 1));
         $paginated = $todos->slice(($pagina - 1) * $porPagina, $porPagina)->values();
 
@@ -328,10 +326,105 @@ class EstudianteController extends Controller
             'meta' => [
                 'actual' => $pagina,
                 'ultima_pagina' => (int) ceil($total / max($porPagina, 1)),
-                'por_pagina' => $porPagina,
+                'per_page' => $porPagina,
                 'total' => $total,
             ],
         ]);
+    }
+
+    private function isPgsql(): bool
+    {
+        return DB::connection()->getDriverName() === 'pgsql';
+    }
+
+    private function likeOperator(): string
+    {
+        return $this->isPgsql() ? 'ilike' : 'like';
+    }
+
+    private function resumenFinancieroEstudiantes(array $ids): \Illuminate\Support\Collection
+    {
+        if (empty($ids)) {
+            return collect();
+        }
+
+        $matriculas = DB::table('academic.matriculas as m')
+            ->leftJoin('finance.cuentas_por_cobrar as c', 'c.matricula_id', '=', 'm.id')
+            ->leftJoin('academic.cursos_abiertos as ca', function ($join) {
+                $join->on('ca.id', '=', 'm.curso_abierto_id')->whereNull('ca.deleted_at');
+            })
+            ->whereNull('m.deleted_at')
+            ->whereIn('m.estudiante_id', $ids)
+            ->groupBy('m.estudiante_id')
+            ->selectRaw("
+                m.estudiante_id,
+                COUNT(*) AS total_matriculas,
+                COUNT(c.id) AS cuentas_count,
+                SUM(CASE WHEN c.id IS NOT NULL AND c.estado = 'pendiente' THEN 1 ELSE 0 END) AS c_pend,
+                SUM(CASE WHEN c.id IS NOT NULL AND c.estado = 'abonado' THEN 1 ELSE 0 END) AS c_abon,
+                SUM(CASE WHEN c.id IS NOT NULL AND c.estado <> 'pagado' THEN 1 ELSE 0 END) AS c_notpag,
+                COALESCE(SUM(COALESCE(c.monto_total - c.monto_abonado, ca.precio_base)), 0) AS saldo,
+                MIN(m.fecha_inscripcion) AS primera_matricula,
+                MAX(m.fecha_inscripcion) AS ultima_matricula
+            ")
+            ->get()
+            ->keyBy('estudiante_id');
+
+        $lineas = DB::table('academic.matriculas as m')
+            ->join('finance.lineas_pago_modulo as l', 'l.matricula_id', '=', 'm.id')
+            ->whereNull('m.deleted_at')
+            ->whereIn('m.estudiante_id', $ids)
+            ->groupBy('m.estudiante_id')
+            ->selectRaw("
+                m.estudiante_id,
+                COUNT(l.id) AS lineas_count,
+                SUM(CASE WHEN l.estado = 'pendiente' THEN 1 ELSE 0 END) AS l_pend,
+                SUM(CASE WHEN l.estado = 'abonado' THEN 1 ELSE 0 END) AS l_abon,
+                SUM(CASE WHEN l.estado IS NULL OR l.estado <> 'pagado' THEN 1 ELSE 0 END) AS l_notpag
+            ")
+            ->get()
+            ->keyBy('estudiante_id');
+
+        $result = collect();
+        foreach ($matriculas as $m) {
+            $l = $lineas->get($m->estudiante_id);
+
+            $total = (int) $m->total_matriculas;
+            $cuentas = (int) $m->cuentas_count;
+            $lineasCount = $l ? (int) $l->lineas_count : 0;
+
+            $cPend = (int) $m->c_pend;
+            $cAbon = (int) $m->c_abon;
+            $cNotpag = (int) $m->c_notpag;
+            $lPend = $l ? (int) $l->l_pend : 0;
+            $lAbon = $l ? (int) $l->l_abon : 0;
+            $lNotpag = $l ? (int) $l->l_notpag : 0;
+
+            $estadoPago = 'ninguno';
+            if ($total > 0) {
+                if ($cuentas < $total && $lineasCount === 0) {
+                    $estadoPago = 'deudor';
+                } elseif ($cPend > 0 || $lPend > 0) {
+                    $estadoPago = 'deudor';
+                } elseif ($cAbon > 0 || $lAbon > 0) {
+                    $estadoPago = 'abonado';
+                } elseif (($cuentas > 0 && $cNotpag === 0) || ($cuentas === 0 && $lineasCount > 0 && $lNotpag === 0)) {
+                    $estadoPago = 'al_dia';
+                } else {
+                    $estadoPago = 'deudor';
+                }
+            }
+
+            $result[$m->estudiante_id] = [
+                'estado_pago' => $estadoPago,
+                'saldo_pendiente' => (float) $m->saldo,
+                'total_cursos' => $total,
+                'primera_matricula' => $m->primera_matricula,
+                'ultima_matricula' => $m->ultima_matricula,
+            ];
+        }
+
+        return $result;
     }
 
     public function show(string $id): JsonResponse
@@ -387,6 +480,7 @@ class EstudianteController extends Controller
                         'ocupacion' => $cliente->ocupacion,
                         'direccion' => $cliente->direccion,
                         'estado_civil' => $cliente->estado_civil,
+                        'nivel_educativo' => $cliente->nivel_educativo,
                         'primera_matricula' => $primeraMatricula,
                         'ultima_matricula' => $ultimaMatricula,
                         'total_cursos' => $totalCursos,
@@ -436,6 +530,7 @@ class EstudianteController extends Controller
                         'ocupacion' => $inscripcionTaller->ocupacion ?? null,
                         'direccion' => $inscripcionTaller->direccion ?? null,
                         'estado_civil' => $inscripcionTaller->estado_civil ?? null,
+                        'nivel_educativo' => $inscripcionTaller->nivel_educativo ?? null,
                         'primera_matricula' => $inscripcionTaller->fecha_inscripcion ?? null,
                         'ultima_matricula' => $inscripcionTaller->fecha_inscripcion ?? null,
                         'total_cursos' => 1,
@@ -659,6 +754,7 @@ class EstudianteController extends Controller
                 'direccion' => $datos['direccion'] ?? null,
                 'estado_civil' => $datos['estado_civil'] ?? null,
                 'edad' => $datos['edad'] ?? null,
+                'nivel_educativo' => $datos['nivel_educativo'] ?? null,
             ]);
 
             return $persona->load(['ciudad', 'perfilEstudiante']);
@@ -686,6 +782,7 @@ class EstudianteController extends Controller
                 'direccion',
                 'estado_civil',
                 'edad',
+                'nivel_educativo',
             ]));
 
             $datosPersona = array_diff_key($datos, $datosPerfil);
@@ -2165,6 +2262,7 @@ class EstudianteController extends Controller
                     'direccion' => $p->direccion,
                     'ocupacion' => $p->ocupacion,
                     'estado_civil' => $p->estado_civil,
+                    'nivel_educativo' => $p->nivel_educativo,
                 ];
             });
 

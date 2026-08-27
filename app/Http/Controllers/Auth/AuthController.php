@@ -34,7 +34,11 @@ class AuthController extends Controller
 
         $cuenta->update(['last_login' => now()]);
 
-        $token = $cuenta->createToken('token-acceso');
+        $token = $cuenta->createToken(
+            'token-acceso',
+            ['*'],
+            now()->addMinutes((int) config('sanctum.expiration', 480))
+        );
 
         $this->audit('login_exitoso', [
             'username' => $credenciales['username'],

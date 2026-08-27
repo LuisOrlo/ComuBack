@@ -112,10 +112,7 @@ class FinanceController extends Controller
             });
         }
 
-        $cuentasQuery = $query->orderBy('created_at', 'desc');
-        if (!$search) {
-            $cuentasQuery->limit(2000);
-        }
+        $cuentasQuery = $query->orderBy('created_at', 'desc')->limit(2000);
         $cuentas = $cuentasQuery->get();
 
         // --- Matrículas con lineas_pago_modulo sin cuenta por cobrar ---
@@ -123,16 +120,18 @@ class FinanceController extends Controller
         $debeCursosSinCuenta = ! $origen || $origen === 'curso';
 
         if ($debeCursosSinCuenta) {
-            $idsConCuenta = CuentaPorCobrar::whereNotNull('matricula_id')->pluck('matricula_id')->toArray();
-
             $lineasAgrupadas = DB::table('finance.lineas_pago_modulo as lpm')
                 ->join('academic.matriculas as m', 'm.id', '=', 'lpm.matricula_id')
                 ->join('academic.cursos_abiertos as ca', 'ca.id', '=', 'm.curso_abierto_id')
                 ->join('people.personas as p', 'p.id', '=', 'm.estudiante_id')
                 ->whereNull('m.deleted_at')
                 ->whereNull('ca.deleted_at')
+                ->whereNotExists(function ($q) {
+                    $q->select(DB::raw(1))
+                        ->from('finance.cuentas_por_cobrar as cc')
+                        ->whereColumn('cc.matricula_id', 'm.id');
+                })
                 ->when($modalidad && in_array($modalidad, ['presencial', 'virtual']), fn($q) => $q->where('ca.modalidad', $modalidad))
-                ->when(! empty($idsConCuenta), fn($q) => $q->whereNotIn('m.id', $idsConCuenta))
                 ->when($search, fn($q) => $q->where(function($q) use ($search) {
                     $q->where('p.nombres', 'ilike', "%{$search}%")
                       ->orWhere('p.apellidos', 'ilike', "%{$search}%");
@@ -442,14 +441,18 @@ class FinanceController extends Controller
                 ->whereNotIn('id', $streamingIds)
                 ->whereIn('estado', ['reservado', 'confirmado', 'en_progreso'])
                 ->get();
+            $streamingPersonas = \App\Models\Persona::whereIn('id', $streamingSinCuenta->pluck('persona_id')->filter()->unique())
+                ->get()->keyBy('id');
+            $streamingClientes = \App\Models\ClienteExterno::whereIn('id', $streamingSinCuenta->pluck('cliente_externo_id')->filter()->unique())
+                ->get()->keyBy('id');
             foreach ($streamingSinCuenta as $r) {
                 $nombrePersona = '';
-                if ($r->persona_id) {
-                    $p = \App\Models\Persona::find($r->persona_id);
-                    $nombrePersona = $p ? trim(($p->nombres ?? '') . ' ' . ($p->apellidos ?? '')) : '';
-                } elseif ($r->cliente_externo_id) {
-                    $c = \App\Models\ClienteExterno::find($r->cliente_externo_id);
-                    $nombrePersona = $c ? trim(($c->nombres ?? '') . ' ' . ($c->apellidos ?? '')) : '';
+                if ($r->persona_id && isset($streamingPersonas[$r->persona_id])) {
+                    $p = $streamingPersonas[$r->persona_id];
+                    $nombrePersona = trim(($p->nombres ?? '') . ' ' . ($p->apellidos ?? ''));
+                } elseif ($r->cliente_externo_id && isset($streamingClientes[$r->cliente_externo_id])) {
+                    $c = $streamingClientes[$r->cliente_externo_id];
+                    $nombrePersona = trim(($c->nombres ?? '') . ' ' . ($c->apellidos ?? ''));
                 }
                 $serviciosItems[] = [
                     'id' => $r->id,
@@ -469,14 +472,18 @@ class FinanceController extends Controller
                 ->whereNotIn('id', $produccionIds)
                 ->whereIn('estado', ['reservado', 'confirmado', 'en_progreso'])
                 ->get();
+            $produccionPersonas = \App\Models\Persona::whereIn('id', $produccionSinCuenta->pluck('persona_id')->filter()->unique())
+                ->get()->keyBy('id');
+            $produccionClientes = \App\Models\ClienteExterno::whereIn('id', $produccionSinCuenta->pluck('cliente_externo_id')->filter()->unique())
+                ->get()->keyBy('id');
             foreach ($produccionSinCuenta as $r) {
                 $nombrePersona = '';
-                if ($r->persona_id) {
-                    $p = \App\Models\Persona::find($r->persona_id);
-                    $nombrePersona = $p ? trim(($p->nombres ?? '') . ' ' . ($p->apellidos ?? '')) : '';
-                } elseif ($r->cliente_externo_id) {
-                    $c = \App\Models\ClienteExterno::find($r->cliente_externo_id);
-                    $nombrePersona = $c ? trim(($c->nombres ?? '') . ' ' . ($c->apellidos ?? '')) : '';
+                if ($r->persona_id && isset($produccionPersonas[$r->persona_id])) {
+                    $p = $produccionPersonas[$r->persona_id];
+                    $nombrePersona = trim(($p->nombres ?? '') . ' ' . ($p->apellidos ?? ''));
+                } elseif ($r->cliente_externo_id && isset($produccionClientes[$r->cliente_externo_id])) {
+                    $c = $produccionClientes[$r->cliente_externo_id];
+                    $nombrePersona = trim(($c->nombres ?? '') . ' ' . ($c->apellidos ?? ''));
                 }
                 $serviciosItems[] = [
                     'id' => $r->id,
@@ -1973,30 +1980,7 @@ class FinanceController extends Controller
 
     public function getIngresos(Request $request): JsonResponse
     {
-        $query = TransaccionIngreso::with([
-            'cuentaPorCobrar.matricula.estudiante',
-            'cuentaPorCobrar.matricula.cursoAbierto.catalogo',
-            'cuentaPorCobrar.solicitudInscripcion.estudiante',
-            'cuentaPorCobrar.solicitudInscripcion.participanteExterno',
-            'cuentaPorCobrar.inscripcionTaller.taller',
-            'cuentaPorCobrar.reservaPodcast.persona',
-            'cuentaPorCobrar.reservaPodcast.clienteExterno',
-            'cuentaPorCobrar.reservaPodcast.paquete',
-            'cuentaPorCobrar.reservaAula.persona',
-            'cuentaPorCobrar.reservaAula.clienteExterno',
-            'cuentaPorCobrar.reservaAula.aula',
-            'cuentaPorCobrar.alquilerEquipo.persona',
-            'cuentaPorCobrar.alquilerEquipo.clienteExterno',
-            'cuentaPorCobrar.alquilerEquipo.equipo',
-            'cuentaPorCobrar.reservaRadio.persona',
-            'cuentaPorCobrar.reservaRadio.clienteExterno',
-            'cuentaPorCobrar.reservaRadio.tarifa',
-            'cuentaPorCobrar.edicionVideo.cliente',
-            'cuentaPorCobrar.edicionVideo.clienteExterno',
-            'lineaPagoModulo.modulo',
-            'lineaPagoModulo.matricula.estudiante',
-            'lineaPagoModulo.matricula.cursoAbierto.catalogo',
-        ]);
+        $query = TransaccionIngreso::query();
 
         if ($desde = $request->get('fecha_desde')) {
             $query->where('fecha_pago', '>=', $desde);
@@ -2097,18 +2081,186 @@ class FinanceController extends Controller
             ->groupBy('mes')->orderBy('mes')->limit(12)
             ->get()->map(fn($r) => ['mes' => $r->mes, 'total' => (float) $r->total]);
 
-        $orderBy = $request->get('order_by', 'fecha_pago');
-        $orderDir = $request->get('order_dir', 'desc');
-        $allowed = ['fecha_pago' => 'fecha_pago', 'monto' => 'monto', 'categoria' => 'fecha_pago'];
-        $sortCol = $allowed[$orderBy] ?? 'fecha_pago';
-        $sortDir = $orderDir === 'asc' ? 'asc' : 'desc';
+        $perPage = (int) $request->get('per_page', 25);
+        $page = max((int) $request->get('page', 1), 1);
 
-        // ── Fetch all ingresos + egresos, merge, sort, paginate ──────────────
-        $ingresoModels = $query->orderBy($sortCol, $sortDir)->orderBy('id', $sortDir)->get();
-        $egresoModels = $egresoQuery->orderBy('fecha_pago', $sortDir)->orderBy('id', $sortDir)->get();
+        // ── Paginación real: UNION liviano de ids + LIMIT/OFFSET en BD ────────
+        $ingresoIdsQuery = TransaccionIngreso::query()
+            ->selectRaw("id, 'ingreso' as tipo_movimiento, fecha_pago");
 
-        $mapIngreso = function ($t) {
-            $cp = $t->cuentaPorCobrar;
+        if ($desde) {
+            $ingresoIdsQuery->where('fecha_pago', '>=', $desde);
+        }
+        if ($hasta) {
+            $ingresoIdsQuery->where('fecha_pago', '<=', $hasta . ' 23:59:59');
+        }
+        if ($metodo) {
+            $ingresoIdsQuery->where('metodo_pago', $metodo);
+        }
+        if ($categoriaFilter) {
+            if ($categoriaFilter === 'cursos') {
+                $ingresoIdsQuery->where(function ($q) {
+                    $q->whereHas('cuentaPorCobrar', fn($sq) => $sq->whereNotNull('matricula_id'))
+                      ->orWhereNotNull('linea_pago_modulo_id');
+                });
+            } elseif ($categoriaFilter === 'talleres') {
+                $ingresoIdsQuery->whereHas('cuentaPorCobrar', fn($q) => $q->whereNotNull('inscripcion_taller_id'));
+            } else {
+                $fkMap = [
+                    'aulas' => 'reserva_aula_id', 'podcast' => 'reserva_podcast_id',
+                    'radio' => 'reserva_radio_id', 'edicion' => 'edicion_video_id',
+                    'equipos' => 'alquiler_equipo_id', 'streaming' => 'servicio_streaming_id',
+                    'produccion' => 'servicio_produccion_id', 'asesorias' => 'clase_extra_id',
+                ];
+                if (isset($fkMap[$categoriaFilter])) {
+                    $ingresoIdsQuery->whereHas('cuentaPorCobrar', fn($q) => $q->whereNotNull($fkMap[$categoriaFilter]));
+                }
+            }
+        }
+        if ($search) {
+            $ingresoIdsQuery->where(function ($q) use ($search) {
+                $q->whereHas('cuentaPorCobrar.matricula.estudiante', fn($sq) =>
+                    $sq->where('nombres', 'ilike', "%{$search}%")->orWhere('apellidos', 'ilike', "%{$search}%"))
+                  ->orWhereHas('cuentaPorCobrar.reservaPodcast.persona', fn($sq) =>
+                    $sq->where('nombres', 'ilike', "%{$search}%")->orWhere('apellidos', 'ilike', "%{$search}%"))
+                  ->orWhereHas('cuentaPorCobrar.reservaAula.persona', fn($sq) =>
+                    $sq->where('nombres', 'ilike', "%{$search}%")->orWhere('apellidos', 'ilike', "%{$search}%"))
+                  ->orWhereHas('cuentaPorCobrar.reservaRadio.persona', fn($sq) =>
+                    $sq->where('nombres', 'ilike', "%{$search}%")->orWhere('apellidos', 'ilike', "%{$search}%"))
+                  ->orWhereHas('cuentaPorCobrar.reservaRadio.clienteExterno', fn($sq) =>
+                    $sq->where('nombres', 'ilike', "%{$search}%")->orWhere('apellidos', 'ilike', "%{$search}%"))
+                  ->orWhereHas('cuentaPorCobrar.edicionVideo.cliente', fn($sq) =>
+                    $sq->where('nombres', 'ilike', "%{$search}%")->orWhere('apellidos', 'ilike', "%{$search}%"))
+                  ->orWhereHas('cuentaPorCobrar.edicionVideo.clienteExterno', fn($sq) =>
+                    $sq->where('nombres', 'ilike', "%{$search}%")->orWhere('apellidos', 'ilike', "%{$search}%"))
+                  ->orWhereHas('cuentaPorCobrar.alquilerEquipo.clienteExterno', fn($sq) =>
+                    $sq->where('nombres', 'ilike', "%{$search}%")->orWhere('apellidos', 'ilike', "%{$search}%"))
+                  ->orWhereHas('cuentaPorCobrar.inscripcionTaller', fn($sq) =>
+                    $sq->where('nombres', 'ilike', "%{$search}%")
+                       ->orWhere('apellidos', 'ilike', "%{$search}%")
+                       ->orWhere('cedula', 'ilike', "%{$search}%"));
+            });
+        }
+
+        $egresoIdsQuery = TransaccionEgreso::query()
+            ->selectRaw("id, 'egreso' as tipo_movimiento, fecha_pago")
+            ->when($desde, fn($q) => $q->where('fecha_pago', '>=', $desde))
+            ->when($hasta, fn($q) => $q->where('fecha_pago', '<=', $hasta . ' 23:59:59'))
+            ->when($metodo, fn($q) => $q->where('metodo_pago', $metodo));
+
+        if ($search) {
+            $egresoIdsQuery->where(function ($q) use ($search) {
+                $q->where('descripcion', 'ilike', "%{$search}%")
+                  ->orWhere('proveedor_beneficiario', 'ilike', "%{$search}%");
+            });
+        }
+
+        $totalAll = $ingresoIdsQuery->count() + $egresoIdsQuery->count();
+
+        $unionIds = $ingresoIdsQuery->unionAll($egresoIdsQuery)
+            ->orderBy('fecha_pago', 'desc')
+            ->orderBy('id', 'desc')
+            ->offset(($page - 1) * $perPage)
+            ->limit($perPage)
+            ->get();
+
+        $ingresoIdsOnPage = $unionIds->where('tipo_movimiento', 'ingreso')->pluck('id');
+        $egresoIdsOnPage = $unionIds->where('tipo_movimiento', 'egreso')->pluck('id');
+
+        $ingresos = collect();
+        if ($ingresoIdsOnPage->isNotEmpty()) {
+            $ingresos = TransaccionIngreso::with([
+                'cuentaPorCobrar.matricula.estudiante',
+                'cuentaPorCobrar.matricula.cursoAbierto.catalogo',
+                'cuentaPorCobrar.solicitudInscripcion.estudiante',
+                'cuentaPorCobrar.solicitudInscripcion.participanteExterno',
+                'cuentaPorCobrar.inscripcionTaller.taller',
+                'cuentaPorCobrar.reservaPodcast.persona',
+                'cuentaPorCobrar.reservaPodcast.clienteExterno',
+                'cuentaPorCobrar.reservaPodcast.paquete',
+                'cuentaPorCobrar.reservaAula.persona',
+                'cuentaPorCobrar.reservaAula.clienteExterno',
+                'cuentaPorCobrar.reservaAula.aula',
+                'cuentaPorCobrar.alquilerEquipo.persona',
+                'cuentaPorCobrar.alquilerEquipo.clienteExterno',
+                'cuentaPorCobrar.alquilerEquipo.equipo',
+                'cuentaPorCobrar.reservaRadio.persona',
+                'cuentaPorCobrar.reservaRadio.clienteExterno',
+                'cuentaPorCobrar.reservaRadio.tarifa',
+                'cuentaPorCobrar.edicionVideo.cliente',
+                'cuentaPorCobrar.edicionVideo.clienteExterno',
+                'lineaPagoModulo.modulo',
+                'lineaPagoModulo.matricula.estudiante',
+                'lineaPagoModulo.matricula.cursoAbierto.catalogo',
+            ])->whereIn('id', $ingresoIdsOnPage)
+              ->orderBy('fecha_pago', 'desc')
+              ->get()
+              ->keyBy(fn($i) => "i_{$i->id}");
+        }
+
+        $egresos = collect();
+        if ($egresoIdsOnPage->isNotEmpty()) {
+            $egresos = TransaccionEgreso::with(['registrador'])
+                ->whereIn('id', $egresoIdsOnPage)
+                ->orderBy('fecha_pago', 'desc')
+                ->get()
+                ->keyBy(fn($e) => "e_{$e->id}");
+        }
+
+        // ── Agrupar pagos de módulos por referencia (una aprobación = un pago) ──
+        $grupoRefs = $ingresos->filter(fn($m) => $m->referencia_pago && $m->linea_pago_modulo_id)
+            ->map(fn($m) => preg_replace('/-insc$/', '', $m->referencia_pago))
+            ->unique()
+            ->values();
+
+        $grupos = collect();
+        if ($grupoRefs->isNotEmpty()) {
+            $grupos = TransaccionIngreso::with([
+                'lineaPagoModulo.modulo',
+                'lineaPagoModulo.matricula.estudiante',
+                'lineaPagoModulo.matricula.solicitudInscripcion.estudiante',
+                'lineaPagoModulo.matricula.solicitudInscripcion.participanteExterno',
+                'lineaPagoModulo.matricula.cursoAbierto.catalogo',
+            ])
+                ->whereNotNull('referencia_pago')
+                ->whereNotNull('linea_pago_modulo_id')
+                ->where(function ($q) use ($grupoRefs) {
+                    foreach ($grupoRefs as $ref) {
+                        $q->orWhere('referencia_pago', $ref)
+                          ->orWhere('referencia_pago', $ref . '-insc');
+                    }
+                })
+                ->orderBy('fecha_pago', 'desc')
+                ->orderBy('id', 'desc')
+                ->get()
+                ->groupBy(fn($m) => preg_replace('/-insc$/', '', $m->referencia_pago));
+        }
+
+        $mapIngreso = function ($t) use ($grupos) {
+            $grupoKey = ($t->referencia_pago && $t->linea_pago_modulo_id)
+                ? preg_replace('/-insc$/', '', $t->referencia_pago)
+                : null;
+
+            $rep = $t;
+            $monto = (float) $t->monto;
+            $modulosCount = 0;
+            $modulosDetalle = [];
+
+            if ($grupoKey && $grupos->has($grupoKey)) {
+                $grupo = $grupos->get($grupoKey);
+                $rep = $grupo->sortBy(fn($x) => [$x->created_at?->format('Y-m-d H:i:s.u') ?? '', $x->id])
+                    ->first() ?? $t;
+                $monto = round((float) $grupo->sum('monto'), 2);
+                $modulosDetalle = $grupo->filter(fn($x) => $x->lineaPagoModulo?->modulo?->nombre_modulo)
+                    ->map(fn($x) => [
+                        'id' => $x->id,
+                        'modulo_nombre' => $x->lineaPagoModulo->modulo->nombre_modulo,
+                        'monto' => (float) $x->monto,
+                    ])->values();
+                $modulosCount = $modulosDetalle->count();
+            }
+
+            $cp = $rep->cuentaPorCobrar;
             $cat = 'Otros';
             if ($cp) {
                 if ($cp->matricula_id) $cat = 'Cursos';
@@ -2121,7 +2273,7 @@ class FinanceController extends Controller
                 elseif ($cp->servicio_streaming_id) $cat = 'Streaming';
                 elseif ($cp->servicio_produccion_id) $cat = 'Producción Audiovisual';
                 elseif ($cp->clase_extra_id) $cat = 'Asesorías';
-            } elseif ($t->linea_pago_modulo_id) {
+            } elseif ($rep->linea_pago_modulo_id) {
                 $cat = 'Cursos';
             }
 
@@ -2139,7 +2291,7 @@ class FinanceController extends Controller
                 ?? $cp?->reservaRadio?->clienteExterno
                 ?? $cp?->edicionVideo?->cliente
                 ?? $cp?->edicionVideo?->clienteExterno
-                ?? $t->lineaPagoModulo?->matricula?->estudiante;
+                ?? $rep->lineaPagoModulo?->matricula?->estudiante;
 
             $concepto = $cp?->matricula?->cursoAbierto?->catalogo?->nombre
                 ?? $cp?->matricula?->cursoAbierto?->nombre_instancia
@@ -2150,55 +2302,30 @@ class FinanceController extends Controller
                 ?? $cp?->alquilerEquipo?->equipo?->nombre
                 ?? $cp?->reservaRadio?->tarifa?->nombre
                 ?? $cp?->edicionVideo?->titulo
-                ?? $t->lineaPagoModulo?->matricula?->cursoAbierto?->catalogo?->nombre;
+                ?? $rep->lineaPagoModulo?->matricula?->cursoAbierto?->catalogo?->nombre;
 
-            return [
-                'id' => $t->id,
+            $item = [
+                'id' => $rep->id,
                 'tipo_movimiento' => 'ingreso',
-                'fecha_pago' => $t->fecha_pago?->format('Y-m-d'),
+                'fecha_pago' => $rep->fecha_pago?->format('Y-m-d'),
                 'concepto' => $concepto,
                 'estudiante_nombre' => $estudiante ? trim(($estudiante->nombres ?? '') . ' ' . ($estudiante->apellidos ?? '')) : null,
                 'categoria' => $cat,
-                'monto' => (float) $t->monto,
-                'metodo_pago' => $t->metodo_pago,
-                'comprobante_url' => $t->comprobante_url,
-                'estado_verificacion' => $t->estado_verificacion,
+                'monto' => $monto,
+                'metodo_pago' => $rep->metodo_pago,
+                'comprobante_url' => $rep->comprobante_url,
+                'estado_verificacion' => $rep->estado_verificacion,
             ];
+
+            if ($grupoKey && $grupos->has($grupoKey)) {
+                $item['modulos_count'] = $modulosCount;
+                $item['modulos_detalle'] = $modulosDetalle;
+            }
+
+            return $item;
         };
 
-        // Agrupar pagos de módulos de una misma aprobación (misma referencia_pago,
-        // incluyendo la inscripción `-insc`) en un solo pago mostrado.
-        $ingresoMapped = collect();
-        $ingresoModels->groupBy(function ($t) {
-            if (! $t->referencia_pago || ! $t->linea_pago_modulo_id) {
-                return 's:' . $t->id;
-            }
-            return 'g:' . preg_replace('/-insc$/', '', $t->referencia_pago);
-        })->each(function ($grp, $key) use (&$ingresoMapped, $mapIngreso) {
-            if (str_starts_with($key, 's:')) {
-                $ingresoMapped->push($mapIngreso($grp->first()));
-                return;
-            }
-
-            $rep = $grp->sortBy(fn($x) => [$x->created_at?->format('Y-m-d H:i:s.u') ?? '', $x->id])
-                ->first() ?? $grp->first();
-            $detalle = $grp->filter(fn($x) => $x->lineaPagoModulo?->modulo?->nombre_modulo)
-                ->map(fn($x) => [
-                    'id' => $x->id,
-                    'modulo_nombre' => $x->lineaPagoModulo->modulo->nombre_modulo,
-                    'monto' => (float) $x->monto,
-                ])
-                ->values();
-
-            $item = $mapIngreso($rep);
-            $item['monto'] = round((float) $grp->sum('monto'), 2);
-            $item['modulos_count'] = $detalle->count();
-            $item['modulos_detalle'] = $detalle;
-
-            $ingresoMapped->push($item);
-        });
-
-        $egresoMapped = $egresoModels->map(function ($e) {
+        $mapEgreso = function ($e) {
             return [
                 'id' => $e->id,
                 'tipo_movimiento' => 'egreso',
@@ -2211,33 +2338,61 @@ class FinanceController extends Controller
                 'comprobante_url' => $e->comprobante_url,
                 'estado_verificacion' => 'aprobado',
             ];
-        });
+        };
 
-        $allItems = $ingresoMapped->concat($egresoMapped)
-            ->sortByDesc(fn($i) => $i['fecha_pago'] ?? '')
+        $pageKeys = $unionIds->map(fn($item) => $item->tipo_movimiento === 'ingreso' ? "i_{$item->id}" : "e_{$item->id}");
+
+        $data = $pageKeys->map(function ($key) use ($ingresos, $egresos, $mapIngreso, $mapEgreso, $grupos) {
+            if (str_starts_with($key, 'e_')) {
+                $m = $egresos[$key] ?? null;
+                return $m ? $mapEgreso($m) : null;
+            }
+
+            $m = $ingresos[$key] ?? null;
+            if (! $m) return null;
+
+            $grupoKey = ($m->referencia_pago && $m->linea_pago_modulo_id)
+                ? preg_replace('/-insc$/', '', $m->referencia_pago)
+                : null;
+            if ($grupoKey && $grupos->has($grupoKey)) {
+                $rep = $grupos->get($grupoKey)
+                    ->sortBy(fn($x) => [$x->created_at?->format('Y-m-d H:i:s.u') ?? '', $x->id])
+                    ->first();
+                if (! $rep || $rep->id !== $m->id) {
+                    return null;
+                }
+            }
+
+            return $mapIngreso($m);
+        })->filter()->values();
+
+        $lastPage = max(1, (int) ceil($totalAll / $perPage));
+
+        $graficoCategorias = (clone $query)
+            ->leftJoin('finance.cuentas_por_cobrar as cp', 'cp.id', '=', 'finance.transacciones_ingreso.cuenta_cobrar_id')
+            ->selectRaw("
+                CASE
+                    WHEN cp.matricula_id IS NOT NULL OR finance.transacciones_ingreso.linea_pago_modulo_id IS NOT NULL THEN 'Cursos'
+                    WHEN cp.inscripcion_taller_id IS NOT NULL THEN 'Talleres'
+                    WHEN cp.reserva_podcast_id IS NOT NULL THEN 'Podcast'
+                    WHEN cp.reserva_aula_id IS NOT NULL THEN 'Aulas'
+                    WHEN cp.reserva_radio_id IS NOT NULL THEN 'Radio'
+                    WHEN cp.edicion_video_id IS NOT NULL THEN 'Edición'
+                    WHEN cp.alquiler_equipo_id IS NOT NULL THEN 'Equipos'
+                    WHEN cp.servicio_streaming_id IS NOT NULL THEN 'Streaming'
+                    WHEN cp.servicio_produccion_id IS NOT NULL THEN 'Producción'
+                    ELSE 'Otros'
+                END AS categoria,
+                SUM(finance.transacciones_ingreso.monto) AS total
+            ")
+            ->groupBy('categoria')
+            ->orderByDesc('total')
+            ->orderByDesc(DB::raw('MAX(finance.transacciones_ingreso.fecha_pago)'))
+            ->orderByDesc(DB::raw('MAX(finance.transacciones_ingreso.id::text)'))
+            ->limit(8)
+            ->get()
+            ->map(fn($r) => ['name' => $r->categoria, 'value' => (float) $r->total])
             ->values();
-
-        $perPage = (int) $request->get('per_page', 25);
-        $page = (int) $request->get('page', 1);
-        $offset = ($page - 1) * $perPage;
-        $data = $allItems->slice($offset, $perPage);
-        $totalAll = $allItems->count();
-        $lastPage = (int) ceil($totalAll / $perPage);
-
-        $graficoCategorias = (clone $query)->get()->groupBy(function ($t) {
-            $cp = $t->cuentaPorCobrar;
-            if ($cp?->matricula_id || $t->linea_pago_modulo_id) return 'Cursos';
-            if ($cp?->inscripcion_taller_id) return 'Talleres';
-            if ($cp?->reserva_podcast_id) return 'Podcast';
-            if ($cp?->reserva_aula_id) return 'Aulas';
-            if ($cp?->reserva_radio_id) return 'Radio';
-            if ($cp?->edicion_video_id) return 'Edición';
-            if ($cp?->alquiler_equipo_id) return 'Equipos';
-            if ($cp?->servicio_streaming_id) return 'Streaming';
-            if ($cp?->servicio_produccion_id) return 'Producción';
-            return 'Otros';
-        })->map(fn($g, $k) => ['name' => $k, 'value' => (float) $g->sum('monto')])
-          ->sortByDesc('value')->take(8)->values();
 
         $previoInicio = date('Y-m-d', strtotime(($desde ?: now()->startOfMonth()->format('Y-m-d')) . ' -1 month'));
         $previoFin = date('Y-m-d', strtotime(($hasta ?: now()->endOfMonth()->format('Y-m-d')) . ' -1 month'));
@@ -2262,16 +2417,21 @@ class FinanceController extends Controller
             ->groupBy('metodo_pago')->get()
             ->map(fn($r) => ['name' => $r->metodo_pago, 'value' => (float) $r->total])->values();
 
-        $estTop = TransaccionIngreso::whereHas('cuentaPorCobrar')
-            ->when($desde, fn($q) => $q->where('fecha_pago', '>=', $desde))
-            ->when($hasta, fn($q) => $q->where('fecha_pago', '<=', $hasta . ' 23:59:59'))
-            ->get()->groupBy(function ($t) {
-                $cp = $t->cuentaPorCobrar;
-                return $cp?->matricula?->estudiante_id ?? $cp?->reservaPodcast?->persona_id ?? 'otro';
-            })->map(fn($g) => [
-                'total' => (float) $g->sum('monto'),
-                'nombre' => '—',
-            ])->sortByDesc('total')->take(5)->values();
+        $estTop = DB::table('finance.transacciones_ingreso as t')
+            ->join('finance.cuentas_por_cobrar as cp', 'cp.id', '=', 't.cuenta_cobrar_id')
+            ->leftJoin('academic.matriculas as m', function ($j) {
+                $j->on('m.id', '=', 'cp.matricula_id')->whereNull('m.deleted_at');
+            })
+            ->leftJoin('services.reservas_podcast as rp', 'rp.id', '=', 'cp.reserva_podcast_id')
+            ->when($desde, fn($q) => $q->where('t.fecha_pago', '>=', $desde))
+            ->when($hasta, fn($q) => $q->where('t.fecha_pago', '<=', $hasta . ' 23:59:59'))
+            ->selectRaw("COALESCE(m.estudiante_id::text, rp.persona_id::text, 'otro') AS persona_key, SUM(t.monto) AS total")
+            ->groupBy('persona_key')
+            ->orderByDesc('total')
+            ->limit(5)
+            ->get()
+            ->map(fn($r) => ['total' => (float) $r->total, 'nombre' => '—'])
+            ->values();
 
         $analytics = [
             'metodo_top' => TransaccionIngreso::selectRaw("metodo_pago, COUNT(*) as cnt")

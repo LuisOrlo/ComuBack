@@ -248,10 +248,16 @@ class CursoAbierto extends Model
      */
     public function scopeBuscar($query, $termino)
     {
-        return $query->where('nombre_instancia', 'ilike', "%{$termino}%")
-                     ->orWhereHas('catalogo', function ($q) use ($termino) {
-                         $q->where('nombre', 'ilike', "%{$termino}%");
-                     });
+        return $query->where(function ($sub) use ($termino) {
+            $sub->where('nombre_instancia', 'ilike', "%{$termino}%")
+                ->orWhereHas('catalogo', function ($q) use ($termino) {
+                    $q->where('nombre', 'ilike', "%{$termino}%");
+                })
+                ->orWhereHas('docente', function ($q) use ($termino) {
+                    $q->where('nombres', 'ilike', "%{$termino}%")
+                      ->orWhere('apellidos', 'ilike', "%{$termino}%");
+                });
+        });
     }
 
     // ========================================================================

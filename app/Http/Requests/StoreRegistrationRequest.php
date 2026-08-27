@@ -53,6 +53,7 @@ class StoreRegistrationRequest extends FormRequest
             'ciudad' => 'nullable|string|max:100',
             'estado_civil' => 'nullable|string|max:20',
             'edad' => 'nullable|integer|min:0|max:150',
+            'nivel_educativo' => 'nullable|string|in:educacion inicial,general basica,bachillerato,tecnico/tecnologico,superior,otro',
             
             // Curso y pago
             'curso_abierto_id' => 'required|uuid|exists:cursos_abiertos,id',
@@ -100,6 +101,7 @@ class StoreRegistrationRequest extends FormRequest
             'edad.integer' => 'La edad debe ser un número entero',
             'edad.min' => 'La edad debe ser un valor positivo',
             'edad.max' => 'La edad ingresada no es válida',
+            'nivel_educativo.in' => 'El nivel educativo seleccionado no es válido',
             'curso_abierto_id.required' => 'Debe seleccionar un curso',
             'curso_abierto_id.uuid' => 'El ID del curso no es válido',
             'curso_abierto_id.exists' => 'El curso seleccionado no existe',

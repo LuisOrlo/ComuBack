@@ -31,6 +31,7 @@ class ClienteExterno extends Model
         'direccion',
         'estado_civil',
         'edad',
+        'nivel_educativo',
         'es_cliente',
     ];
 

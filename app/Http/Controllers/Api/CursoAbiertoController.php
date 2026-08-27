@@ -30,49 +30,92 @@ class CursoAbiertoController extends Controller
         ])
             ->withCount(['matriculas as total_matriculas']);
 
-        if ($request->has('catalogo_curso_id')) {
+        if ($request->filled('catalogo_curso_id')) {
             $query->where('catalogo_curso_id', $request->catalogo_curso_id);
         }
 
-        if ($request->has('semestre')) {
+        if ($request->filled('semestre')) {
             $query->where('semestre', $request->semestre);
         }
 
-        if ($request->has('docente_id')) {
+        if ($request->filled('docente_id')) {
             $query->where('docente_id', $request->docente_id);
         }
 
-        if ($request->has('vigentes') && $request->vigentes == 'true') {
+        if ($request->filled('vigentes') && $request->vigentes == 'true') {
             $query->vigentes();
         }
 
-        if ($request->has('dias_desde_inicio') && is_numeric($request->dias_desde_inicio)) {
+        if ($request->filled('dias_desde_inicio') && is_numeric($request->dias_desde_inicio)) {
             $dias = max(0, (int) $request->dias_desde_inicio);
             $query->where('fecha_inicio', '>', now()->subDays($dias));
-        } elseif ($request->has('no_iniciados') && $request->no_iniciados == 'true') {
+        } elseif ($request->filled('no_iniciados') && $request->no_iniciados == 'true') {
             $query->where('fecha_inicio', '>', now());
         }
 
-        if ($request->has('modalidad')) {
+        if ($request->filled('modalidad')) {
             $query->where('modalidad', $request->modalidad);
         }
 
-        if ($request->has('categoria')) {
+        if ($request->filled('estado')) {
+            $estado = $request->estado;
+            if ($estado === 'en_progreso') {
+                $query->where(function ($q) {
+                    $q->where('estado', 'en_progreso')
+                      ->orWhere(function ($q2) {
+                          $q2->where('fecha_inicio', '<=', now())
+                             ->where(function ($q3) {
+                                 $q3->where('fecha_fin', '>=', now())
+                                    ->orWhereNull('fecha_fin');
+                             });
+                      });
+                });
+            } elseif ($estado === 'completado') {
+                $query->where(function ($q) {
+                    $q->where('estado', 'completado')
+                      ->orWhere('fecha_fin', '<', now());
+                });
+            } elseif ($estado === 'pendiente') {
+                $query->where(function ($q) {
+                    $q->where('estado', 'pendiente')
+                      ->where(function ($q2) {
+                          $q2->where('fecha_inicio', '>', now())
+                             ->orWhereNull('fecha_inicio');
+                      });
+                });
+            } else {
+                $query->where('estado', $estado);
+            }
+        }
+
+        if ($request->filled('categoria')) {
             $query->whereHas('catalogo', fn($q) => $q->where('categoria', $request->categoria));
         }
 
-        if ($request->has('ciudad_id')) {
+        if ($request->filled('ciudad_id')) {
             $query->where('ciudad_id', $request->ciudad_id);
         }
 
-        if ($request->has('activos') && $request->activos == 'true') {
+        if ($request->filled('ciudad')) {
+            $ciudadVal = $request->ciudad;
+            $query->where(function ($q) use ($ciudadVal) {
+                $q->whereHas('ciudad', fn($q2) => $q2->where('nombre', 'ilike', "%{$ciudadVal}%"));
+                if (is_numeric($ciudadVal)) {
+                    $q->orWhere('ciudad_id', (int) $ciudadVal);
+                }
+            });
+        }
+
+        if ($request->filled('activos') && $request->activos == 'true') {
             $query->activos();
         }
 
         $search = $request->get('buscar') ?? $request->get('search');
-        if ($search) {
+        if (!empty($search)) {
             $query->buscar($search);
         }
+
+        $query->orderBy('created_at', 'desc');
 
         $perPage = $request->get('per_page', 15);
         $cursos = $query->paginate($perPage);

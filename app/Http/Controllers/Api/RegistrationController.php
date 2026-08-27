@@ -61,21 +61,28 @@ class RegistrationController extends Controller
         $esParticipanteExterno = false;
 
         if (empty($personaId)) {
-            // Es participante externo - crear o buscar
-            $participanteExterno = ClienteExterno::firstOrCreate(
-                ['correo' => $validated['correo']],
-                [
-                    'nombres' => $validated['nombres'],
-                    'apellidos' => $validated['apellidos'],
-                    'cedula' => $validated['cedula'] ?? null,
-                    'celular' => $validated['celular'] ?? null,
-                    'ocupacion' => $validated['ocupacion'] ?? null,
-                    'direccion' => $validated['direccion'] ?? null,
-                    'ciudad' => $validated['ciudad'] ?? null,
-                    'estado_civil' => $validated['estado_civil'] ?? null,
-                    'edad' => $validated['edad'] ?? null,
-                ]
-            );
+            // Es participante externo - crear o actualizar sus datos personales
+            $datosExterno = [
+                'nombres' => $validated['nombres'],
+                'apellidos' => $validated['apellidos'],
+                'cedula' => $validated['cedula'] ?? null,
+                'celular' => $validated['celular'] ?? null,
+                'ocupacion' => $validated['ocupacion'] ?? null,
+                'direccion' => $validated['direccion'] ?? null,
+                'ciudad' => $validated['ciudad'] ?? null,
+                'estado_civil' => $validated['estado_civil'] ?? null,
+                'edad' => $validated['edad'] ?? null,
+                'nivel_educativo' => $validated['nivel_educativo'] ?? null,
+            ];
+
+            $participanteExterno = ClienteExterno::where('correo', $validated['correo'])->first();
+
+            if ($participanteExterno) {
+                $participanteExterno->update(array_filter($datosExterno, fn ($v) => $v !== null));
+            } else {
+                $participanteExterno = ClienteExterno::create($datosExterno);
+            }
+
             $participanteExternoId = $participanteExterno->id;
             $esParticipanteExterno = true;
         }
@@ -148,6 +155,7 @@ class RegistrationController extends Controller
                 'direccion' => $validated['direccion'] ?? $perfil->direccion,
                 'ciudad' => $validated['ciudad'] ?? $perfil->ciudad,
                 'estado_civil' => $validated['estado_civil'] ?? $perfil->estado_civil,
+                'nivel_educativo' => $validated['nivel_educativo'] ?? $perfil->nivel_educativo,
             ])->save();
         }
 

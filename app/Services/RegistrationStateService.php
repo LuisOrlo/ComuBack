@@ -350,7 +350,7 @@ class RegistrationStateService
                         'celular' => $persona->celular ?? $externo->celular,
                         'ciudad' => $persona->ciudad ?? $externo->ciudad,
                     ]);
-                    \App\Models\PerfilEstudiante::firstOrCreate(
+                    \App\Models\PerfilEstudiante::updateOrCreate(
                         ['persona_id' => $persona->id],
                         [
                             'direccion' => $externo->direccion,
@@ -358,6 +358,7 @@ class RegistrationStateService
                             'estado_civil' => $externo->estado_civil,
                             'edad' => $externo->edad,
                             'ciudad' => $externo->ciudad,
+                            'nivel_educativo' => $externo->nivel_educativo,
                         ]
                     );
                     $estudianteId = $persona->id;

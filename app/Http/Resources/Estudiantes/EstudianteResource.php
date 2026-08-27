@@ -68,6 +68,7 @@ class EstudianteResource extends JsonResource
                     'ciudad' => $this->perfilEstudiante->ciudad,
                     'estado_civil' => $this->perfilEstudiante->estado_civil,
                     'edad' => $this->perfilEstudiante->edad,
+                    'nivel_educativo' => $this->perfilEstudiante->nivel_educativo,
                 ];
             }),
             'creado_en' => $this->created_at->toIso8601String(),

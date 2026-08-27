@@ -34,7 +34,7 @@ class StaffRegistrationController extends Controller
     {
         $query = SolicitudInscripcion::with([
             'estudiante:id,nombres,apellidos,correo',
-            'participanteExterno:id,nombres,apellidos,correo,celular,cedula,ocupacion,direccion,ciudad,estado_civil,edad',
+            'participanteExterno:id,nombres,apellidos,correo,celular,cedula,ocupacion,direccion,ciudad,estado_civil,edad,nivel_educativo',
             'cursoAbierto:id,catalogo_curso_id,precio_base,capacidad_maxima,estudiantes_inscritos',
             'cursoAbierto.catalogo:id,nombre,categoria',
         ]);
@@ -94,7 +94,7 @@ class StaffRegistrationController extends Controller
     {
         $solicitud = SolicitudInscripcion::with([
             'estudiante:id,nombres,apellidos,cedula,correo,celular',
-            'participanteExterno:id,nombres,apellidos,correo,celular,cedula,ocupacion,direccion,ciudad,estado_civil,edad',
+            'participanteExterno:id,nombres,apellidos,correo,celular,cedula,ocupacion,direccion,ciudad,estado_civil,edad,nivel_educativo',
             'cursoAbierto:id,catalogo_curso_id,nombre_instancia,precio_base,capacidad_maxima,estudiantes_inscritos,fecha_inicio,fecha_fin,modalidad,docente_id,ciudad_id,horario_id',
             'cursoAbierto.catalogo:id,nombre,descripcion,categoria,color',
             'cursoAbierto.docente:id,nombres,apellidos',
@@ -360,6 +360,7 @@ class StaffRegistrationController extends Controller
                         $solicitud->estudiante?->perfilEstudiante?->only([
                             'ocupacion', 'direccion',
                             'ciudad', 'estado_civil', 'edad',
+                            'nivel_educativo',
                         ]) ?? [],
                     )
                     : $solicitud->participanteExterno?->toArray() ?? [],
@@ -505,6 +506,7 @@ class StaffRegistrationController extends Controller
             'ciudad' => 'nullable|string|max:100',
             'estado_civil' => 'nullable|string|max:20',
             'edad' => 'nullable|integer|min:0|max:150',
+            'nivel_educativo' => 'nullable|string|in:educacion inicial,general basica,bachillerato,tecnico/tecnologico,superior,otro',
         ]);
 
         try {
@@ -529,6 +531,7 @@ class StaffRegistrationController extends Controller
                     'ciudad' => $validated['ciudad'] ?? null,
                     'estado_civil' => $validated['estado_civil'] ?? null,
                     'edad' => $validated['edad'] ?? null,
+                    'nivel_educativo' => $validated['nivel_educativo'] ?? null,
                 ], fn($v) => $v !== null);
 
                 if (!empty($perfilUpdate) && $solicitud->estudiante->perfilEstudiante) {
@@ -547,6 +550,7 @@ class StaffRegistrationController extends Controller
                     'ciudad' => $validated['ciudad'] ?? null,
                     'estado_civil' => $validated['estado_civil'] ?? null,
                     'edad' => $validated['edad'] ?? null,
+                    'nivel_educativo' => $validated['nivel_educativo'] ?? null,
                 ], fn($v) => $v !== null);
 
                 if (!empty($dataUpdate)) {

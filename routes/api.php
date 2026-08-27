@@ -631,6 +631,7 @@ Route::prefix('reports')->group(function () {
     // PORTAL DEL INSTRUCTOR
     // ========================================================================
     Route::middleware(['auth:sanctum', 'role:Administrador|Instructor|Secretaria'])->prefix('instructor')->group(function () {
+        Route::get('dashboard', [InstructorPortalController::class, 'dashboard'])->name('instructor.dashboard');
         Route::get('mis-cursos', [InstructorPortalController::class, 'misCursos'])->name('instructor.mis-cursos');
         Route::get('cursos/{id}', [InstructorPortalController::class, 'detalleCurso'])->name('instructor.detalle-curso');
         Route::get('cursos/{id}/estudiantes', [InstructorPortalController::class, 'estudiantesCurso'])->name('instructor.estudiantes-curso');

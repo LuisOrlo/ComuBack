@@ -29,6 +29,7 @@ class EstudianteUpdateRequest extends FormRequest
             'direccion' => ['nullable', 'string', 'max:1000'],
             'estado_civil' => ['nullable', 'string', 'max:20'],
             'edad' => ['nullable', 'integer', 'min:0', 'max:150'],
+            'nivel_educativo' => ['nullable', 'string', 'in:educacion inicial,general basica,bachillerato,tecnico/tecnologico,superior,otro'],
         ];
     }
 

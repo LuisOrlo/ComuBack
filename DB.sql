@@ -826,6 +826,7 @@ CREATE TABLE academic.inscripciones_taller (
     edad integer,
     cedula_url character varying(500),
     ciudad character varying(100),
+    nivel_educativo character varying(100),
     motivo_ajuste character varying(255)
 );
 
@@ -1805,6 +1806,7 @@ CREATE TABLE people.clientes_externos (
     edad integer,
     fecha_nacimiento date,
     ciudad character varying(100),
+    nivel_educativo character varying(100),
     es_cliente boolean DEFAULT false NOT NULL
 );
 
@@ -2003,15 +2005,16 @@ CREATE TABLE people.perfil_estudiante (
     total_cursos integer DEFAULT 0,
     ocupacion character varying(100),
     direccion text,
-    estado_civil character varying(20),
+estado_civil character varying(20),
     edad integer,
     ciudad character varying(100),
+    nivel_educativo character varying(100),
     created_at timestamp(0) without time zone,
     updated_at timestamp(0) without time zone
 );
 
 
---
+
 -- TOC entry 302 (class 1259 OID 38585)
 -- Name: perfil_instructor; Type: TABLE; Schema: people; Owner: -
 --

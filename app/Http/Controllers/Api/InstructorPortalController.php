@@ -40,6 +40,112 @@ class InstructorPortalController extends Controller
     }
 
     /**
+     * Dashboard agregado del instructor: cursos + estudiantes + clases en una sola respuesta.
+     * Replica la regla de visibilidad de misCursos(): siempre filtra por docente_id.
+     */
+    public function dashboard(): JsonResponse
+    {
+        $personaId = auth()->user()->persona_id;
+
+        $cursos = CursoAbierto::query()
+            ->where('docente_id', $personaId)
+            ->with(['catalogo', 'horario.diasSemana', 'ciudad', 'modulos'])
+            ->get();
+
+        $cursoIds = $cursos->pluck('id')->all();
+
+        $matriculas = empty($cursoIds)
+            ? collect()
+            : Matricula::whereIn('curso_abierto_id', $cursoIds)
+                ->with(['estudiante', 'notas', 'solicitudInscripcion.participanteExterno'])
+                ->get()
+                ->groupBy('curso_abierto_id');
+
+        $matriculaIds = $matriculas->flatten(1)->pluck('id')->all();
+
+        $totalClasesPorCurso = empty($cursoIds)
+            ? collect()
+            : DB::table('academic.clases as c')
+                ->join('academic.modulos as m', 'm.id', '=', 'c.modulo_id')
+                ->whereIn('m.curso_abierto_id', $cursoIds)
+                ->selectRaw('m.curso_abierto_id, COUNT(*) as total')
+                ->groupBy('m.curso_abierto_id')
+                ->pluck('total', 'curso_abierto_id');
+
+        $asistidasPorMatricula = empty($matriculaIds)
+            ? collect()
+            : Asistencia::whereIn('matricula_id', $matriculaIds)
+                ->where('asistio', true)
+                ->selectRaw('matricula_id, COUNT(*) as c')
+                ->groupBy('matricula_id')
+                ->pluck('c', 'matricula_id');
+
+        $moduloIds = $cursos->flatMap(fn($c) => $c->modulos->pluck('id'))->all();
+
+        $clases = empty($moduloIds)
+            ? collect()
+            : Clase::whereIn('modulo_id', $moduloIds)->orderBy('fecha_clase', 'asc')->get();
+
+        $claseIds = $clases->pluck('id')->all();
+        $clasesConAsistencia = empty($claseIds)
+            ? collect()
+            : Asistencia::whereIn('clase_id', $claseIds)->distinct()->pluck('clase_id');
+
+        $datos = $cursos->map(function ($curso) use ($matriculas, $totalClasesPorCurso, $asistidasPorMatricula, $clases, $clasesConAsistencia) {
+            $totalClases = (int) ($totalClasesPorCurso->get($curso->id) ?? 0);
+
+            $estudiantes = ($matriculas->get($curso->id) ?? collect())
+                ->map(function ($m) use ($totalClases, $asistidasPorMatricula) {
+                    $asistidas = (int) ($asistidasPorMatricula->get($m->id) ?? 0);
+
+                    return [
+                        'id' => $m->id,
+                        'estudiante' => $m->estudiante,
+                        'participante_externo' => $m->solicitudInscripcion?->participanteExterno,
+                        'porcentaje_asistencia' => $totalClases > 0 ? round(($asistidas / $totalClases) * 100, 2) : 0,
+                        'clases_asistidas' => $asistidas,
+                        'total_clases' => $totalClases,
+                        'notas' => $m->notas,
+                        'estado' => $m->estado,
+                    ];
+                })->values();
+
+            $moduloMap = $curso->modulos->keyBy('id');
+            $clasesCurso = $clases
+                ->filter(fn($cl) => $moduloMap->has($cl->modulo_id))
+                ->map(fn($cl) => [
+                    'id' => $cl->id,
+                    'modulo_id' => $cl->modulo_id,
+                    'modulo_nombre' => $moduloMap->get($cl->modulo_id)?->nombre_modulo ?? '',
+                    'fecha_clase' => $cl->fecha_clase,
+                    'hora_inicio' => $cl->hora_inicio,
+                    'hora_fin' => $cl->hora_fin,
+                    'asistencia_registrada' => $clasesConAsistencia->contains($cl->id),
+                    'observaciones' => $cl->observaciones,
+                ])->values();
+
+            return [
+                'id' => $curso->id,
+                'catalogo' => $curso->catalogo,
+                'nombre_instancia' => $curso->nombre_instancia,
+                'estado' => $curso->estado,
+                'fecha_inicio' => $curso->fecha_inicio,
+                'fecha_fin' => $curso->fecha_fin,
+                'modalidad' => $curso->modalidad,
+                'horario' => $curso->horario,
+                'ciudad' => $curso->ciudad,
+                'modulos' => $curso->modulos,
+                'estudiantes' => $estudiantes,
+                'clases' => $clasesCurso,
+            ];
+        })->values();
+
+        return response()->json([
+            'datos' => $datos
+        ]);
+    }
+
+    /**
      * Detalle de un curso específico para el instructor
      */
     public function detalleCurso($id): JsonResponse
@@ -88,23 +194,37 @@ class InstructorPortalController extends Controller
 
         $matriculas = Matricula::where('curso_abierto_id', $id)
             ->with(['estudiante', 'notas', 'solicitudInscripcion.participanteExterno'])
-            ->get()
-            ->map(function ($matricula) {
-                $asistenciaStats = $this->calcularAsistenciaMatricula($matricula->id);
-                return [
-                    'id' => $matricula->id,
-                    'estudiante' => $matricula->estudiante,
-                    'participante_externo' => $matricula->solicitudInscripcion?->participanteExterno,
-                    'porcentaje_asistencia' => $asistenciaStats['porcentaje'],
-                    'clases_asistidas' => $asistenciaStats['asistidas'],
-                    'total_clases' => $asistenciaStats['total'],
-                    'notas' => $matricula->notas,
-                    'estado' => $matricula->estado,
-                ];
-            });
+            ->get();
+
+        $matriculaIds = $matriculas->pluck('id')->all();
+
+        $totalClases = Clase::whereHas('modulo', function ($q) use ($id) {
+            $q->where('curso_abierto_id', $id);
+        })->count();
+
+        $asistidasPorMatricula = Asistencia::whereIn('matricula_id', $matriculaIds)
+            ->where('asistio', true)
+            ->selectRaw('matricula_id, COUNT(*) AS asistidas')
+            ->groupBy('matricula_id')
+            ->pluck('asistidas', 'matricula_id');
+
+        $datos = $matriculas->map(function ($matricula) use ($totalClases, $asistidasPorMatricula) {
+            $asistidas = (int) $asistidasPorMatricula->get($matricula->id, 0);
+
+            return [
+                'id' => $matricula->id,
+                'estudiante' => $matricula->estudiante,
+                'participante_externo' => $matricula->solicitudInscripcion?->participanteExterno,
+                'porcentaje_asistencia' => $totalClases > 0 ? round(($asistidas / $totalClases) * 100, 2) : 0,
+                'clases_asistidas' => $asistidas,
+                'total_clases' => $totalClases,
+                'notas' => $matricula->notas,
+                'estado' => $matricula->estado,
+            ];
+        });
 
         return response()->json([
-            'datos' => $matriculas
+            'datos' => $datos
         ]);
     }
 
@@ -504,29 +624,6 @@ class InstructorPortalController extends Controller
             'modulos' => $modulos,
             'participantes' => $participantes,
         ]);
-    }
-
-    private function calcularAsistenciaMatricula($matriculaId)
-    {
-        $totalClases = Clase::whereHas('modulo', function($q) use ($matriculaId) {
-            $q->whereHas('cursoAbierto', function($sq) use ($matriculaId) {
-                $sq->whereHas('matriculas', function($ssq) use ($matriculaId) {
-                    $ssq->where('id', $matriculaId);
-                });
-            });
-        })->count();
-
-        if ($totalClases === 0) return ['porcentaje' => 0, 'asistidas' => 0, 'total' => 0];
-
-        $asistidas = Asistencia::where('matricula_id', $matriculaId)
-            ->where('asistio', true)
-            ->count();
-
-        return [
-            'total' => $totalClases,
-            'asistidas' => $asistidas,
-            'porcentaje' => round(($asistidas / $totalClases) * 100, 2)
-        ];
     }
 
     /**
