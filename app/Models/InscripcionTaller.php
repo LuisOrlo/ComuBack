@@ -25,6 +25,7 @@ class InscripcionTaller extends Model
         'direccion',
         'estado_civil',
         'edad',
+        'nivel_educativo',
         'fecha_inscripcion',
         'estado',
         'tipo_pago',
@@ -40,7 +41,7 @@ class InscripcionTaller extends Model
     public $timestamps = false;
 
     protected $casts = [
-        'fecha_inscripcion' => 'date',
+        'fecha_inscripcion' => 'datetime',
         'fecha_pago' => 'date',
         'monto_pagado' => 'decimal:2',
         'pago_verificado' => 'boolean',
