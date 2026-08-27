@@ -104,7 +104,7 @@ class CertificadoController extends Controller
 
         $persona = Persona::find($data['estudiante_id']);
         $data['cedula_impresa'] = $persona?->cedula ?? $data['cedula_impresa'] ?? '';
-        $data['fecha_emision'] = $data['fecha_emision'] ?? now()->toDateString();
+        $data['fecha_emision'] = $data['fecha_emision'] ?? now()->timezone('America/Guayaquil')->toDateString();
         $data['estado'] = Certificado::ESTADO_GENERADO;
         $data['emitido_por'] = auth()->id() ?? auth()->user()?->persona_id ?? null;
         $data['fecha_emitido'] = now();
@@ -274,7 +274,7 @@ class CertificadoController extends Controller
         $certificado = Certificado::findOrFail($id);
         $certificado->update([
             'entregado_fisicamente' => true,
-            'fecha_entrega' => $request->get('fecha_entrega', $certificado->fecha_entrega ?? now()->toDateString()),
+            'fecha_entrega' => $request->get('fecha_entrega', $certificado->fecha_entrega ?? now()->timezone('America/Guayaquil')->toDateString()),
             'estado' => Certificado::ESTADO_ENTREGADO,
             'metodo_entrega' => $request->get('metodo_entrega'),
         ]);
@@ -469,7 +469,7 @@ class CertificadoController extends Controller
                     'catalogo_id' => $data['catalogo_id'] ?? null,
                     'curso_abierto_id' => $data['curso_abierto_id'],
                     'cedula_impresa' => $persona->cedula,
-                    'fecha_emision' => $data['fecha_emision'] ?? now()->toDateString(),
+                    'fecha_emision' => $data['fecha_emision'] ?? now()->timezone('America/Guayaquil')->toDateString(),
                     'estado' => Certificado::ESTADO_GENERADO,
                     'archivo_pdf_url' => Storage::disk()->url($path),
                 ]);
