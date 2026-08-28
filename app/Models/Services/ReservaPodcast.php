@@ -68,4 +68,9 @@ class ReservaPodcast extends Model
     {
         return $this->hasMany(AsignacionPersonal::class, 'reserva_podcast_id');
     }
+
+    public function cuentaPorCobrar(): \Illuminate\Database\Eloquent\Relations\HasOne
+    {
+        return $this->hasOne(\App\Models\CuentaPorCobrar::class, 'reserva_podcast_id');
+    }
 }

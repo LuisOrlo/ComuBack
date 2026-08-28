@@ -52,4 +52,9 @@ class ReservaAula extends Model
     {
         return $this->belongsTo(ClienteExterno::class, 'cliente_externo_id');
     }
+
+    public function cuentaPorCobrar(): \Illuminate\Database\Eloquent\Relations\HasOne
+    {
+        return $this->hasOne(\App\Models\CuentaPorCobrar::class, 'reserva_aula_id');
+    }
 }

@@ -14,7 +14,7 @@ class ReservaPodcastController extends Controller
 {
     public function index(Request $request)
     {
-        $query = ReservaPodcast::with(['paquete.items', 'persona', 'clienteExterno', 'asignacionesPersonal.persona']);
+        $query = ReservaPodcast::with(['paquete.items', 'persona', 'clienteExterno', 'asignacionesPersonal.persona', 'cuentaPorCobrar']);
 
         if ($request->has('paquete_id')) {
             $query->where('paquete_id', (int) $request->paquete_id);
@@ -323,6 +323,15 @@ class ReservaPodcastController extends Controller
                 ]
                 : null,
             'created_at' => $r->created_at?->toISOString(),
+            'cuenta_por_cobrar' => $r->relationLoaded('cuentaPorCobrar') && $r->cuentaPorCobrar
+                ? [
+                    'id' => $r->cuentaPorCobrar->id,
+                    'monto_total' => (float) $r->cuentaPorCobrar->monto_total,
+                    'monto_abonado' => (float) $r->cuentaPorCobrar->monto_abonado,
+                    'saldo_pendiente' => (float) $r->cuentaPorCobrar->obtenerSaldoPendiente(),
+                    'estado' => $r->cuentaPorCobrar->estado,
+                ]
+                : null,
         ];
     }
 }

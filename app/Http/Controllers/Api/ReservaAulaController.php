@@ -12,7 +12,7 @@ class ReservaAulaController extends Controller
 {
     public function index(Request $request)
     {
-        $query = ReservaAula::with(['aula', 'persona', 'clienteExterno']);
+        $query = ReservaAula::with(['aula', 'persona', 'clienteExterno', 'cuentaPorCobrar']);
 
         if ($request->has('aula_id')) {
             $query->where('aula_id', $request->aula_id);
@@ -89,13 +89,13 @@ class ReservaAulaController extends Controller
 
         return response()->json([
             'message' => 'Reserva creada exitosamente.',
-            'data' => $reserva->load(['aula', 'persona', 'clienteExterno'])
+            'data' => $reserva->load(['aula', 'persona', 'clienteExterno', 'cuentaPorCobrar'])
         ], Response::HTTP_CREATED);
     }
 
     public function show($id)
     {
-        $reserva = ReservaAula::with(['aula', 'persona', 'clienteExterno'])->findOrFail($id);
+        $reserva = ReservaAula::with(['aula', 'persona', 'clienteExterno', 'cuentaPorCobrar'])->findOrFail($id);
         return response()->json(['data' => $reserva]);
     }
 

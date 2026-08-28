@@ -27,7 +27,7 @@ class TrabajoEdicionController extends Controller
             });
         }
 
-        $trabajos = $query->with('reservaPodcast', 'cliente', 'clienteExterno')->orderBy('fecha_limite')
+        $trabajos = $query->with('reservaPodcast', 'cliente', 'clienteExterno', 'cuentaPorCobrar')->orderBy('fecha_limite')
             ->paginate($request->get('per_page', 15));
 
         $allEditorIds = $trabajos->pluck('editor_ids')->flatten()->unique()->filter()->values()->toArray();
@@ -70,6 +70,15 @@ class TrabajoEdicionController extends Controller
                     'cobro_registrado' => $t->cobro_registrado,
                     'notas' => $t->notas,
                     'created_at' => $t->created_at?->toISOString(),
+                    'cuenta_por_cobrar' => $t->relationLoaded('cuentaPorCobrar') && $t->cuentaPorCobrar
+                        ? [
+                            'id' => $t->cuentaPorCobrar->id,
+                            'monto_total' => (float) $t->cuentaPorCobrar->monto_total,
+                            'monto_abonado' => (float) $t->cuentaPorCobrar->monto_abonado,
+                            'saldo_pendiente' => (float) $t->cuentaPorCobrar->obtenerSaldoPendiente(),
+                            'estado' => $t->cuentaPorCobrar->estado,
+                        ]
+                        : null,
                 ];
             }),
             'meta' => [

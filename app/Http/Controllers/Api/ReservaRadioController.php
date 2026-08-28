@@ -18,7 +18,7 @@ class ReservaRadioController extends Controller
     public function index(Request $request)
     {
         $query = ReservaRadio::with([
-            'tarifa', 'persona', 'clienteExterno', 'operador',
+            'tarifa', 'persona', 'clienteExterno', 'operador', 'cuentaPorCobrar'
         ]);
 
         if ($request->has('fecha')) {
@@ -478,6 +478,15 @@ class ReservaRadioController extends Controller
                 : null,
             'created_at' => $r->created_at?->toISOString(),
             'updated_at' => $r->updated_at?->toISOString(),
+            'cuenta_por_cobrar' => $r->relationLoaded('cuentaPorCobrar') && $r->cuentaPorCobrar
+                ? [
+                    'id' => $r->cuentaPorCobrar->id,
+                    'monto_total' => (float) $r->cuentaPorCobrar->monto_total,
+                    'monto_abonado' => (float) $r->cuentaPorCobrar->monto_abonado,
+                    'saldo_pendiente' => (float) $r->cuentaPorCobrar->obtenerSaldoPendiente(),
+                    'estado' => $r->cuentaPorCobrar->estado,
+                ]
+                : null,
         ];
     }
 }
