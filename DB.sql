@@ -1,13 +1,4 @@
---
--- PostgreSQL database dump
---
 
-\restrict oQsx6TcBuQWki853vFbKpzHevhOOBtyRQgIlLWhN2iMo0aGN0WgF7fuHzttX9RB
-
--- Dumped from database version 16.13
--- Dumped by pg_dump version 16.13
-
--- Started on 2026-08-01 14:27:17 -05
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -85,15 +76,6 @@ CREATE EXTENSION IF NOT EXISTS pg_trgm WITH SCHEMA public;
 
 
 --
--- TOC entry 5578 (class 0 OID 0)
--- Dependencies: 2
--- Name: EXTENSION pg_trgm; Type: COMMENT; Schema: -; Owner: -
---
-
-COMMENT ON EXTENSION pg_trgm IS 'text similarity measurement and index searching based on trigrams';
-
-
---
 -- TOC entry 3 (class 3079 OID 38027)
 -- Name: unaccent; Type: EXTENSION; Schema: -; Owner: -
 --
@@ -102,29 +84,11 @@ CREATE EXTENSION IF NOT EXISTS unaccent WITH SCHEMA public;
 
 
 --
--- TOC entry 5579 (class 0 OID 0)
--- Dependencies: 3
--- Name: EXTENSION unaccent; Type: COMMENT; Schema: -; Owner: -
---
-
-COMMENT ON EXTENSION unaccent IS 'text search dictionary that removes accents';
-
-
---
 -- TOC entry 4 (class 3079 OID 38034)
 -- Name: uuid-ossp; Type: EXTENSION; Schema: -; Owner: -
 --
 
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp" WITH SCHEMA public;
-
-
---
--- TOC entry 5580 (class 0 OID 0)
--- Dependencies: 4
--- Name: EXTENSION "uuid-ossp"; Type: COMMENT; Schema: -; Owner: -
---
-
-COMMENT ON EXTENSION "uuid-ossp" IS 'generate universally unique identifiers (UUIDs)';
 
 
 --
@@ -579,7 +543,7 @@ CREATE TABLE academic.catalogo_cursos (
     created_at timestamp(0) without time zone,
     updated_at timestamp(0) without time zone,
     deleted_at timestamp(0) without time zone,
-    imagen character varying(500),
+    imagen character varying(100),
     color character varying(7),
     codigo character varying(50),
     requisitos_previos text,
@@ -729,15 +693,6 @@ CREATE TABLE academic.horarios_dias (
 
 
 --
--- TOC entry 5581 (class 0 OID 0)
--- Dependencies: 237
--- Name: COLUMN horarios_dias.dia_semana; Type: COMMENT; Schema: academic; Owner: -
---
-
-COMMENT ON COLUMN academic.horarios_dias.dia_semana IS '1=Lunes, 2=Martes, ..., 7=Domingo';
-
-
---
 -- TOC entry 238 (class 1259 OID 38221)
 -- Name: horarios_dias_id_seq; Type: SEQUENCE; Schema: academic; Owner: -
 --
@@ -751,7 +706,7 @@ CREATE SEQUENCE academic.horarios_dias_id_seq
 
 
 --
--- TOC entry 5582 (class 0 OID 0)
+-- TOC entry 5578 (class 0 OID 0)
 -- Dependencies: 238
 -- Name: horarios_dias_id_seq; Type: SEQUENCE OWNED BY; Schema: academic; Owner: -
 --
@@ -822,12 +777,11 @@ CREATE TABLE academic.inscripciones_taller (
     ocupacion character varying(100),
     direccion character varying(500),
     estado_civil character varying(20),
-    fecha_nacimiento date,
     edad integer,
     cedula_url character varying(500),
     ciudad character varying(100),
-    nivel_educativo character varying(100),
-    motivo_ajuste character varying(255)
+    motivo_ajuste character varying(255),
+    nivel_educativo character varying(100)
 );
 
 
@@ -1118,7 +1072,7 @@ CREATE SEQUENCE audit.cambios_horario_auditoria_id_seq
 
 
 --
--- TOC entry 5583 (class 0 OID 0)
+-- TOC entry 5579 (class 0 OID 0)
 -- Dependencies: 255
 -- Name: cambios_horario_auditoria_id_seq; Type: SEQUENCE OWNED BY; Schema: audit; Owner: -
 --
@@ -1231,7 +1185,7 @@ CREATE SEQUENCE core.ciudades_id_seq
 
 
 --
--- TOC entry 5584 (class 0 OID 0)
+-- TOC entry 5580 (class 0 OID 0)
 -- Dependencies: 262
 -- Name: ciudades_id_seq; Type: SEQUENCE OWNED BY; Schema: core; Owner: -
 --
@@ -1284,7 +1238,7 @@ CREATE SEQUENCE core.failed_jobs_id_seq
 
 
 --
--- TOC entry 5585 (class 0 OID 0)
+-- TOC entry 5581 (class 0 OID 0)
 -- Dependencies: 265
 -- Name: failed_jobs_id_seq; Type: SEQUENCE OWNED BY; Schema: core; Owner: -
 --
@@ -1341,7 +1295,7 @@ CREATE SEQUENCE core.jobs_id_seq
 
 
 --
--- TOC entry 5586 (class 0 OID 0)
+-- TOC entry 5582 (class 0 OID 0)
 -- Dependencies: 268
 -- Name: jobs_id_seq; Type: SEQUENCE OWNED BY; Schema: core; Owner: -
 --
@@ -1376,7 +1330,7 @@ CREATE SEQUENCE core.migrations_id_seq
 
 
 --
--- TOC entry 5587 (class 0 OID 0)
+-- TOC entry 5583 (class 0 OID 0)
 -- Dependencies: 270
 -- Name: migrations_id_seq; Type: SEQUENCE OWNED BY; Schema: core; Owner: -
 --
@@ -1448,7 +1402,7 @@ CREATE SEQUENCE core.permissions_id_seq
 
 
 --
--- TOC entry 5588 (class 0 OID 0)
+-- TOC entry 5584 (class 0 OID 0)
 -- Dependencies: 275
 -- Name: permissions_id_seq; Type: SEQUENCE OWNED BY; Schema: core; Owner: -
 --
@@ -1495,7 +1449,7 @@ CREATE SEQUENCE core.roles_id_seq
 
 
 --
--- TOC entry 5589 (class 0 OID 0)
+-- TOC entry 5585 (class 0 OID 0)
 -- Dependencies: 278
 -- Name: roles_id_seq; Type: SEQUENCE OWNED BY; Schema: core; Owner: -
 --
@@ -1549,7 +1503,7 @@ CREATE SEQUENCE core.users_id_seq
 
 
 --
--- TOC entry 5590 (class 0 OID 0)
+-- TOC entry 5586 (class 0 OID 0)
 -- Dependencies: 281
 -- Name: users_id_seq; Type: SEQUENCE OWNED BY; Schema: core; Owner: -
 --
@@ -1804,10 +1758,9 @@ CREATE TABLE people.clientes_externos (
     direccion text,
     estado_civil character varying(20),
     edad integer,
-    fecha_nacimiento date,
     ciudad character varying(100),
-    nivel_educativo character varying(100),
-    es_cliente boolean DEFAULT false NOT NULL
+    es_cliente boolean DEFAULT false NOT NULL,
+    nivel_educativo character varying(100)
 );
 
 
@@ -1998,23 +1951,22 @@ CREATE TABLE people.cuentas_sistema (
 CREATE TABLE people.perfil_estudiante (
     id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
     persona_id uuid NOT NULL,
-    fecha_nacimiento date,
     notas_internas text,
     primera_matricula date,
     ultima_matricula date,
     total_cursos integer DEFAULT 0,
     ocupacion character varying(100),
     direccion text,
-estado_civil character varying(20),
+    estado_civil character varying(20),
     edad integer,
     ciudad character varying(100),
-    nivel_educativo character varying(100),
     created_at timestamp(0) without time zone,
-    updated_at timestamp(0) without time zone
+    updated_at timestamp(0) without time zone,
+    nivel_educativo character varying(100)
 );
 
 
-
+--
 -- TOC entry 302 (class 1259 OID 38585)
 -- Name: perfil_instructor; Type: TABLE; Schema: people; Owner: -
 --
@@ -2096,7 +2048,7 @@ CREATE SEQUENCE public.failed_jobs_id_seq
 
 
 --
--- TOC entry 5591 (class 0 OID 0)
+-- TOC entry 5587 (class 0 OID 0)
 -- Dependencies: 307
 -- Name: failed_jobs_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
 --
@@ -2153,7 +2105,7 @@ CREATE SEQUENCE public.jobs_id_seq
 
 
 --
--- TOC entry 5592 (class 0 OID 0)
+-- TOC entry 5588 (class 0 OID 0)
 -- Dependencies: 310
 -- Name: jobs_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
 --
@@ -2188,7 +2140,7 @@ CREATE SEQUENCE public.migrations_id_seq
 
 
 --
--- TOC entry 5593 (class 0 OID 0)
+-- TOC entry 5589 (class 0 OID 0)
 -- Dependencies: 312
 -- Name: migrations_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
 --
@@ -2229,7 +2181,7 @@ CREATE SEQUENCE public.personal_access_tokens_id_seq
 
 
 --
--- TOC entry 5594 (class 0 OID 0)
+-- TOC entry 5590 (class 0 OID 0)
 -- Dependencies: 314
 -- Name: personal_access_tokens_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
 --
@@ -2273,7 +2225,7 @@ CREATE TABLE services.alquiler_equipos (
     created_at timestamp(0) with time zone,
     updated_at timestamp(0) with time zone,
     CONSTRAINT alquiler_equipos_cliente_check CHECK ((num_nonnulls(persona_id, cliente_externo_id) = 1)),
-    CONSTRAINT alquiler_equipos_estado_check CHECK (((estado)::text = ANY (ARRAY[('activo'::character varying)::text, ('devuelto'::character varying)::text, ('vencido'::character varying)::text, ('pendiente'::character varying)::text, ('entregado'::character varying)::text])))
+    CONSTRAINT alquiler_equipos_estado_check CHECK (((estado)::text = ANY ((ARRAY['activo'::character varying, 'devuelto'::character varying, 'vencido'::character varying, 'pendiente'::character varying, 'entregado'::character varying])::text[])))
 );
 
 
@@ -2359,7 +2311,7 @@ CREATE SEQUENCE services.items_paquete_podcast_id_seq
 
 
 --
--- TOC entry 5595 (class 0 OID 0)
+-- TOC entry 5591 (class 0 OID 0)
 -- Dependencies: 321
 -- Name: items_paquete_podcast_id_seq; Type: SEQUENCE OWNED BY; Schema: services; Owner: -
 --
@@ -2382,7 +2334,7 @@ CREATE SEQUENCE services.paquetes_podcast_id_seq
 
 
 --
--- TOC entry 5596 (class 0 OID 0)
+-- TOC entry 5592 (class 0 OID 0)
 -- Dependencies: 322
 -- Name: paquetes_podcast_id_seq; Type: SEQUENCE OWNED BY; Schema: services; Owner: -
 --
@@ -2465,7 +2417,7 @@ CREATE SEQUENCE services.tarifas_radio_id_seq
 
 
 --
--- TOC entry 5597 (class 0 OID 0)
+-- TOC entry 5593 (class 0 OID 0)
 -- Dependencies: 326
 -- Name: tarifas_radio_id_seq; Type: SEQUENCE OWNED BY; Schema: services; Owner: -
 --
@@ -5752,10 +5704,3 @@ ALTER TABLE ONLY services.servicios_streaming
     ADD CONSTRAINT servicios_streaming_persona_id_fkey FOREIGN KEY (persona_id) REFERENCES people.personas(id);
 
 
--- Completed on 2026-08-01 14:27:18 -05
-
---
--- PostgreSQL database dump complete
---
-
-\unrestrict oQsx6TcBuQWki853vFbKpzHevhOOBtyRQgIlLWhN2iMo0aGN0WgF7fuHzttX9RB
