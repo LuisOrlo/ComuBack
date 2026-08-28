@@ -121,15 +121,15 @@ class RegistrationController extends Controller
         if ($request->hasFile('archivo_comprobante') && empty($validated['archivo_comprobante_url'])) {
             $file = $request->file('archivo_comprobante');
             $filename = Str::uuid() . '.' . $file->getClientOriginalExtension();
-            $path = $file->storeAs('comprobantes', $filename);
-            $validated['archivo_comprobante_url'] = Storage::disk()->url($path);
+            $path = $file->storeAs('comprobantes', $filename, 'public');
+            $validated['archivo_comprobante_url'] = Storage::url($path);
         }
 
         if ($request->hasFile('archivo_cedula') && empty($validated['archivo_cedula_url'])) {
             $file = $request->file('archivo_cedula');
             $filename = Str::uuid() . '.' . $file->getClientOriginalExtension();
-            $path = $file->storeAs('cedulas', $filename);
-            $validated['archivo_cedula_url'] = Storage::disk()->url($path);
+            $path = $file->storeAs('cedulas', $filename, 'public');
+            $validated['archivo_cedula_url'] = Storage::url($path);
         }
 
         // 5. Crear la solicitud de inscripción
@@ -140,7 +140,7 @@ class RegistrationController extends Controller
             'curso_abierto_id' => $validated['curso_abierto_id'],
             'monto_solicitado' => $validated['monto_solicitado'],
             'tipo_pago' => $validated['tipo_pago'],
-            'archivo_comprobante_url' => $archivoUrl,
+            'archivo_comprobante_url' => $validated['archivo_comprobante_url'] ?? null,
             'archivo_cedula_url' => $validated['archivo_cedula_url'] ?? null,
             'tipo_comprobante' => $validated['tipo_comprobante'],
             'fecha_pago_declarada' => $validated['fecha_pago_declarada'],

@@ -62,12 +62,12 @@ class EgresoController extends Controller
         $perPage = min(max((int) $request->get('per_page', 25), 10), 100);
         $items = $query->orderBy($sortCol, $sortDir)->paginate($perPage);
 
-        $graficoCategorias = (clone $query)->whereNotNull('categoria')
+        $graficoCategorias = (clone $query)->reorder()->whereNotNull('categoria')
             ->select('categoria as name')->selectRaw('SUM(monto) as value')
             ->groupBy('categoria')->orderByDesc('value')->get()
             ->map(fn($row) => ['name' => $row->name, 'value' => (float) $row->value])->values();
 
-        $graficoProveedores = (clone $query)->whereNotNull('proveedor_beneficiario')
+        $graficoProveedores = (clone $query)->reorder()->whereNotNull('proveedor_beneficiario')
             ->where('proveedor_beneficiario', '!=', '')
             ->select('proveedor_beneficiario as name')->selectRaw('SUM(monto) as value')
             ->groupBy('proveedor_beneficiario')->orderByDesc('value')->limit(8)->get()

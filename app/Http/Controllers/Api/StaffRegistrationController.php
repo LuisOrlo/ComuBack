@@ -827,23 +827,34 @@ class StaffRegistrationController extends Controller
                 ", [$linea['monto_abonado'], $linea['id']]);
             }
 
-            $totalAbonado = DB::table('finance.lineas_pago_modulo')
+            $totalAbonado = (float) DB::table('finance.lineas_pago_modulo')
                 ->where('matricula_id', $matriculaId)
                 ->sum('monto_abonado');
 
+            $totalAjustado = (float) DB::table('finance.lineas_pago_modulo')
+                ->where('matricula_id', $matriculaId)
+                ->sum('monto_ajustado');
+
             $cuentaEstado = match(true) {
-                $totalAbonado >= ($matricula->cuentaPorCobrar?->monto_total ?? 0) => 'pagado',
+                $totalAbonado >= $totalAjustado => 'pagado',
                 $totalAbonado > 0 => 'abonado',
                 default => 'pendiente',
             };
 
             DB::update("
                 UPDATE finance.cuentas_por_cobrar SET
+                    monto_total = ?,
                     monto_abonado = ?,
                     estado = ?::t_estado_pago,
                     updated_at = NOW()
                 WHERE matricula_id = ?
-            ", [$totalAbonado, $cuentaEstado, $matriculaId]);
+            ", [$totalAjustado, $totalAbonado, $cuentaEstado, $matriculaId]);
+
+            if ($solicitud->id) {
+                DB::table('solicitudes_inscripcion')
+                    ->where('id', $solicitud->id)
+                    ->update(['monto_solicitado' => $totalAjustado]);
+            }
         });
 
         return response()->json([

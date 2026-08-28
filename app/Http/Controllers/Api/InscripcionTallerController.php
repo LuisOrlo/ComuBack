@@ -173,15 +173,15 @@ class InscripcionTallerController extends Controller
         if ($request->hasFile('comprobante')) {
             $file = $request->file('comprobante');
             $filename = Str::uuid() . '.' . $file->getClientOriginalExtension();
-            $path = $file->storeAs('comprobantes-talleres', $filename);
-            $comprobanteUrl = Storage::disk()->url($path);
+            $path = $file->storeAs('comprobantes-talleres', $filename, 'public');
+            $comprobanteUrl = Storage::url($path);
         }
 
         if ($request->hasFile('archivo_cedula')) {
             $file = $request->file('archivo_cedula');
             $filename = Str::uuid() . '.' . $file->getClientOriginalExtension();
-            $path = $file->storeAs('cedulas-talleres', $filename);
-            $cedulaUrl = Storage::disk()->url($path);
+            $path = $file->storeAs('cedulas-talleres', $filename, 'public');
+            $cedulaUrl = Storage::url($path);
         }
 
         try {

@@ -90,6 +90,22 @@ class AlquilerEquipoController extends Controller
             $validated['foto_salida_url'] = Storage::disk()->url($path);
         }
 
+        if (!isset($validated['precio_original']) || $validated['precio_original'] === '' || $validated['precio_original'] === null) {
+            unset($validated['precio_original']);
+        } else {
+            $validated['precio_original'] = (float) $validated['precio_original'];
+        }
+
+        if (!isset($validated['monto_descuento']) || $validated['monto_descuento'] === '' || $validated['monto_descuento'] === null) {
+            $validated['monto_descuento'] = 0;
+        } else {
+            $validated['monto_descuento'] = (float) $validated['monto_descuento'];
+        }
+
+        if (isset($validated['motivo_descuento']) && ($validated['motivo_descuento'] === '' || $validated['motivo_descuento'] === 'null')) {
+            $validated['motivo_descuento'] = null;
+        }
+
         $validated['estado'] = 'pendiente';
 
         $alquiler = AlquilerEquipo::create($validated);
@@ -157,12 +173,20 @@ class AlquilerEquipoController extends Controller
             $validated['foto_salida_url'] = Storage::disk()->url($path);
         }
 
-        // Si hay abonos registrados, el nuevo total no puede ser menor a lo abonado
-        $cuenta = $alquiler->cuentaPorCobrar;
-        if ($cuenta && (float) $cuenta->monto_abonado > (float) $validated['precio_total']) {
-            return response()->json([
-                'message' => 'El monto total no puede ser menor al monto ya abonado ('.$cuenta->monto_abonado.')',
-            ], 422);
+        if (!isset($validated['precio_original']) || $validated['precio_original'] === '' || $validated['precio_original'] === null) {
+            $validated['precio_original'] = null;
+        } else {
+            $validated['precio_original'] = (float) $validated['precio_original'];
+        }
+
+        if (!isset($validated['monto_descuento']) || $validated['monto_descuento'] === '' || $validated['monto_descuento'] === null) {
+            $validated['monto_descuento'] = 0;
+        } else {
+            $validated['monto_descuento'] = (float) $validated['monto_descuento'];
+        }
+
+        if (isset($validated['motivo_descuento']) && ($validated['motivo_descuento'] === '' || $validated['motivo_descuento'] === 'null')) {
+            $validated['motivo_descuento'] = null;
         }
 
         $alquiler->update($validated);

@@ -817,6 +817,10 @@ class FinanceController extends Controller
             $query->where('estado_verificacion', $request->estado_verificacion);
         }
 
+        if ($request->has('cuenta_cobrar_id') && !empty($request->cuenta_cobrar_id)) {
+            $query->where('cuenta_cobrar_id', $request->cuenta_cobrar_id);
+        }
+
         $transacciones = $query->orderBy('fecha_pago', 'desc')->paginate($request->get('per_page', 15));
         return response()->json($transacciones);
     }
@@ -1698,13 +1702,16 @@ class FinanceController extends Controller
         $inscripciones = InscripcionTaller::where('taller_id', $id)
             ->whereIn('estado', ['activo', 'completado'])
             ->get();
+        $cuentasPorInscripcion = CuentaPorCobrar::whereIn('inscripcion_taller_id', $inscripciones->pluck('id'))
+            ->get()
+            ->keyBy('inscripcion_taller_id');
 
         $participantes = [];
         $totalRecaudado = 0;
         $totalEsperado = 0;
 
         foreach ($inscripciones as $ins) {
-            $cuenta = CuentaPorCobrar::where('inscripcion_taller_id', $ins->id)->first();
+            $cuenta = $cuentasPorInscripcion->get($ins->id);
             $montoTotal = $cuenta?->monto_total ?? $taller->precio ?? 0;
             $montoAbonado = $cuenta?->monto_abonado ?? ($ins->monto_pagado ?? $ins->precio_pagado ?? 0);
             $montoPagado = (float) ($ins->monto_pagado ?? $ins->precio_pagado ?? 0);
@@ -2127,23 +2134,6 @@ class FinanceController extends Controller
         $totales['servicios'] = (float) $serviciosTotal;
         $totales['otros'] = max(0, $totales['total'] - $totales['cursos'] - $totales['talleres'] - $totales['servicios']);
 
-        // ── Egresos totals ──────────────────────────────────────────────────
-        $egresoQuery = TransaccionEgreso::query()
-            ->when($desde, fn($q) => $q->where('fecha_pago', '>=', $desde))
-            ->when($hasta, fn($q) => $q->where('fecha_pago', '<=', $hasta . ' 23:59:59'))
-            ->when($metodo, fn($q) => $q->where('metodo_pago', $metodo));
-
-        if ($search = $request->get('search')) {
-            $egresoQuery->where(function ($q) use ($search) {
-                $q->where('descripcion', 'ilike', "%{$search}%")
-                  ->orWhere('proveedor_beneficiario', 'ilike', "%{$search}%");
-            });
-        }
-
-        $egresosTotal = (float) (clone $egresoQuery)->sum('monto');
-        $totales['egresos'] = $egresosTotal;
-        $totales['balance'] = round($totales['total'] - $egresosTotal, 2);
-
         $grafico = TransaccionIngreso::selectRaw("to_char(fecha_pago, 'YYYY-MM') as mes, SUM(monto) as total")
             ->when($desde, fn($q) => $q->where('fecha_pago', '>=', $desde))
             ->when($hasta, fn($q) => $q->where('fecha_pago', '<=', $hasta . ' 23:59:59'))
@@ -2211,22 +2201,9 @@ class FinanceController extends Controller
             });
         }
 
-        $egresoIdsQuery = TransaccionEgreso::query()
-            ->selectRaw("id, 'egreso' as tipo_movimiento, fecha_pago")
-            ->when($desde, fn($q) => $q->where('fecha_pago', '>=', $desde))
-            ->when($hasta, fn($q) => $q->where('fecha_pago', '<=', $hasta . ' 23:59:59'))
-            ->when($metodo, fn($q) => $q->where('metodo_pago', $metodo));
+        $totalAll = $ingresoIdsQuery->count();
 
-        if ($search) {
-            $egresoIdsQuery->where(function ($q) use ($search) {
-                $q->where('descripcion', 'ilike', "%{$search}%")
-                  ->orWhere('proveedor_beneficiario', 'ilike', "%{$search}%");
-            });
-        }
-
-        $totalAll = $ingresoIdsQuery->count() + $egresoIdsQuery->count();
-
-        $unionIds = $ingresoIdsQuery->unionAll($egresoIdsQuery)
+        $unionIds = $ingresoIdsQuery
             ->orderBy('fecha_pago', 'desc')
             ->orderBy('id', 'desc')
             ->offset(($page - 1) * $perPage)
@@ -2234,7 +2211,6 @@ class FinanceController extends Controller
             ->get();
 
         $ingresoIdsOnPage = $unionIds->where('tipo_movimiento', 'ingreso')->pluck('id');
-        $egresoIdsOnPage = $unionIds->where('tipo_movimiento', 'egreso')->pluck('id');
 
         $ingresos = collect();
         if ($ingresoIdsOnPage->isNotEmpty()) {
@@ -2265,15 +2241,6 @@ class FinanceController extends Controller
               ->orderBy('fecha_pago', 'desc')
               ->get()
               ->keyBy(fn($i) => "i_{$i->id}");
-        }
-
-        $egresos = collect();
-        if ($egresoIdsOnPage->isNotEmpty()) {
-            $egresos = TransaccionEgreso::with(['registrador'])
-                ->whereIn('id', $egresoIdsOnPage)
-                ->orderBy('fecha_pago', 'desc')
-                ->get()
-                ->keyBy(fn($e) => "e_{$e->id}");
         }
 
         // ── Agrupar pagos de módulos por referencia (una aprobación = un pago) ──
@@ -2394,29 +2361,9 @@ class FinanceController extends Controller
             return $item;
         };
 
-        $mapEgreso = function ($e) {
-            return [
-                'id' => $e->id,
-                'tipo_movimiento' => 'egreso',
-                'fecha_pago' => $e->fecha_pago?->format('Y-m-d'),
-                'concepto' => $e->descripcion,
-                'estudiante_nombre' => $e->proveedor_beneficiario,
-                'categoria' => $e->categoria ?: '—',
-                'monto' => (float) $e->monto,
-                'metodo_pago' => $e->metodo_pago,
-                'comprobante_url' => $e->comprobante_url,
-                'estado_verificacion' => 'aprobado',
-            ];
-        };
+        $pageKeys = $unionIds->map(fn($item) => "i_{$item->id}");
 
-        $pageKeys = $unionIds->map(fn($item) => $item->tipo_movimiento === 'ingreso' ? "i_{$item->id}" : "e_{$item->id}");
-
-        $data = $pageKeys->map(function ($key) use ($ingresos, $egresos, $mapIngreso, $mapEgreso, $grupos) {
-            if (str_starts_with($key, 'e_')) {
-                $m = $egresos[$key] ?? null;
-                return $m ? $mapEgreso($m) : null;
-            }
-
+        $data = $pageKeys->map(function ($key) use ($ingresos, $mapIngreso, $grupos) {
             $m = $ingresos[$key] ?? null;
             if (! $m) return null;
 

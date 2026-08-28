@@ -50,7 +50,7 @@ class CursoAbierto extends Model
     // ========================================================================
 
     /**
-     * Deriva el estado real del curso a partir de los mdulos y fechas
+     * Deriva el estado real del curso a partir de los módulos y fechas
      * cuando la columna en DB an tiene el valor default 'pendiente'.
      */
     public function getEstadoAttribute($value): string

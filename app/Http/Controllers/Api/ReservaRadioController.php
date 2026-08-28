@@ -281,21 +281,6 @@ class ReservaRadioController extends Controller
         ]);
 
         $nuevoEstado = $validated['estado'];
-        $actual = $reserva->estado;
-
-        $transicionesPermitidas = [
-            'reservado' => ['confirmado', 'cancelado'],
-            'confirmado' => ['en_progreso', 'cancelado'],
-            'en_progreso' => ['completado', 'cancelado'],
-            'completado' => [],
-            'cancelado' => [],
-        ];
-
-        if (!in_array($nuevoEstado, $transicionesPermitidas[$actual] ?? [])) {
-            return response()->json([
-                'message' => "No se puede cambiar el estado de '{$actual}' a '{$nuevoEstado}'.",
-            ], 422);
-        }
 
         $reserva->update(['estado' => $nuevoEstado]);
 
