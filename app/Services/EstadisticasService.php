@@ -18,6 +18,8 @@ use App\Models\Services\AlquilerEquipo;
 use App\Models\Services\TrabajoEdicion;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Carbon\Carbon;
+use Carbon\CarbonPeriod;
 
 class EstadisticasService
 {
@@ -56,15 +58,18 @@ class EstadisticasService
             $balance = $ingresosTotales - $egresosTotales;
             $margenNeto = $ingresosTotales > 0 ? round(($balance / $ingresosTotales) * 100, 1) : 0;
 
-            $inicioAnioAnterior = date('Y-m-d', strtotime($this->desde . ' -1 year'));
-            $finAnioAnterior = date('Y-m-d', strtotime($this->hasta . ' -1 year'));
-            $ingresosAnioAnterior = (float) TransaccionIngreso::where('fecha_pago', '>=', $inicioAnioAnterior)
-                ->where('fecha_pago', '<=', $finAnioAnterior . ' 23:59:59')
+            $inicioPeriodo = Carbon::parse($this->desde);
+            $finPeriodo = Carbon::parse($this->hasta);
+            $duracionDias = $inicioPeriodo->diffInDays($finPeriodo) + 1;
+            $inicioAnterior = $inicioPeriodo->copy()->subDays($duracionDias);
+            $finAnterior = $inicioPeriodo->copy()->subDay();
+            $ingresosPeriodoAnterior = (float) TransaccionIngreso::where('fecha_pago', '>=', $inicioAnterior->toDateString())
+                ->where('fecha_pago', '<=', $finAnterior->endOfDay())
                 ->where('estado_verificacion', 'aprobado')
                 ->sum('monto');
 
-            $vsAnioAnterior = $ingresosAnioAnterior > 0
-                ? round((($ingresosTotales - $ingresosAnioAnterior) / $ingresosAnioAnterior) * 100, 1)
+            $vsPeriodoAnterior = $ingresosPeriodoAnterior > 0
+                ? round((($ingresosTotales - $ingresosPeriodoAnterior) / $ingresosPeriodoAnterior) * 100, 1)
                 : '—';
 
             return [
@@ -72,7 +77,7 @@ class EstadisticasService
                 'ingresos' => round($ingresosTotales, 2),
                 'egresos' => round($egresosTotales, 2),
                 'margen_neto' => (float) $margenNeto,
-                'vs_anio_anterior' => $vsAnioAnterior,
+                'vs_periodo_anterior' => $vsPeriodoAnterior,
             ];
         });
     }
@@ -84,27 +89,16 @@ class EstadisticasService
     public function metricasEstudiantes(): array
     {
         return Cache::remember($this->cacheKey('metricas_est'), now()->addMinutes(15), function () {
-            $matriculados = Matricula::whereBetween('fecha_inscripcion', [$this->desde, $this->rangoHasta()])
-                ->count();
+            $matriculasPeriodo = Matricula::whereBetween('fecha_inscripcion', [$this->desde, $this->rangoHasta()]);
+            $matriculados = $matriculasPeriodo->count();
+            $estudianteIds = $matriculasPeriodo->pluck('estudiante_id')->filter()->unique();
+            $recurrentes = $estudianteIds->isEmpty() ? 0 : Matricula::whereIn('estudiante_id', $estudianteIds)
+                ->where('fecha_inscripcion', '<', $this->desde)
+                ->distinct('estudiante_id')
+                ->count('estudiante_id');
 
-            $totalEstudiantesActivos = (int) Matricula::where('estado', 'activo')
-                ->selectRaw('COUNT(DISTINCT estudiante_id) as cnt')
-                ->value('cnt');
-
-            $estudiantesConReincidencia = (int) DB::table('academic.matriculas')
-                ->selectRaw('COUNT(DISTINCT estudiante_id) as cnt')
-                ->where('estado', 'activo')
-                ->whereIn('estudiante_id', function ($sub) {
-                    $sub->select('estudiante_id')
-                        ->from('academic.matriculas')
-                        ->where('estado', 'activo')
-                        ->groupBy('estudiante_id')
-                        ->havingRaw('COUNT(*) > 1');
-                })
-                ->value('cnt');
-
-            $tasaRetencion = $totalEstudiantesActivos > 0
-                ? round(($estudiantesConReincidencia / $totalEstudiantesActivos) * 100, 1)
+            $tasaRetencion = $estudianteIds->count() > 0
+                ? round(($recurrentes / $estudianteIds->count()) * 100, 1)
                 : 0;
 
             $tasaAbandono = round(100 - $tasaRetencion, 1);
@@ -126,7 +120,7 @@ class EstadisticasService
     {
         return Cache::remember($this->cacheKey('flujo'), now()->addMinutes(15), function () {
             $ingresosMensuales = TransaccionIngreso::selectRaw("to_char(fecha_pago AT TIME ZONE 'America/Guayaquil', 'YYYY-MM') as mes, SUM(monto) as total")
-                ->where('fecha_pago', '>=', now()->timezone('America/Guayaquil')->subMonths(12)->startOfMonth()->toDateString())
+                ->where('fecha_pago', '>=', $this->desde)
                 ->where('fecha_pago', '<=', $this->rangoHasta())
                 ->where('estado_verificacion', 'aprobado')
                 ->groupBy(DB::raw("to_char(fecha_pago AT TIME ZONE 'America/Guayaquil', 'YYYY-MM')"))
@@ -135,13 +129,14 @@ class EstadisticasService
 
             $egresosMensuales = DB::table('finance.transacciones_egreso')
                 ->selectRaw("to_char(fecha_pago AT TIME ZONE 'America/Guayaquil', 'YYYY-MM') as mes, SUM(monto) as total")
-                ->where('fecha_pago', '>=', now()->timezone('America/Guayaquil')->subMonths(12)->startOfMonth()->toDateString())
+                ->where('fecha_pago', '>=', $this->desde)
                 ->where('fecha_pago', '<=', $this->rangoHasta())
                 ->groupBy(DB::raw("to_char(fecha_pago AT TIME ZONE 'America/Guayaquil', 'YYYY-MM')"))
                 ->orderBy(DB::raw("to_char(fecha_pago AT TIME ZONE 'America/Guayaquil', 'YYYY-MM')"))
                 ->get()->keyBy('mes');
 
-            $mesesKeys = $ingresosMensuales->keys()->merge($egresosMensuales->keys())->unique()->sort()->values();
+            $mesesKeys = collect(CarbonPeriod::create(Carbon::parse($this->desde)->startOfMonth(), '1 month', Carbon::parse($this->hasta)->startOfMonth()))
+                ->map(fn (Carbon $fecha) => $fecha->format('Y-m'));
 
             return $mesesKeys->map(fn($m) => [
                 'mes' => $m,

@@ -65,10 +65,49 @@ class AgendaPdfService
         return $this->renderPdf($html);
     }
 
-    private function renderPdf(string $html): string
+    public function generateDayPdf(Carbon $fechaInicio, Carbon $fechaFin, array $tiposEventos = [], string $titulo = 'AGENDA GENERAL'): string
+    {
+        $data = $this->agendaService->getEventsForPdf($fechaInicio->toDateString(), $fechaFin->toDateString(), $tiposEventos);
+        $events = collect($data['weeks'])
+            ->flatMap(fn (array $week) => collect($week['days']))
+            ->filter(fn (array $day) => $day['date']->betweenIncluded($fechaInicio, $fechaFin))
+            ->flatMap(fn (array $day) => $day['events'])
+            ->sortBy([['fecha', 'asc'], ['hora_inicio', 'asc']])
+            ->values();
+
+        $html = view('pdf.agenda.day', [
+            'events' => $events,
+            'leyenda' => $data['leyenda'],
+            'tiposActivos' => $data['tipos_activos'],
+            'fechaInicio' => $data['fecha_inicio'],
+            'fechaFin' => $data['fecha_fin'],
+            'titulo' => $titulo,
+        ])->render();
+
+        return $this->renderPdf($html, 'portrait');
+    }
+
+    public function generateListPdf(Carbon $fechaInicio, Carbon $fechaFin, array $tiposEventos = [], string $titulo = 'AGENDA GENERAL'): string
+    {
+        $events = $this->agendaService->getEvents($fechaInicio->toDateString(), $fechaFin->toDateString(), $tiposEventos)
+            ->groupBy('fecha');
+
+        $html = view('pdf.agenda.list', [
+            'eventsByDate' => $events,
+            'leyenda' => AgendaService::eventTypes(),
+            'tiposActivos' => $tiposEventos ?: array_keys(AgendaService::eventTypes()),
+            'fechaInicio' => $fechaInicio->isoFormat('D [de] MMMM [de] YYYY'),
+            'fechaFin' => $fechaFin->isoFormat('D [de] MMMM [de] YYYY'),
+            'titulo' => $titulo,
+        ])->render();
+
+        return $this->renderPdf($html, 'portrait');
+    }
+
+    private function renderPdf(string $html, string $orientation = 'landscape'): string
     {
         $pdf = Pdf::loadHTML($html)
-            ->setPaper('a4', 'landscape');
+            ->setPaper('a4', $orientation);
 
         $pdf->getDomPDF()->getOptions()->set('defaultFont', 'DejaVu Sans');
 

@@ -88,7 +88,7 @@ class AgendaController extends Controller
     public function exportarPdf(Request $request, AgendaPdfService $pdfService): Response
     {
         $validated = $request->validate([
-            'vista'        => 'required|in:mes,semana',
+            'vista'        => 'required|in:mes,semana,dia,lista',
             'fecha_inicio' => 'required|date',
             'fecha_fin'    => 'required|date|after_or_equal:fecha_inicio',
             'tipos'        => 'nullable|array',
@@ -101,13 +101,14 @@ class AgendaController extends Controller
         $tipos       = $validated['tipos'] ?? [];
         $titulo      = $validated['titulo'] ?? 'AGENDA GENERAL';
 
-        $pdf = $validated['vista'] === 'mes'
-            ? $pdfService->generateMonthPdf($fechaInicio, $fechaFin, $tipos, $titulo)
-            : $pdfService->generateWeekPdf($fechaInicio, $fechaFin, $tipos, $titulo);
+        $pdf = match ($validated['vista']) {
+            'mes' => $pdfService->generateMonthPdf($fechaInicio, $fechaFin, $tipos, $titulo),
+            'dia' => $pdfService->generateDayPdf($fechaInicio, $fechaFin, $tipos, $titulo),
+            'lista' => $pdfService->generateListPdf($fechaInicio, $fechaFin, $tipos, $titulo),
+            default => $pdfService->generateWeekPdf($fechaInicio, $fechaFin, $tipos, $titulo),
+        };
 
-        $nombreArchivo = $validated['vista'] === 'mes'
-            ? 'AGENDA_MENSUAL_' . $fechaInicio->format('Y_m') . '.pdf'
-            : 'AGENDA_SEMANAL_' . $fechaInicio->format('Y_m_d') . '.pdf';
+        $nombreArchivo = 'AGENDA_' . strtoupper($validated['vista']) . '_' . $fechaInicio->format('Y_m_d') . '.pdf';
 
         return response($pdf, 200, [
             'Content-Type'        => 'application/pdf',

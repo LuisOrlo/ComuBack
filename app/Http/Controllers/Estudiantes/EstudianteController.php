@@ -315,8 +315,9 @@ class EstudianteController extends Controller
         ];
 
         $total = $todos->count();
-        $porPagina = (int) ($request->input('per_page', 15));
-        $pagina = (int) ($request->input('page', 1));
+        // El cliente no puede solicitar respuestas desproporcionadas; el listado usa paginación.
+        $porPagina = min(100, max(10, (int) ($request->input('per_page', 25))));
+        $pagina = max(1, (int) ($request->input('page', 1)));
         $paginated = $todos->slice(($pagina - 1) * $porPagina, $porPagina)->values();
 
         return response()->json([
@@ -616,7 +617,22 @@ class EstudianteController extends Controller
                 ->values();
         }
 
-        $matriculasAcademica = $matriculasRaw->map(function ($matricula) {
+        // Evita dos consultas por matrícula al calcular asistencia del perfil.
+        $cursoIds = $matriculasRaw->pluck('curso_abierto_id')->filter()->unique()->values();
+        $clasesPorCurso = $cursoIds->isEmpty() ? collect() : DB::table('academic.clases as c')
+            ->join('academic.modulos as mo', 'mo.id', '=', 'c.modulo_id')
+            ->whereIn('mo.curso_abierto_id', $cursoIds)
+            ->groupBy('mo.curso_abierto_id')
+            ->selectRaw('mo.curso_abierto_id, COUNT(c.id) as total')
+            ->pluck('total', 'curso_abierto_id');
+        $asistenciasPorMatricula = $matriculasRaw->isEmpty() ? collect() : Asistencia::query()
+            ->whereIn('matricula_id', $matriculasRaw->pluck('id'))
+            ->where('asistio', true)
+            ->groupBy('matricula_id')
+            ->selectRaw('matricula_id, COUNT(*) as total')
+            ->pluck('total', 'matricula_id');
+
+        $matriculasAcademica = $matriculasRaw->map(function ($matricula) use ($clasesPorCurso, $asistenciasPorMatricula) {
             if (!$matricula->cursoAbierto) {
                 return [
                     'id' => $matricula->id,
@@ -629,13 +645,8 @@ class EstudianteController extends Controller
                 ];
             }
 
-            $totalClases = Clase::whereHas('modulo', function($q) use ($matricula) {
-                $q->where('curso_abierto_id', $matricula->curso_abierto_id);
-            })->count();
-
-            $asistidas = Asistencia::where('matricula_id', $matricula->id)
-                ->where('asistio', true)
-                ->count();
+            $totalClases = (int) ($clasesPorCurso->get($matricula->curso_abierto_id) ?? 0);
+            $asistidas = (int) ($asistenciasPorMatricula->get($matricula->id) ?? 0);
 
             $porcentajeAsistencia = $totalClases > 0 ? round(($asistidas / $totalClases) * 100, 2) : 100;
 
@@ -837,6 +848,47 @@ class EstudianteController extends Controller
         }
 
         return response()->json(['mensaje' => 'Estudiante no encontrado'], 404);
+    }
+
+    /** Elimina varios estudiantes en una sola solicitud y comunica los registros no encontrados. */
+    public function destroyMany(Request $request): JsonResponse
+    {
+        $ids = $request->validate([
+            'ids' => ['required', 'array', 'min:1', 'max:100'],
+            'ids.*' => ['required', 'string'],
+        ])['ids'];
+
+        $noEncontrados = [];
+        DB::transaction(function () use ($ids, &$noEncontrados) {
+            foreach (array_unique($ids) as $id) {
+                $estudiante = Persona::query()->estudiantes()->find($id);
+                if ($estudiante) {
+                    $this->eliminarEstudianteInterno($estudiante);
+                    continue;
+                }
+
+                $cliente = ClienteExterno::query()->find($id);
+                if ($cliente) {
+                    $this->eliminarEstudianteExterno($cliente);
+                    continue;
+                }
+
+                $inscripcion = \App\Models\InscripcionTaller::find($id);
+                if ($inscripcion) {
+                    CuentaPorCobrar::where('inscripcion_taller_id', $inscripcion->id)->delete();
+                    $inscripcion->delete();
+                    continue;
+                }
+
+                $noEncontrados[] = $id;
+            }
+        });
+
+        return response()->json([
+            'mensaje' => 'Eliminación masiva completada.',
+            'eliminados' => count(array_unique($ids)) - count($noEncontrados),
+            'no_encontrados' => $noEncontrados,
+        ]);
     }
 
     private function eliminarEstudianteInterno(Persona $estudiante): void

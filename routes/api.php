@@ -164,6 +164,7 @@ use Illuminate\Support\Facades\Route;
         Route::post('importar', [EstudianteController::class, 'importStudents'])->name('estudiantes.import');
         Route::post('importar/validar', [EstudianteController::class, 'validateImport'])->name('estudiantes.import.validate');
         Route::post('exportar', [EstudianteController::class, 'exportStudents'])->name('estudiantes.export');
+        Route::post('eliminar-lote', [EstudianteController::class, 'destroyMany'])->name('estudiantes.destroy-many');
         Route::get('buscar', [EstudianteController::class, 'buscar'])->name('estudiantes.buscar');
         Route::get('ciudades', [EstudianteController::class, 'ciudades'])->name('estudiantes.ciudades');
 

@@ -92,7 +92,9 @@
     font-weight: 600;
     padding: 2px 5px;
     border-radius: 4px;
-    color: #fff;
+    color: #111827;
+    background: #f9fafb;
+    border-left: 3px solid #6b7280;
     margin-bottom: 2px;
 }
 
@@ -141,7 +143,7 @@
                         <span class="day-number">{{ $day['date']->format('d') }}</span>
                         <div class="events">
                             @foreach ($visibleEvents as $event)
-                                <div class="event-pill" style="background: {{ $event['color'] }}">
+                                <div class="event-pill" style="border-left-color: {{ $event['color'] }}">
                                     <span class="time">{{ substr($event['hora_inicio'], 0, 5) }}</span>
                                     <span class="title">{{ $event['titulo'] }}</span>
                                 </div>

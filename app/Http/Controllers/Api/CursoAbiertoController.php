@@ -260,6 +260,22 @@ class CursoAbiertoController extends Controller
             || $request->has('fecha_fin') || $request->has('dias_semana')
             || $request->has('hora_inicio') || $request->has('hora_fin');
 
+        // Regenerar clases elimina sesiones existentes; nunca debe borrar asistencia sin confirmación explícita.
+        if ($hasScheduleChange && !$request->boolean('confirmar_regeneracion_clases')) {
+            $asistenciasRegistradas = DB::table('academic.asistencias as a')
+                ->join('academic.clases as cl', 'cl.id', '=', 'a.clase_id')
+                ->join('academic.modulos as mo', 'mo.id', '=', 'cl.modulo_id')
+                ->where('mo.curso_abierto_id', $curso->id)
+                ->exists();
+
+            if ($asistenciasRegistradas) {
+                return response()->json([
+                    'mensaje' => 'Este cambio regenerará clases que ya tienen asistencia registrada. Confirma la regeneración para continuar.',
+                    'requiere_confirmacion_regeneracion' => true,
+                ], Response::HTTP_UNPROCESSABLE_ENTITY);
+            }
+        }
+
         if ($hasScheduleChange && $docenteId && $fechaInicio && $fechaFin
             && !empty($diasSemana) && $horaInicio && $horaFin) {
 
@@ -430,8 +446,34 @@ class CursoAbiertoController extends Controller
     public function matriculas($id)
     {
         $curso = CursoAbierto::findOrFail($id);
-        $matriculas = $curso->matriculas()->with(['estudiante.perfilEstudiante', 'solicitudInscripcion.estudiante.perfilEstudiante', 'solicitudInscripcion.participanteExterno', 'notas'])->paginate(15);
-        return response()->json(['data' => $matriculas->items(), 'meta' => ['total' => $matriculas->total()]]);
+        $buscar = trim((string) request('buscar', ''));
+        $matriculas = $curso->matriculas()
+            ->with(['estudiante.perfilEstudiante', 'solicitudInscripcion.estudiante.perfilEstudiante', 'solicitudInscripcion.participanteExterno', 'notas'])
+            ->when($buscar !== '', function ($query) use ($buscar) {
+                $like = "%{$buscar}%";
+                $query->where(function ($q) use ($like) {
+                    $q->whereHas('estudiante', fn ($persona) => $persona
+                        ->where('nombres', 'ilike', $like)
+                        ->orWhere('apellidos', 'ilike', $like)
+                        ->orWhere('cedula', 'ilike', $like))
+                    ->orWhereHas('solicitudInscripcion.estudiante', fn ($persona) => $persona
+                        ->where('nombres', 'ilike', $like)
+                        ->orWhere('apellidos', 'ilike', $like)
+                        ->orWhere('cedula', 'ilike', $like))
+                    ->orWhereHas('solicitudInscripcion.participanteExterno', fn ($persona) => $persona
+                        ->where('nombres', 'ilike', $like)
+                        ->orWhere('apellidos', 'ilike', $like)
+                        ->orWhere('cedula', 'ilike', $like));
+                });
+            })
+            ->orderByDesc('fecha_inscripcion')
+            ->paginate(min(100, max(10, (int) request('per_page', 15))));
+        return response()->json(['data' => $matriculas->items(), 'meta' => [
+            'total' => $matriculas->total(),
+            'per_page' => $matriculas->perPage(),
+            'current_page' => $matriculas->currentPage(),
+            'last_page' => $matriculas->lastPage(),
+        ]]);
     }
 
     public function modulos($id)

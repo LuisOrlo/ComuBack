@@ -49,6 +49,10 @@ class StaffRegistrationController extends Controller
             $query->where('curso_abierto_id', $request->curso_abierto_id);
         }
 
+        if ($request->filled('categoria')) {
+            $query->whereHas('cursoAbierto.catalogo', fn ($catalogo) => $catalogo->where('categoria', $request->categoria));
+        }
+
         // Búsqueda por nombre/email del solicitante
         if ($request->has('search')) {
             $query->search($request->search);
@@ -66,7 +70,7 @@ class StaffRegistrationController extends Controller
         // Ordenar por fecha descendente
         $query->orderByDesc('created_at');
 
-        $perPage = $request->get('per_page', 15);
+        $perPage = min(100, max(10, (int) $request->get('per_page', 20)));
         $solicitudes = $query->paginate($perPage);
 
         $baseQuery = SolicitudInscripcion::query();

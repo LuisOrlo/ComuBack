@@ -40,7 +40,7 @@ class InscripcionTallerController extends Controller
         }
 
         $inscripciones = $query->orderBy('fecha_inscripcion', 'desc')
-            ->paginate($request->per_page ?? 50);
+            ->paginate(min(100, max(10, (int) ($request->per_page ?? 20))));
 
         return response()->json($inscripciones);
     }
@@ -75,7 +75,7 @@ class InscripcionTallerController extends Controller
         }
 
         $inscripciones = $query->orderBy('fecha_inscripcion', 'desc')
-            ->paginate($request->per_page ?? 50);
+            ->paginate(min(100, max(10, (int) ($request->per_page ?? 20))));
 
         return response()->json($inscripciones);
     }
@@ -511,8 +511,27 @@ class InscripcionTallerController extends Controller
 
         $persona = Persona::findOrFail($validated['estudiante_id']);
         $taller = Taller::findOrFail($validated['taller_id']);
+        $precioTaller = (float) ($taller->precio ?? 0);
+        $montoPagado = (float) $validated['monto_pagado'];
 
-        $inscripcion = DB::transaction(function () use ($validated, $persona, $taller) {
+        if (!$taller->permitirInscripcion() || $taller->capacidadDisponible() <= 0) {
+            return response()->json(['mensaje' => 'El taller ya no dispone de cupos para inscripción.'], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        if (InscripcionTaller::where('taller_id', $taller->id)
+            ->where('persona_id', $persona->id)
+            ->whereIn('estado', ['activo', 'completado'])
+            ->exists()) {
+            return response()->json(['mensaje' => 'El estudiante ya está inscrito en este taller.'], Response::HTTP_CONFLICT);
+        }
+
+        if ($precioTaller > 0 && $montoPagado <= 0) {
+            return response()->json([
+                'mensaje' => 'Registra un monto mayor a $0 para un taller de pago.',
+            ], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        $inscripcion = DB::transaction(function () use ($validated, $persona, $taller, $precioTaller, $montoPagado) {
             $inscripcion = InscripcionTaller::create([
                 'taller_id' => $validated['taller_id'],
                 'persona_id' => $persona->id,
@@ -521,13 +540,14 @@ class InscripcionTallerController extends Controller
                 'cedula' => $persona->cedula,
                 'correo' => $persona->correo,
                 'celular' => $persona->celular,
-                'precio_pagado' => $validated['monto_pagado'],
-                'monto_pagado' => $validated['monto_pagado'],
-                'tipo_pago' => $validated['monto_pagado'] >= ($taller->precio ?? 0) ? 'completo' : 'abono',
+                'precio_pagado' => $montoPagado,
+                'monto_pagado' => $montoPagado,
+                'tipo_pago' => $montoPagado >= $precioTaller ? 'completo' : 'abono',
                 'metodo_pago' => $validated['metodo_pago'] ?? 'efectivo',
                 'fecha_pago' => now()->timezone('America/Guayaquil')->toDateString(),
                 'estado' => 'activo',
-                'pago_verificado' => true,
+                // Un taller gratuito no requiere una transacción; los pagos directos sí quedan verificados.
+                'pago_verificado' => $precioTaller <= 0 || $montoPagado > 0,
             ]);
 
             return $inscripcion;

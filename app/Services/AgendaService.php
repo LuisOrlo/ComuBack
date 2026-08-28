@@ -24,6 +24,11 @@ class AgendaService
         'RADIO'         => ['color' => '#ef4444', 'label' => 'Radio'],
     ];
 
+    public static function eventTypes(): array
+    {
+        return self::EVENT_TYPES;
+    }
+
     public function getEvents(?string $fechaInicio = null, ?string $fechaFin = null, ?array $tipos = null): Collection
     {
         $fechaInicio = $fechaInicio ?? Carbon::now()->startOfMonth()->toDateString();
@@ -197,7 +202,7 @@ class AgendaService
 
     private function getTalleres(string $fechaInicio, string $fechaFin): Collection
     {
-        return DB::connection('pgsql')
+        $talleres = DB::connection('pgsql')
             ->table('academic.talleres as t')
             ->leftJoin('people.personas as p', 't.instructor_id', '=', 'p.id')
             ->leftJoin('core.ciudades as ciu', 't.ciudad_id', '=', 'ciu.id')
@@ -218,19 +223,40 @@ class AgendaService
                 'ciu.nombre as ciudad_nombre',
                 DB::raw("'#f59e0b' as color")
             )
-            ->get()
-            ->map(function ($row) {
+            ->get();
+
+        $ids = $talleres->pluck('referencia_id')->all();
+        if (empty($ids)) {
+            return collect();
+        }
+
+        $inscripciones = DB::connection('pgsql')
+            ->table('academic.inscripciones_taller')
+            ->whereIn('taller_id', $ids)
+            ->selectRaw('taller_id, count(*) as total')
+            ->groupBy('taller_id')
+            ->pluck('total', 'taller_id');
+
+        $aulas = collect();
+        $exists = DB::connection('pgsql')->select("SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'academic' AND table_name = 'horarios_talleres') as exists");
+        if ($exists[0]->exists) {
+            $aulas = DB::connection('pgsql')
+                ->table('academic.horarios_talleres')
+                ->whereIn('taller_id', $ids)
+                ->whereNotNull('aula')
+                ->select('taller_id', 'aula')
+                ->orderBy('id')
+                ->get()
+                ->unique('taller_id')
+                ->pluck('aula', 'taller_id');
+        }
+
+        return $talleres->map(function ($row) use ($inscripciones, $aulas) {
                 $row = (array) $row;
                 $event = $this->normalizeEvent($row, 'TALLER');
 
-                // Contar inscripciones
-                $inscripciones = DB::connection('pgsql')
-                    ->table('academic.inscripciones_taller')
-                    ->where('taller_id', $row['referencia_id'])
-                    ->count();
-
-                $event['participantes_count'] = $inscripciones;
-                $event['aula_nombre'] = $this->getTallerAula($row['referencia_id']);
+                $event['participantes_count'] = (int) ($inscripciones[$row['referencia_id']] ?? 0);
+                $event['aula_nombre'] = $aulas[$row['referencia_id']] ?? null;
 
                 return $event;
             });
