@@ -67,6 +67,9 @@ class AlquilerEquipoController extends Controller
             'foto_salida' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:5120',
             'observaciones' => 'nullable|string',
             'precio_total' => 'required|numeric|min:0',
+            'precio_original' => 'nullable|numeric|min:0',
+            'monto_descuento' => 'nullable|numeric|min:0',
+            'motivo_descuento' => 'nullable|string|max:255',
         ]);
 
         if (empty($validated['persona_id']) && empty($validated['cliente_externo_id'])) {
@@ -124,6 +127,9 @@ class AlquilerEquipoController extends Controller
             'foto_salida' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:5120',
             'observaciones' => 'nullable|string',
             'precio_total' => 'required|numeric|min:0',
+            'precio_original' => 'nullable|numeric|min:0',
+            'monto_descuento' => 'nullable|numeric|min:0',
+            'motivo_descuento' => 'nullable|string|max:255',
         ]);
 
         if (empty($validated['persona_id']) && empty($validated['cliente_externo_id'])) {

@@ -59,19 +59,19 @@ class EgresoController extends Controller
         $sortCol = $allowed[$orderBy] ?? 'fecha_pago';
         $sortDir = $orderDir === 'asc' ? 'asc' : 'desc';
 
-        $items = $query->orderBy($sortCol, $sortDir)
-            ->paginate($request->get('per_page', 25));
+        $perPage = min(max((int) $request->get('per_page', 25), 10), 100);
+        $items = $query->orderBy($sortCol, $sortDir)->paginate($perPage);
 
-        $graficoCategorias = TransaccionEgreso::whereNotNull('categoria')
-            ->get()->groupBy(fn($e) => $e->categoria)
-            ->map(function ($g, $k) { return ['name' => $k, 'value' => (float) $g->sum('monto')]; })
-            ->sortByDesc('value')->values();
+        $graficoCategorias = (clone $query)->whereNotNull('categoria')
+            ->select('categoria as name')->selectRaw('SUM(monto) as value')
+            ->groupBy('categoria')->orderByDesc('value')->get()
+            ->map(fn($row) => ['name' => $row->name, 'value' => (float) $row->value])->values();
 
-        $graficoProveedores = TransaccionEgreso::whereNotNull('proveedor_beneficiario')
+        $graficoProveedores = (clone $query)->whereNotNull('proveedor_beneficiario')
             ->where('proveedor_beneficiario', '!=', '')
-            ->get()->groupBy('proveedor_beneficiario')
-            ->map(function ($g, $k) { return ['name' => $k, 'value' => (float) $g->sum('monto')]; })
-            ->sortByDesc('value')->take(8)->values();
+            ->select('proveedor_beneficiario as name')->selectRaw('SUM(monto) as value')
+            ->groupBy('proveedor_beneficiario')->orderByDesc('value')->limit(8)->get()
+            ->map(fn($row) => ['name' => $row->name, 'value' => (float) $row->value])->values();
 
         $data = $items->map(fn($e) => [
             'id' => $e->id,

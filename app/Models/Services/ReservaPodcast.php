@@ -36,6 +36,9 @@ class ReservaPodcast extends Model
         'hora_inicio',
         'hora_fin',
         'precio_total',
+        'precio_original',
+        'monto_descuento',
+        'motivo_descuento',
         'observaciones',
         'estado',
         'titulo',
@@ -45,6 +48,8 @@ class ReservaPodcast extends Model
     {
         return [
             'precio_total' => 'decimal:2',
+            'precio_original' => 'decimal:2',
+            'monto_descuento' => 'decimal:2',
             'fecha_reserva' => 'date:Y-m-d',
         ];
     }

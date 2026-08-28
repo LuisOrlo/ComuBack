@@ -38,6 +38,9 @@ class AlquilerEquipo extends Model
         'foto_retorno_url',
         'observaciones',
         'precio_total',
+        'precio_original',
+        'monto_descuento',
+        'motivo_descuento',
         'estado',
     ];
 
@@ -46,6 +49,8 @@ class AlquilerEquipo extends Model
         'fecha_devolucion_esperada' => 'datetime',
         'fecha_recepcion' => 'datetime',
         'precio_total' => 'decimal:2',
+            'precio_original' => 'decimal:2',
+            'monto_descuento' => 'decimal:2',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
     ];

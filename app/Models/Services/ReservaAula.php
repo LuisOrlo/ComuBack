@@ -35,6 +35,9 @@ class ReservaAula extends Model
         'hora_inicio',
         'hora_fin',
         'precio_total',
+        'precio_original',
+        'monto_descuento',
+        'motivo_descuento',
         'estado'
     ];
 

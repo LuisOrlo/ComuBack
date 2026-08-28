@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\InscripcionTaller;
 use App\Models\Taller;
 use App\Models\Persona;
+use App\Models\ClienteExterno;
 use App\Models\CuentaPorCobrar;
 use App\Models\TransaccionIngreso;
 use App\Models\ArchivoEliminado;
@@ -135,46 +136,93 @@ class InscripcionTallerController extends Controller
             ], 422);
         }
 
-        $inscripcion = DB::transaction(function () use ($request, $validated) {
-            $data = [
-                'taller_id' => $validated['taller_id'],
+        // 1. Determinar si es estudiante o participante externo
+        $personaId = $request->user()->persona_id ?? null;
+        $participanteExternoId = null;
+
+        if (empty($personaId)) {
+            // Es participante externo - crear o actualizar sus datos personales
+            $datosExterno = [
                 'nombres' => $validated['nombres'],
                 'apellidos' => $validated['apellidos'],
-                'cedula' => $validated['cedula'],
-                'correo' => $validated['correo'],
-                'telefono' => $validated['telefono'] ?? null,
-                'ciudad' => $validated['ciudad'] ?? null,
+                'cedula' => $validated['cedula'] ?? null,
+                'correo' => $validated['correo'] ?? null,
+                'celular' => $validated['telefono'] ?? null,
                 'ocupacion' => $validated['ocupacion'] ?? null,
                 'direccion' => $validated['direccion'] ?? null,
+                'ciudad' => $validated['ciudad'] ?? null,
                 'estado_civil' => $validated['estado_civil'] ?? null,
                 'edad' => $validated['edad'] ?? null,
                 'nivel_educativo' => $validated['nivel_educativo'] ?? null,
-                'fecha_inscripcion' => now()->timezone('America/Guayaquil')->toDateString(),
-                'estado' => 'activo',
-                'tipo_pago' => $validated['tipo_pago'],
-                'monto_pagado' => $validated['monto_pagado'],
-                'metodo_pago' => $validated['metodo_pago'] ?? null,
-                'fecha_pago' => $validated['fecha_pago'] ?? now()->timezone('America/Guayaquil')->toDateString(),
             ];
 
-            if ($request->hasFile('comprobante')) {
-                $file = $request->file('comprobante');
-                $filename = Str::uuid() . '.' . $file->getClientOriginalExtension();
-                $path = $file->storeAs('comprobantes-talleres', $filename);
-                $data['comprobante_url'] = Storage::disk()->url($path);
+            $participanteExterno = ClienteExterno::where('correo', $validated['correo'])->first();
+
+            if ($participanteExterno) {
+                $participanteExterno->update(array_filter($datosExterno, fn ($v) => $v !== null));
+            } else {
+                $participanteExterno = ClienteExterno::create($datosExterno);
             }
+            $participanteExternoId = $participanteExterno->id;
+        }
 
-            if ($request->hasFile('archivo_cedula')) {
-                $file = $request->file('archivo_cedula');
-                $filename = Str::uuid() . '.' . $file->getClientOriginalExtension();
-                $path = $file->storeAs('cedulas-talleres', $filename);
-                $data['cedula_url'] = Storage::disk()->url($path);
+        // 2. Procesar subida de archivos de manera segura
+        $comprobanteUrl = null;
+        $cedulaUrl = null;
+
+        if ($request->hasFile('comprobante')) {
+            $file = $request->file('comprobante');
+            $filename = Str::uuid() . '.' . $file->getClientOriginalExtension();
+            $path = $file->storeAs('comprobantes-talleres', $filename);
+            $comprobanteUrl = Storage::disk()->url($path);
+        }
+
+        if ($request->hasFile('archivo_cedula')) {
+            $file = $request->file('archivo_cedula');
+            $filename = Str::uuid() . '.' . $file->getClientOriginalExtension();
+            $path = $file->storeAs('cedulas-talleres', $filename);
+            $cedulaUrl = Storage::disk()->url($path);
+        }
+
+        try {
+            $inscripcion = DB::transaction(function () use ($validated, $personaId, $participanteExternoId, $comprobanteUrl, $cedulaUrl) {
+                return InscripcionTaller::create([
+                    'taller_id' => $validated['taller_id'],
+                    'persona_id' => $personaId,
+                    'participante_externo_id' => $participanteExternoId,
+                    'nombres' => $validated['nombres'],
+                    'apellidos' => $validated['apellidos'],
+                    'cedula' => $validated['cedula'],
+                    'correo' => $validated['correo'],
+                    'telefono' => $validated['telefono'] ?? null,
+                    'ciudad' => $validated['ciudad'] ?? null,
+                    'ocupacion' => $validated['ocupacion'] ?? null,
+                    'direccion' => $validated['direccion'] ?? null,
+                    'estado_civil' => $validated['estado_civil'] ?? null,
+                    'edad' => $validated['edad'] ?? null,
+                    'nivel_educativo' => $validated['nivel_educativo'] ?? null,
+                    'fecha_inscripcion' => now()->timezone('America/Guayaquil')->toDateString(),
+                    'estado' => 'activo',
+                    'tipo_pago' => $validated['tipo_pago'],
+                    'monto_pagado' => $validated['monto_pagado'],
+                    'metodo_pago' => $validated['metodo_pago'] ?? null,
+                    'fecha_pago' => $validated['fecha_pago'] ?? now()->timezone('America/Guayaquil')->toDateString(),
+                    'comprobante_url' => $comprobanteUrl,
+                    'cedula_url' => $cedulaUrl,
+                ]);
+            });
+
+            return response()->json($inscripcion, 201);
+        } catch (\Exception $e) {
+            // Si la base de datos falla, limpiamos los archivos huérfanos que acabamos de crear
+            if ($comprobanteUrl) {
+                Storage::delete(str_replace('/storage/', 'public/', parse_url($comprobanteUrl, PHP_URL_PATH) ?? ''));
             }
-
-            return InscripcionTaller::create($data);
-        });
-
-        return response()->json($inscripcion, 201);
+            if ($cedulaUrl) {
+                Storage::delete(str_replace('/storage/', 'public/', parse_url($cedulaUrl, PHP_URL_PATH) ?? ''));
+            }
+            throw $e;
+        }
     }
 
     public function uploadComprobante(Request $request, string $id): JsonResponse

@@ -29,7 +29,7 @@ class FinanceController extends Controller
     public function getCuentas(Request $request): JsonResponse
     {
         $recientes = $request->boolean('recientes');
-        $perPage = (int) $request->get('per_page', 15);
+        $perPage = min(max((int) $request->get('per_page', 15), 10), 100);
         $origen = $request->get('origen');
         $estado = $request->get('estado');
         $search = $request->get('search');
@@ -1085,6 +1085,21 @@ class FinanceController extends Controller
             });
         }
 
+        if ($metodo = $request->get('metodo_pago')) {
+            $ingresoIdsQuery->where('metodo_pago', $metodo);
+            $egresoIdsQuery->where('metodo_pago', $metodo);
+        }
+        if ($estado = $request->get('estado_verificacion')) {
+            $ingresoIdsQuery->where('estado_verificacion', $estado);
+            if ($estado !== 'aprobado') {
+                $egresoIdsQuery->whereRaw('1 = 0');
+            }
+        }
+        if ($tipo = $request->get('tipo_movimiento')) {
+            if ($tipo === 'ingreso') $egresoIdsQuery->whereRaw('1 = 0');
+            if ($tipo === 'egreso') $ingresoIdsQuery->whereRaw('1 = 0');
+        }
+
         $total = $ingresoIdsQuery->count() + $egresoIdsQuery->count();
 
         // ── UNION con LIMIT/OFFSET a nivel BD ──
@@ -2135,7 +2150,7 @@ class FinanceController extends Controller
             ->groupBy('mes')->orderBy('mes')->limit(12)
             ->get()->map(fn($r) => ['mes' => $r->mes, 'total' => (float) $r->total]);
 
-        $perPage = (int) $request->get('per_page', 25);
+        $perPage = min(max((int) $request->get('per_page', 25), 10), 100);
         $page = max((int) $request->get('page', 1), 1);
 
         // ── Paginación real: UNION liviano de ids + LIMIT/OFFSET en BD ────────

@@ -40,21 +40,6 @@ class RegistrationController extends Controller
     {
         $validated = $request->validated();
 
-        // Procesar archivos adjuntos (si vienen en lugar de URLs)
-        if ($request->hasFile('archivo_comprobante') && empty($validated['archivo_comprobante_url'])) {
-            $file = $request->file('archivo_comprobante');
-            $filename = Str::uuid() . '.' . $file->getClientOriginalExtension();
-            $path = $file->storeAs('comprobantes', $filename);
-            $validated['archivo_comprobante_url'] = Storage::disk()->url($path);
-        }
-
-        if ($request->hasFile('archivo_cedula') && empty($validated['archivo_cedula_url'])) {
-            $file = $request->file('archivo_cedula');
-            $filename = Str::uuid() . '.' . $file->getClientOriginalExtension();
-            $path = $file->storeAs('cedulas', $filename);
-            $validated['archivo_cedula_url'] = Storage::disk()->url($path);
-        }
-
         // 1. Determinar si es estudiante o participante externo
         $personaId = $validated['persona_id'] ?? null;
         $participanteExternoId = null;
@@ -113,8 +98,8 @@ class RegistrationController extends Controller
             ], Response::HTTP_UNPROCESSABLE_ENTITY);
         }
 
-        // 4. Validar comprobante de pago (si se envió archivo)
-        $archivoUrl = $validated['archivo_comprobante_url'] ?? null;
+        // 4. Validar comprobante de pago
+        $archivoUrl = $validated['archivo_comprobante_url'] ?? ($request->hasFile('archivo_comprobante') ? '/storage/temp-validation' : null);
         if ($archivoUrl) {
             $validacionPago = $this->paymentVerifier->validar(
                 $archivoUrl,
@@ -130,6 +115,21 @@ class RegistrationController extends Controller
                     'errores' => $validacionPago['errores'],
                 ], Response::HTTP_UNPROCESSABLE_ENTITY);
             }
+        }
+
+        // --- VALIDACIONES APROBADAS: Proceder con la subida física de archivos ---
+        if ($request->hasFile('archivo_comprobante') && empty($validated['archivo_comprobante_url'])) {
+            $file = $request->file('archivo_comprobante');
+            $filename = Str::uuid() . '.' . $file->getClientOriginalExtension();
+            $path = $file->storeAs('comprobantes', $filename);
+            $validated['archivo_comprobante_url'] = Storage::disk()->url($path);
+        }
+
+        if ($request->hasFile('archivo_cedula') && empty($validated['archivo_cedula_url'])) {
+            $file = $request->file('archivo_cedula');
+            $filename = Str::uuid() . '.' . $file->getClientOriginalExtension();
+            $path = $file->storeAs('cedulas', $filename);
+            $validated['archivo_cedula_url'] = Storage::disk()->url($path);
         }
 
         // 5. Crear la solicitud de inscripción

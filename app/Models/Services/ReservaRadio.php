@@ -36,6 +36,9 @@ class ReservaRadio extends Model
         'incluye_operador',
         'operador_id',
         'precio_total',
+        'precio_original',
+        'monto_descuento',
+        'motivo_descuento',
         'observaciones',
         'estado',
     ];
@@ -44,6 +47,8 @@ class ReservaRadio extends Model
     {
         return [
             'precio_total' => 'decimal:2',
+            'precio_original' => 'decimal:2',
+            'monto_descuento' => 'decimal:2',
             'fecha_reserva' => 'date:Y-m-d',
             'incluye_operador' => 'boolean',
             'hora_inicio' => 'string',

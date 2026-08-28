@@ -15,6 +15,8 @@ class InscripcionTaller extends Model
 
     protected $fillable = [
         'taller_id',
+        'persona_id',
+        'participante_externo_id',
         'nombres',
         'apellidos',
         'cedula',

@@ -46,6 +46,9 @@ class ReservaAulaController extends Controller
             'hora_inicio' => 'required|date_format:H:i',
             'hora_fin' => 'required|date_format:H:i|after:hora_inicio',
             'precio_total' => 'required|numeric|min:0',
+            'precio_original' => 'nullable|numeric|min:0',
+            'monto_descuento' => 'nullable|numeric|min:0',
+            'motivo_descuento' => 'nullable|string|max:255',
             'estado' => 'nullable|string|in:reservado,confirmado,en_progreso,completado,cancelado'
         ]);
 
@@ -122,6 +125,9 @@ class ReservaAulaController extends Controller
         if (isset($validated['hora_inicio'])) $data['hora_inicio'] = $validated['hora_inicio'];
         if (isset($validated['hora_fin'])) $data['hora_fin'] = $validated['hora_fin'];
         if (isset($validated['precio_total'])) $data['precio_total'] = $validated['precio_total'];
+        if (array_key_exists('precio_original', $validated)) $data['precio_original'] = $validated['precio_original'];
+        if (array_key_exists('monto_descuento', $validated)) $data['monto_descuento'] = $validated['monto_descuento'];
+        if (array_key_exists('motivo_descuento', $validated)) $data['motivo_descuento'] = $validated['motivo_descuento'];
         if (isset($validated['estado'])) $data['estado'] = $validated['estado'];
 
         // Asegurar que solo uno (persona o cliente externo) esté presente
