@@ -970,6 +970,7 @@ class FinanceController extends Controller
             'monto' => 'sometimes|numeric|min:0.01',
             'metodo_pago' => 'sometimes|string|in:efectivo,transferencia,deposito,tarjeta,otro',
             'observaciones' => 'sometimes|nullable|string|max:500',
+            'comprobante' => 'sometimes|nullable|file|image|max:5120',
         ]);
 
         $transaccion = TransaccionIngreso::findOrFail($id);
@@ -979,15 +980,68 @@ class FinanceController extends Controller
         }
 
         $updateData = [];
-        if (isset($validated['monto'])) $updateData['monto'] = $validated['monto'];
+        $montoDiff = 0;
+
+        if (isset($validated['monto']) && $validated['monto'] != $transaccion->monto) {
+            $updateData['monto'] = $validated['monto'];
+            if ($transaccion->estado_verificacion === TransaccionIngreso::VERIFICACION_APROBADO) {
+                $montoDiff = $validated['monto'] - $transaccion->monto;
+            }
+        }
         if (isset($validated['metodo_pago'])) $updateData['metodo_pago'] = $validated['metodo_pago'];
         if (array_key_exists('observaciones', $validated)) $updateData['observaciones'] = $validated['observaciones'];
+
+        if ($request->hasFile('comprobante')) {
+            // Eliminar comprobante anterior si existe
+            if ($transaccion->comprobante_url) {
+                $oldPath = str_replace(Storage::disk('public')->url(''), '', $transaccion->comprobante_url);
+                Storage::disk('public')->delete($oldPath);
+            }
+            $file = $request->file('comprobante');
+            $filename = \Illuminate\Support\Str::uuid() . '.' . $file->getClientOriginalExtension();
+            $path = $file->storeAs('comprobantes', $filename, 'public');
+            $updateData['comprobante_url'] = Storage::disk('public')->url($path);
+        }
 
         if (empty($updateData)) {
             return response()->json(['mensaje' => 'No hay campos para actualizar'], 422);
         }
 
-        $transaccion->update($updateData);
+        \Illuminate\Support\Facades\DB::transaction(function () use ($transaccion, $updateData, $montoDiff) {
+            $transaccion->update($updateData);
+
+            if ($montoDiff != 0) {
+                if ($transaccion->linea_pago_modulo_id) {
+                    $linea = $transaccion->lineaPagoModulo;
+                    $linea->monto_abonado += $montoDiff;
+                    $linea->recalcularEstado();
+                    $linea->save();
+                    
+                    // Call reflection to bypass private syncCuentaPorCobrar if needed, or simply let it sync
+                    // Since it's private we can invoke it via reflection or do it manually
+                    $matricula = $linea->matricula()->first();
+                    if ($matricula) {
+                        $cuenta = $matricula->cuentaPorCobrar()->first();
+                        if ($cuenta) {
+                            $totalAbonado = $matricula->lineasPago()->sum('monto_abonado');
+                            $cuenta->update([
+                                'monto_abonado' => $totalAbonado,
+                                'estado' => $totalAbonado >= $cuenta->monto_total
+                                    ? \App\Models\CuentaPorCobrar::ESTADO_PAGADO
+                                    : ($totalAbonado > 0 ? \App\Models\CuentaPorCobrar::ESTADO_ABONADO : \App\Models\CuentaPorCobrar::ESTADO_PENDIENTE),
+                            ]);
+                        }
+                    }
+                } elseif ($transaccion->cuenta_cobrar_id) {
+                    $cuenta = $transaccion->cuentaPorCobrar;
+                    $cuenta->monto_abonado += $montoDiff;
+                    $cuenta->estado = $cuenta->monto_abonado >= $cuenta->monto_total
+                        ? \App\Models\CuentaPorCobrar::ESTADO_PAGADO
+                        : ($cuenta->monto_abonado > 0 ? \App\Models\CuentaPorCobrar::ESTADO_ABONADO : \App\Models\CuentaPorCobrar::ESTADO_PENDIENTE);
+                    $cuenta->save();
+                }
+            }
+        });
 
         return response()->json([
             'mensaje' => 'Transaccin actualizada correctamente',

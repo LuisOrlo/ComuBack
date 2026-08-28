@@ -66,6 +66,7 @@ class RegistrationController extends Controller
                 'nombres' => $validated['nombres'],
                 'apellidos' => $validated['apellidos'],
                 'cedula' => $validated['cedula'] ?? null,
+                'correo' => $validated['correo'] ?? null,
                 'celular' => $validated['celular'] ?? null,
                 'ocupacion' => $validated['ocupacion'] ?? null,
                 'direccion' => $validated['direccion'] ?? null,

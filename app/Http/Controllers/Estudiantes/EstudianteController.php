@@ -1064,6 +1064,7 @@ class EstudianteController extends Controller
                         $transacciones = $transacciones->concat($lp->transacciones->map(fn($t) => [
                             'id' => $t->id,
                             'cuenta_id' => $cuenta->id,
+                            'linea_pago_modulo_id' => $lp->id,
                             'concepto' => $concepto,
                             'monto' => (float) $t->monto,
                             'metodo_pago' => $t->metodo_pago,
@@ -1138,6 +1139,7 @@ class EstudianteController extends Controller
                         $transacciones = $transacciones->concat($lp->transacciones->map(fn($t) => [
                             'id' => $t->id,
                             'cuenta_id' => $lp->id,
+                            'linea_pago_modulo_id' => $lp->id,
                             'concepto' => $lpConcepto,
                             'monto' => (float) $t->monto,
                             'metodo_pago' => $t->metodo_pago,

@@ -780,6 +780,7 @@ class StaffRegistrationController extends Controller
             'lineas' => 'required|array|min:1',
             'lineas.*.id' => 'required|string|uuid',
             'lineas.*.monto_abonado' => 'required|numeric|min:0',
+            'lineas.*.monto_ajustado' => 'nullable|numeric|min:0',
             'lineas.*.motivo_ajuste' => 'nullable|string|max:255',
         ]);
 
@@ -791,23 +792,29 @@ class StaffRegistrationController extends Controller
                 if (! $lineaPago) {
                     throw new \Exception("Línea de pago {$linea['id']} no encontrada en esta matrícula");
                 }
-                if ($linea['monto_abonado'] > $lineaPago->monto_ajustado) {
-                    throw new \Exception("El monto abonado no puede exceder el monto ajustado ({$lineaPago->monto_ajustado})");
+
+                $montoAjustado = isset($linea['monto_ajustado']) && $linea['monto_ajustado'] !== null
+                    ? (float) $linea['monto_ajustado']
+                    : (float) $lineaPago->monto_ajustado;
+
+                if ($linea['monto_abonado'] > $montoAjustado) {
+                    throw new \Exception("El monto abonado no puede exceder el monto ajustado ({$montoAjustado})");
                 }
 
                 $estado = match(true) {
-                    $linea['monto_abonado'] >= $lineaPago->monto_ajustado => 'pagado',
+                    $linea['monto_abonado'] >= $montoAjustado => 'pagado',
                     $linea['monto_abonado'] > 0 => 'abonado',
                     default => 'pendiente',
                 };
 
                 DB::update("
                     UPDATE finance.lineas_pago_modulo SET
+                        monto_ajustado = ?,
                         monto_abonado = ?,
                         estado = ?::t_estado_pago,
                         updated_at = NOW()
                     WHERE id = ?
-                ", [$linea['monto_abonado'], $estado, $linea['id']]);
+                ", [$montoAjustado, $linea['monto_abonado'], $estado, $linea['id']]);
 
                 DB::update("
                     UPDATE finance.transacciones_ingreso SET
