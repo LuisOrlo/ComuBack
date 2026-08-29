@@ -998,13 +998,17 @@ class FinanceController extends Controller
         if ($request->hasFile('comprobante')) {
             // Eliminar comprobante anterior si existe
             if ($transaccion->comprobante_url) {
-                $oldPath = str_replace(Storage::disk('public')->url(''), '', $transaccion->comprobante_url);
-                Storage::disk('public')->delete($oldPath);
+                $oldPath = ltrim((string) parse_url($transaccion->comprobante_url, PHP_URL_PATH), '/');
+                $diskUrl = rtrim((string) config('filesystems.disks.'.config('filesystems.default').'.url'), '/');
+                if ($diskUrl && str_starts_with($transaccion->comprobante_url, $diskUrl.'/')) {
+                    $oldPath = ltrim(substr($transaccion->comprobante_url, strlen($diskUrl)), '/');
+                }
+                Storage::disk()->delete($oldPath);
             }
             $file = $request->file('comprobante');
             $filename = \Illuminate\Support\Str::uuid() . '.' . $file->getClientOriginalExtension();
-            $path = $file->storeAs('comprobantes', $filename, 'public');
-            $updateData['comprobante_url'] = Storage::disk('public')->url($path);
+            $path = $file->storeAs('comprobantes', $filename);
+            $updateData['comprobante_url'] = Storage::disk()->url($path);
         }
 
         if (empty($updateData)) {

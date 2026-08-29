@@ -173,15 +173,15 @@ class InscripcionTallerController extends Controller
         if ($request->hasFile('comprobante')) {
             $file = $request->file('comprobante');
             $filename = Str::uuid() . '.' . $file->getClientOriginalExtension();
-            $path = $file->storeAs('comprobantes-talleres', $filename, 'public');
-            $comprobanteUrl = Storage::url($path);
+            $path = $file->storeAs('comprobantes-talleres', $filename);
+            $comprobanteUrl = Storage::disk()->url($path);
         }
 
         if ($request->hasFile('archivo_cedula')) {
             $file = $request->file('archivo_cedula');
             $filename = Str::uuid() . '.' . $file->getClientOriginalExtension();
-            $path = $file->storeAs('cedulas-talleres', $filename, 'public');
-            $cedulaUrl = Storage::url($path);
+            $path = $file->storeAs('cedulas-talleres', $filename);
+            $cedulaUrl = Storage::disk()->url($path);
         }
 
         try {
@@ -216,10 +216,10 @@ class InscripcionTallerController extends Controller
         } catch (\Exception $e) {
             // Si la base de datos falla, limpiamos los archivos huérfanos que acabamos de crear
             if ($comprobanteUrl) {
-                Storage::delete(str_replace('/storage/', 'public/', parse_url($comprobanteUrl, PHP_URL_PATH) ?? ''));
+                Storage::disk()->delete(ltrim((string) parse_url($comprobanteUrl, PHP_URL_PATH), '/'));
             }
             if ($cedulaUrl) {
-                Storage::delete(str_replace('/storage/', 'public/', parse_url($cedulaUrl, PHP_URL_PATH) ?? ''));
+                Storage::disk()->delete(ltrim((string) parse_url($cedulaUrl, PHP_URL_PATH), '/'));
             }
             throw $e;
         }
