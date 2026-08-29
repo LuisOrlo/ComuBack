@@ -73,7 +73,7 @@ class NotificationController extends Controller
             + InscripcionTaller::where('estado', 'activo')->where('pago_verificado', false)->count();
 
         $grouped = $merged->groupBy(function ($item) {
-            return Carbon::parse($item['fecha_creacion'])->format('Y-m-d');
+            return Carbon::parse($item['fecha_creacion'])->timezone(config('app.timezone'))->format('Y-m-d');
         })->map(function ($items, $date) {
             return [
                 'fecha' => $date,
