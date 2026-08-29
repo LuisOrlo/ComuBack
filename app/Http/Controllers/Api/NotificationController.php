@@ -6,14 +6,12 @@ use App\Http\Controllers\Controller;
 use App\Models\SolicitudInscripcion;
 use App\Models\InscripcionTaller;
 use Carbon\Carbon;
-use Illuminate\Support\Facades\Cache;
 
 class NotificationController extends Controller
 {
     public function index()
     {
-        return response()->json(
-            Cache::remember('notifications:index', 30, function () {
+        return response()->json((function () {
         $solicitudes = SolicitudInscripcion::where('estado', 'pendiente_validacion')
             ->where('created_at', '>=', Carbon::now()->subDays(14))
             ->with([
@@ -96,7 +94,6 @@ class NotificationController extends Controller
                     'pendientes' => $count,
                     'recientes' => $grouped,
                 ];
-            })
-        );
+            }));
     }
 }
