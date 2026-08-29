@@ -11,7 +11,7 @@ php artisan config:cache
 php artisan route:cache
 php artisan view:cache
 
-ADMIN_EXISTS=$(php artisan tinker --execute="echo \App\Models\CuentaSistema::where('username', env('ADMIN_USERNAME', 'admin'))->exists() ? 'true' : 'false';")
+ADMIN_EXISTS=$(php -r "require 'vendor/autoload.php'; \$app = require_once 'bootstrap/app.php'; \$kernel = \$app->make(Illuminate\Contracts\Console\Kernel::class); \$kernel->bootstrap(); echo \App\Models\CuentaSistema::where('username', env('ADMIN_USERNAME', 'admin'))->exists() ? 'true' : 'false';" 2>/dev/null || echo "false")
 if [ "$ADMIN_EXISTS" != "true" ]; then
     php artisan db:seed --force
 fi
