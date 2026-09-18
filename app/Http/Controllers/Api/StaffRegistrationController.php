@@ -835,11 +835,11 @@ class StaffRegistrationController extends Controller
             'lineas.*.motivo_ajuste' => 'nullable|string|max:255',
         ]);
 
-        DB::transaction(function () use ($validated, $matricula) {
+        DB::transaction(function () use ($validated, $matricula, $solicitud) {
             $matriculaId = $matricula->id;
 
-            foreach ($validated['lineas'] as $linea) {
-                $lineaPago = $matricula->lineasPago()->where('id', $linea['id'])->first();
+            foreach ($validated['lineas'] as $indice => $linea) {
+                $lineaPago = $matricula->lineasPago()->where('id', $linea['id'])->lockForUpdate()->first();
                 if (! $lineaPago) {
                     throw new \Exception("Línea de pago {$linea['id']} no encontrada en esta matrícula");
                 }
@@ -848,13 +848,30 @@ class StaffRegistrationController extends Controller
                     ? (float) $linea['monto_ajustado']
                     : (float) $lineaPago->monto_ajustado;
 
-                if ($linea['monto_abonado'] > $montoAjustado) {
-                    throw new \Exception("El monto abonado no puede exceder el monto ajustado ({$montoAjustado})");
+                $montoAbonado = (float) $linea['monto_abonado'];
+                $montoAbonadoActual = (float) $lineaPago->monto_abonado;
+
+                if ($montoAjustado + 0.001 < $montoAbonadoActual) {
+                    throw \Illuminate\Validation\ValidationException::withMessages([
+                        "lineas.{$indice}.monto_ajustado" => "El precio ajustado no puede ser menor que lo ya pagado (\${$montoAbonadoActual}).",
+                    ]);
+                }
+
+                if ($montoAbonado + 0.001 < $montoAbonadoActual) {
+                    throw \Illuminate\Validation\ValidationException::withMessages([
+                        "lineas.{$indice}.monto_abonado" => 'No se puede reducir un pago histórico ya registrado.',
+                    ]);
+                }
+
+                if ($montoAbonado > $montoAjustado + 0.001) {
+                    throw \Illuminate\Validation\ValidationException::withMessages([
+                        "lineas.{$indice}.monto_abonado" => "El monto abonado no puede exceder el monto ajustado (\${$montoAjustado}).",
+                    ]);
                 }
 
                 $estado = match(true) {
-                    $linea['monto_abonado'] >= $montoAjustado => 'pagado',
-                    $linea['monto_abonado'] > 0 => 'abonado',
+                    $montoAbonado >= $montoAjustado => 'pagado',
+                    $montoAbonado > 0 => 'abonado',
                     default => 'pendiente',
                 };
 
@@ -865,13 +882,13 @@ class StaffRegistrationController extends Controller
                         estado = ?::t_estado_pago,
                         updated_at = NOW()
                     WHERE id = ?
-                ", [$montoAjustado, $linea['monto_abonado'], $estado, $linea['id']]);
+                ", [$montoAjustado, $montoAbonado, $estado, $linea['id']]);
 
                 DB::update("
                     UPDATE finance.transacciones_ingreso SET
                         monto = ?
                     WHERE linea_pago_modulo_id = ?
-                ", [$linea['monto_abonado'], $linea['id']]);
+                ", [$montoAbonado, $linea['id']]);
             }
 
             $totalAbonado = (float) DB::table('finance.lineas_pago_modulo')
