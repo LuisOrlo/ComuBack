@@ -27,6 +27,7 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
 
         $middleware->api(append: [
+            \App\Http\Middleware\PerformanceLoggingMiddleware::class,
             \App\Http\Middleware\EnsureUserIsActive::class,
         ]);
     })
