@@ -7,12 +7,12 @@ use App\Models\CursoAbierto;
 use App\Models\CatalogoCurso;
 use App\Services\RegistrationValidationService;
 use App\Services\PaymentVerificationService;
-use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Carbon\Carbon;
 
 class RegistrationValidationServiceTest extends TestCase
 {
-    use RefreshDatabase;
+    use DatabaseTransactions;
 
     protected $service;
     protected $paymentService;

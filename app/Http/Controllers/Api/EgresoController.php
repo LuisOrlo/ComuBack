@@ -9,6 +9,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class EgresoController extends Controller
 {
@@ -43,12 +44,15 @@ class EgresoController extends Controller
         $previoTotal = (float) TransaccionEgreso::whereBetween('fecha_pago', [$previoInicio, $previoFin . ' 23:59:59'])->sum('monto');
         $previoPersonal = (float) TransaccionEgreso::whereBetween('fecha_pago', [$previoInicio, $previoFin . ' 23:59:59'])->where('categoria', 'Personal')->sum('monto');
         $previoServicios = (float) TransaccionEgreso::whereBetween('fecha_pago', [$previoInicio, $previoFin . ' 23:59:59'])->where('categoria', 'Servicios')->sum('monto');
-        $previoVarios = max(0, $previoTotal - $previoPersonal - $previoServicios);
+        $previoEquipos = (float) TransaccionEgreso::whereBetween('fecha_pago', [$previoInicio, $previoFin . ' 23:59:59'])->where('categoria', 'Equipos')->sum('monto');
+        $previoVarios = max(0, $previoTotal - $previoPersonal - $previoServicios - $previoEquipos);
 
         $grafico = DB::table('finance.transacciones_egreso')
             ->selectRaw("to_char(fecha_pago, 'YYYY-MM') as mes, SUM(monto) as total")
             ->when($desde, fn($q) => $q->where('fecha_pago', '>=', $desde))
             ->when($hasta, fn($q) => $q->where('fecha_pago', '<=', $hasta . ' 23:59:59'))
+            ->when($cat, fn($q) => $q->where('categoria', $cat))
+            ->when($search, fn($q) => $q->where(fn($sub) => $sub->where('descripcion', 'ilike', "%{$search}%")->orWhere('proveedor_beneficiario', 'ilike', "%{$search}%")))
             ->groupBy(DB::raw("to_char(fecha_pago, 'YYYY-MM')"))
             ->orderBy(DB::raw("to_char(fecha_pago, 'YYYY-MM')"))
             ->get();
@@ -138,7 +142,16 @@ class EgresoController extends Controller
             'notas' => $validated['notas'] ?? null,
         ]);
 
+        Log::channel('audit')->info('egreso.creado', [
+            'egreso_id' => $egreso->id,
+            'monto' => (float) $egreso->monto,
+            'categoria' => $egreso->categoria,
+            'usuario_id' => auth()->id(),
+            'ip' => $request->ip(),
+        ]);
+
         Cache::forget('finance.resumen');
+        Cache::increment('estadisticas.version');
 
         return response()->json([
             'message' => 'Egreso registrado exitosamente',
@@ -191,15 +204,31 @@ class EgresoController extends Controller
 
         $egreso->update($data);
 
+        Log::channel('audit')->info('egreso.actualizado', [
+            'egreso_id' => $egreso->id,
+            'cambios' => $egreso->getChanges(),
+            'usuario_id' => auth()->id(),
+            'ip' => $request->ip(),
+        ]);
+
         Cache::forget('finance.resumen');
+        Cache::increment('estadisticas.version');
 
         return response()->json(['message' => 'Egreso actualizado exitosamente']);
     }
 
     public function destroy($id): JsonResponse
     {
-        TransaccionEgreso::findOrFail($id)->delete();
+        $egreso = TransaccionEgreso::findOrFail($id);
+        $egreso->delete();
+        Log::channel('audit')->info('egreso.eliminado', [
+            'egreso_id' => $egreso->id,
+            'monto' => (float) $egreso->monto,
+            'usuario_id' => auth()->id(),
+            'ip' => request()->ip(),
+        ]);
         Cache::forget('finance.resumen');
+        Cache::increment('estadisticas.version');
         return response()->json(['message' => 'Egreso eliminado exitosamente']);
     }
 

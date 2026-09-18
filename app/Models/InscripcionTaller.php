@@ -28,6 +28,7 @@ class InscripcionTaller extends Model
         'estado_civil',
         'edad',
         'nivel_educativo',
+        'datos_declarados',
         'fecha_inscripcion',
         'estado',
         'tipo_pago',
@@ -48,6 +49,7 @@ class InscripcionTaller extends Model
         'monto_pagado' => 'decimal:2',
         'pago_verificado' => 'boolean',
         'edad' => 'integer',
+        'datos_declarados' => 'array',
     ];
 
     public function taller(): BelongsTo

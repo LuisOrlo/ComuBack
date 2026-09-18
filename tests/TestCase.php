@@ -2,21 +2,44 @@
 
 namespace Tests;
 
+use App\Models\CuentaSistema;
+use App\Models\Persona;
 use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
-use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Foundation\Testing\DatabaseTransactions;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
+use Spatie\Permission\Models\Role;
 
 abstract class TestCase extends BaseTestCase
 {
-    use RefreshDatabase;
+    use DatabaseTransactions;
+
+    protected $connectionsToTransact = ['pgsql'];
 
     /**
      * Crear un usuario autenticado para tests
      */
     protected function createAuthenticatedUser()
     {
-        $user = \App\Models\User::factory()->create();
-        $this->actingAs($user, 'sanctum');
-        return $user;
+        $persona = Persona::create([
+            'tipo' => 'staff',
+            'cedula' => (string) random_int(1000000000, 1999999999),
+            'nombres' => 'Administrador',
+            'apellidos' => 'Prueba',
+            'correo' => Str::uuid() . '@example.test',
+            'es_activo' => true,
+        ]);
+
+        $cuenta = CuentaSistema::create([
+            'persona_id' => $persona->id,
+            'username' => Str::uuid()->toString(),
+            'password_hash' => Hash::make('secret'),
+        ]);
+        $role = Role::findOrCreate('Administrador', 'web');
+        $cuenta->assignRole($role);
+        $this->actingAs($cuenta, 'sanctum');
+
+        return $cuenta;
     }
 
     /**
@@ -24,8 +47,7 @@ abstract class TestCase extends BaseTestCase
      */
     protected function getAuthToken()
     {
-        $user = \App\Models\User::factory()->create();
-        return $user->createToken('test-token')->plainTextToken;
+        return $this->createAuthenticatedUser()->createToken('test-token')->plainTextToken;
     }
 
     /**

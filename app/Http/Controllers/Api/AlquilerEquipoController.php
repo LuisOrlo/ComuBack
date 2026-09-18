@@ -10,6 +10,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\DB;
 
 class AlquilerEquipoController extends Controller
 {
@@ -108,17 +109,22 @@ class AlquilerEquipoController extends Controller
 
         $validated['estado'] = 'pendiente';
 
-        $alquiler = AlquilerEquipo::create($validated);
-
-        CuentaPorCobrar::create([
-            'alquiler_equipo_id' => $alquiler->id,
-            'monto_total' => $validated['precio_total'],
-            'monto_abonado' => 0,
-            'estado' => 'pendiente',
-            'es_legacy' => false,
-        ]);
-
-        $equipo->update(['estado' => 'alquilado']);
+        $alquiler = DB::transaction(function () use ($validated, $equipo) {
+            $equipoBloqueado = Equipo::whereKey($equipo->id)->lockForUpdate()->firstOrFail();
+            if ($equipoBloqueado->estado !== 'disponible') {
+                abort(422, 'El equipo no está disponible para alquiler');
+            }
+            $alquiler = AlquilerEquipo::create($validated);
+            CuentaPorCobrar::create([
+                'alquiler_equipo_id' => $alquiler->id,
+                'monto_total' => $validated['precio_total'],
+                'monto_abonado' => 0,
+                'estado' => CuentaPorCobrar::ESTADO_PENDIENTE,
+                'es_legacy' => false,
+            ]);
+            $equipoBloqueado->update(['estado' => 'alquilado']);
+            return $alquiler;
+        });
 
         return response()->json([
             'message' => 'Alquiler registrado exitosamente',
@@ -156,6 +162,8 @@ class AlquilerEquipoController extends Controller
             return response()->json(['message' => 'Solo puede especificar un tipo de responsable'], 422);
         }
 
+        $cuenta = $alquiler->cuentaPorCobrar;
+
         // Si cambia el equipo: liberar el anterior y ocupar el nuevo
         if ($validated['equipo_id'] !== $alquiler->equipo_id) {
             $nuevoEquipo = Equipo::findOrFail($validated['equipo_id']);
@@ -189,9 +197,9 @@ class AlquilerEquipoController extends Controller
             $validated['motivo_descuento'] = null;
         }
 
-        $alquiler->update($validated);
-
-        if ($cuenta && (float) $cuenta->monto_total !== (float) $validated['precio_total']) {
+        DB::transaction(function () use ($alquiler, $validated, $cuenta) {
+            $alquiler->update($validated);
+            if ($cuenta && (float) $cuenta->monto_total !== (float) $validated['precio_total']) {
             $saldo = (float) $validated['precio_total'] - (float) $cuenta->monto_abonado;
 
             $cuenta->update([
@@ -199,7 +207,8 @@ class AlquilerEquipoController extends Controller
                 'estado' => $saldo <= 0 ? CuentaPorCobrar::ESTADO_PAGADO
                     : ((float) $cuenta->monto_abonado > 0 ? CuentaPorCobrar::ESTADO_ABONADO : CuentaPorCobrar::ESTADO_PENDIENTE),
             ]);
-        }
+            }
+        });
 
         return response()->json([
             'message' => 'Alquiler actualizado exitosamente',
@@ -215,12 +224,16 @@ class AlquilerEquipoController extends Controller
             return response()->json(['message' => 'Solo se pueden entregar alquileres en estado pendiente'], 422);
         }
 
-        $alquiler->update([
-            'estado' => 'entregado',
-            'fecha_entrega' => now(),
-        ]);
+        DB::transaction(function () use ($alquiler) {
+            $alquiler->update([
+                'estado' => 'entregado',
+                'fecha_entrega' => now(),
+            ]);
 
-        $alquiler->equipo()->update(['estado' => 'disponible']);
+            // El equipo permanece en estado alquilado mientras esté entregado al cliente.
+            // Solo pasará a disponible cuando se procese la devolución física (devolver).
+            $alquiler->equipo()->update(['estado' => 'alquilado']);
+        });
 
         return response()->json([
             'message' => 'Equipo marcado como entregado',

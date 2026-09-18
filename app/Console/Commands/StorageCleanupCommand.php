@@ -24,16 +24,24 @@ class StorageCleanupCommand extends Command
 
         if ($dryRun) {
             $this->warn('MODO SIMULACIÓN: No se eliminará ningún archivo.');
-            return self::SUCCESS;
+        } else {
+            $this->info("Iniciando limpieza de archivos con más de {$days} días...");
         }
 
-        $this->info("Iniciando limpieza de archivos con más de {$days} días...");
-
-        $results = $service->cleanupOlderThan($days, $modelClass, $field);
+        $results = $service->cleanupOlderThan($days, $modelClass, $field, (bool) $dryRun);
 
         $this->info("Total de registros revisados: {$results['total']}");
-        $this->info("Archivos eliminados: {$results['eliminados']}");
-        $this->warn("Errores: {$results['errores']}");
+        if ($dryRun) {
+            $this->info("Candidatos para eliminación: " . count($results['candidatos'] ?? []));
+            if (!empty($results['candidatos'])) {
+                $this->table(['Modelo', 'ID', 'Campo', 'Eliminado en'], array_map(fn($d) => [
+                    $d['model'], $d['id'], $d['field'], $d['deleted_at'],
+                ], $results['candidatos']));
+            }
+        } else {
+            $this->info("Archivos eliminados: {$results['eliminados']}");
+            $this->warn("Errores: {$results['errores']}");
+        }
 
         if (!empty($results['detalles'])) {
             $this->table(['Modelo', 'ID', 'Campo', 'Error'], array_map(fn($d) => [

@@ -7,12 +7,12 @@ use App\Models\Persona;
 use App\Models\CursoAbierto;
 use App\Models\CatalogoCurso;
 use App\Models\SolicitudInscripcion;
-use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Carbon\Carbon;
 
 class RegistrationTest extends TestCase
 {
-    use RefreshDatabase;
+    use DatabaseTransactions;
 
     protected $catalogo;
     protected $cursoDisponible;

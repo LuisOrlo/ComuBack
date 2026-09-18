@@ -51,7 +51,20 @@ class StoreCursoAbiertoRequest extends FormRequest
             'capacidad_maxima.required' => 'La capacidad máxima es obligatoria',
             'capacidad_maxima.min' => 'La capacidad mínima es 1 estudiante',
             'docente_id.exists' => 'El docente no existe',
+            'ciudad_id.required' => 'Para cursos presenciales activos es obligatorio asignar una ciudad',
+            'precio_base.required' => 'El precio base es obligatorio para cursos activos',
         ];
+    }
+
+    public function withValidator($validator): void
+    {
+        $validator->sometimes('ciudad_id', 'required|integer|exists:ciudades,id', function ($input) {
+            return filter_var($input->es_activo ?? true, FILTER_VALIDATE_BOOLEAN) && ($input->modalidad ?? '') === 'presencial';
+        });
+
+        $validator->sometimes('precio_base', 'required|numeric|min:0', function ($input) {
+            return filter_var($input->es_activo ?? true, FILTER_VALIDATE_BOOLEAN);
+        });
     }
 
     protected function prepareForValidation(): void

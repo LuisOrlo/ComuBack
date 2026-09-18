@@ -19,11 +19,11 @@ class EstudianteResource extends JsonResource
             'apellidos' => $this->apellidos,
             'correo' => $this->correo,
             'celular' => $this->celular,
-            'ciudad' => $this->ciudad ? (
-                is_string($this->ciudad)
-                    ? ['nombre' => $this->ciudad]
-                    : ['id' => $this->ciudad->id, 'nombre' => $this->ciudad->nombre, 'pais' => $this->ciudad->pais]
-            ) : null,
+            // La ciudad nueva se guarda mediante ciudad_id, pero aún existen
+            // registros antiguos que conservan el nombre en personas.ciudad.
+            // Si la relación está cargada y no encuentra registro, no debemos
+            // ocultar ese valor legado mostrando "—".
+            'ciudad' => $this->serializarCiudad(),
             'cedula_photo_url' => $this->cedula_photo_url
                 ?: $this->resolveCedulaFromSolicitudes(),
             'cedula_purgado' => $this->isCedulaPurgado(),
@@ -74,6 +74,23 @@ class EstudianteResource extends JsonResource
             'creado_en' => $this->created_at->toIso8601String(),
             'actualizado_en' => $this->updated_at->toIso8601String(),
         ];
+    }
+
+    private function serializarCiudad(): ?array
+    {
+        $relacion = $this->relationLoaded('ciudad') ? $this->getRelation('ciudad') : null;
+
+        if ($relacion) {
+            return [
+                'id' => $relacion->id,
+                'nombre' => $relacion->nombre,
+                'pais' => $relacion->pais,
+            ];
+        }
+
+        $nombreLegacy = $this->getRawOriginal('ciudad');
+
+        return $nombreLegacy ? ['nombre' => $nombreLegacy] : null;
     }
 
     private function calcularEstadoPago(): string

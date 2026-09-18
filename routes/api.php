@@ -107,6 +107,11 @@ use Illuminate\Support\Facades\Route;
     Route::get('talleres', [TallerController::class, 'index'])
         ->name('public.talleres.index');
 
+    // Cursos personalizados disponibles para el formulario público
+    Route::get('cursos-personalizados/disponibles', [CursoPersonalizadoController::class, 'index'])
+        ->defaults('publico', true)
+        ->name('public.cursos-personalizados.index');
+
     // ========================================================================
     // PUBLIC ROUTES - CERTIFICADOS (VERIFICACIÓN PÚBLICA)
     // ========================================================================
@@ -197,15 +202,19 @@ use Illuminate\Support\Facades\Route;
         // ========================================================================
         // PERSONAS (ADMINISTRACIÓN DE PERSONAL)
         // ========================================================================
-        Route::prefix('personas')->group(function () {
+        Route::prefix('personas')->middleware('permission:gestionar_personal')->group(function () {
             Route::get('/', [PersonaController::class, 'index'])->name('personas.index');
             Route::post('completo', [PersonaController::class, 'storeCompleto'])->name('personas.store-completo');
             Route::post('/', [PersonaController::class, 'store'])->name('personas.store');
             Route::get('{id}', [PersonaController::class, 'show'])->name('personas.show');
             Route::put('{id}', [PersonaController::class, 'update'])->name('personas.update');
             Route::delete('{id}', [PersonaController::class, 'destroy'])->name('personas.destroy');
-            Route::post('{id}/cuenta', [PersonaController::class, 'crearCuenta'])->name('personas.crear-cuenta');
-            Route::put('{id}/cuenta', [PersonaController::class, 'actualizarCuenta'])->name('personas.actualizar-cuenta');
+            Route::post('{id}/cuenta', [PersonaController::class, 'crearCuenta'])
+                ->middleware('permission:gestionar_cuentas_sistema')
+                ->name('personas.crear-cuenta');
+            Route::put('{id}/cuenta', [PersonaController::class, 'actualizarCuenta'])
+                ->middleware('permission:gestionar_cuentas_sistema')
+                ->name('personas.actualizar-cuenta');
             Route::delete('{id}/archivo', [PersonaController::class, 'deleteArchivo'])->name('personas.delete-archivo');
         });
 

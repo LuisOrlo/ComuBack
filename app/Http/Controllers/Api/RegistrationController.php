@@ -40,16 +40,28 @@ class RegistrationController extends Controller
     {
         $validated = $request->validated();
 
-        // 1. Determinar si es estudiante o participante externo
-        $personaId = $validated['persona_id'] ?? null;
+        // 1. Determinar si es estudiante o participante externo con verificación de identidad
+        $rawPersonaId = $validated['persona_id'] ?? null;
+        $personaId = null;
+
+        if (!empty($rawPersonaId)) {
+            // Solo permitir vincular a un estudiante interno si está autenticado como ese estudiante o es personal autorizado
+            $user = auth('sanctum')->user() ?: auth()->user();
+            if ($user && ($user->persona_id === $rawPersonaId || $user->hasAnyRole(['Administrador', 'Secretaria']))) {
+                $personaId = $rawPersonaId;
+            }
+        }
+
         $participanteExternoId = null;
         $esParticipanteExterno = false;
+        $participanteExterno = null;
+        $datosExterno = null;
 
         if (empty($personaId)) {
-            // Es participante externo - crear o actualizar sus datos personales
+            // Es participante externo - registrar datos sin sobrescribir expedientes existentes
             $datosExterno = [
-                'nombres' => $validated['nombres'],
-                'apellidos' => $validated['apellidos'],
+                'nombres' => $validated['nombres'] ?? '',
+                'apellidos' => $validated['apellidos'] ?? '',
                 'cedula' => $validated['cedula'] ?? null,
                 'correo' => $validated['correo'] ?? null,
                 'celular' => $validated['celular'] ?? null,
@@ -62,14 +74,7 @@ class RegistrationController extends Controller
             ];
 
             $participanteExterno = ClienteExterno::where('correo', $validated['correo'])->first();
-
-            if ($participanteExterno) {
-                $participanteExterno->update(array_filter($datosExterno, fn ($v) => $v !== null));
-            } else {
-                $participanteExterno = ClienteExterno::create($datosExterno);
-            }
-
-            $participanteExternoId = $participanteExterno->id;
+            $participanteExternoId = $participanteExterno?->id;
             $esParticipanteExterno = true;
         }
 
@@ -82,11 +87,15 @@ class RegistrationController extends Controller
             ], Response::HTTP_NOT_FOUND);
         }
 
+        // La validación no debe crear registros. Un UUID temporal permite
+        // validar las reglas de identidad y capacidad antes de persistir al externo.
+        $identificadorValidacion = $participanteExternoId ?? (string) Str::uuid();
+
         // 3. Validar registro (capacidad, duplicadas, etc.)
         $validacionRegistro = $this->registrationValidator->validar(
             $validated['curso_abierto_id'],
             $personaId,
-            $participanteExternoId,
+            $participanteExternoId ?? $identificadorValidacion,
             $validated['monto_solicitado'],
             $validated['tipo_pago']
         );
@@ -117,6 +126,11 @@ class RegistrationController extends Controller
             }
         }
 
+        if ($esParticipanteExterno && !$participanteExterno) {
+            $participanteExterno = ClienteExterno::create($datosExterno);
+            $participanteExternoId = $participanteExterno->id;
+        }
+
         // --- VALIDACIONES APROBADAS: Proceder con la subida física de archivos ---
         if ($request->hasFile('archivo_comprobante') && empty($validated['archivo_comprobante_url'])) {
             $file = $request->file('archivo_comprobante');
@@ -144,21 +158,28 @@ class RegistrationController extends Controller
             'archivo_cedula_url' => $validated['archivo_cedula_url'] ?? null,
             'tipo_comprobante' => $validated['tipo_comprobante'],
             'fecha_pago_declarada' => $validated['fecha_pago_declarada'],
+            'datos_declarados' => [
+                'nombres' => $validated['nombres'] ?? null,
+                'apellidos' => $validated['apellidos'] ?? null,
+                'cedula' => $validated['cedula'] ?? null,
+                'correo' => $validated['correo'] ?? null,
+                'celular' => $validated['celular'] ?? null,
+                'ocupacion' => $validated['ocupacion'] ?? null,
+                'direccion' => $validated['direccion'] ?? null,
+                'ciudad' => $validated['ciudad'] ?? null,
+                'estado_civil' => $validated['estado_civil'] ?? null,
+                'edad' => $validated['edad'] ?? null,
+                'nivel_educativo' => $validated['nivel_educativo'] ?? null,
+                'monto_declarado' => $validated['monto_declarado'] ?? $validated['monto_solicitado'] ?? null,
+                'referencia_declarada' => $validated['referencia_declarada'] ?? $request->input('referencia_declarada'),
+                'fecha_pago_declarada' => $validated['fecha_pago_declarada'] ?? null,
+                'metodo_pago_declarado' => $validated['tipo_comprobante'] ?? $validated['tipo_pago'] ?? null,
+            ],
             'estado' => SolicitudInscripcion::ESTADO_PENDIENTE_VALIDACION,
         ]);
 
-        // 6. Si es estudiante interno, actualizar su perfil_estudiante con los datos enviados
-        if (!empty($personaId)) {
-            $perfil = PerfilEstudiante::firstOrNew(['persona_id' => $personaId]);
-            $perfil->fill([
-                'edad' => $validated['edad'] ?? $perfil->edad,
-                'ocupacion' => $validated['ocupacion'] ?? $perfil->ocupacion,
-                'direccion' => $validated['direccion'] ?? $perfil->direccion,
-                'ciudad' => $validated['ciudad'] ?? $perfil->ciudad,
-                'estado_civil' => $validated['estado_civil'] ?? $perfil->estado_civil,
-                'nivel_educativo' => $validated['nivel_educativo'] ?? $perfil->nivel_educativo,
-            ])->save();
-        }
+        // Los datos declarados se conservan como propuesta en la solicitud sin modificar
+        // el expediente del estudiante hasta que la administración los valide explícitamente.
 
         return response()->json([
             'mensaje' => 'Solicitud de inscripción registrada correctamente',
@@ -181,7 +202,8 @@ class RegistrationController extends Controller
             ],
             'curso' => [
                 'id' => $solicitud->cursoAbierto?->id,
-                'nombre' => $solicitud->cursoAbierto?->catalogo?->nombre,
+                'nombre' => $solicitud->cursoAbierto?->nombre_instancia
+                    ?: $solicitud->cursoAbierto?->catalogo?->nombre,
             ],
             'pago' => [
                 'monto_solicitado' => $solicitud->monto_solicitado,

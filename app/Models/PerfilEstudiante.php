@@ -15,6 +15,7 @@ class PerfilEstudiante extends Model
 
     protected $fillable = [
         'persona_id',
+        'notas_internas',
         'genero',
         'ocupacion',
         'direccion',

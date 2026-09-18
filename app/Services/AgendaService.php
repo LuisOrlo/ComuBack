@@ -15,13 +15,15 @@ use Carbon\Carbon;
 class AgendaService
 {
     private const EVENT_TYPES = [
-        'CLASE_CURSO'   => ['color' => '#6366f1', 'label' => 'Curso'],
-        'TALLER'        => ['color' => '#f59e0b', 'label' => 'Taller'],
-        'ALQUILER_AULA' => ['color' => '#10b981', 'label' => 'Aula'],
-        'PODCAST'       => ['color' => '#ec4899', 'label' => 'Podcast'],
-        'STREAMING'     => ['color' => '#06b6d4', 'label' => 'Streaming'],
-        'ASESORIA'      => ['color' => '#8b5cf6', 'label' => 'Asesoría'],
-        'RADIO'         => ['color' => '#ef4444', 'label' => 'Radio'],
+        'CLASE_CURSO'   => ['color' => '#2563eb', 'soft_color' => '#eff6ff', 'text_color' => '#1d4ed8', 'label' => 'Curso'],
+        'CURSO'         => ['color' => '#2563eb', 'soft_color' => '#eff6ff', 'text_color' => '#1d4ed8', 'label' => 'Curso'],
+        'CURSO_PERSONALIZADO' => ['color' => '#0f766e', 'soft_color' => '#f0fdfa', 'text_color' => '#115e59', 'label' => 'Curso personalizado'],
+        'TALLER'        => ['color' => '#9333ea', 'soft_color' => '#faf5ff', 'text_color' => '#7e22ce', 'label' => 'Taller'],
+        'ALQUILER_AULA' => ['color' => '#059669', 'soft_color' => '#ecfdf5', 'text_color' => '#047857', 'label' => 'Aula'],
+        'PODCAST'       => ['color' => '#d97706', 'soft_color' => '#fffbeb', 'text_color' => '#b45309', 'label' => 'Podcast'],
+        'STREAMING'     => ['color' => '#e11d48', 'soft_color' => '#fff1f2', 'text_color' => '#be123c', 'label' => 'Streaming'],
+        'ASESORIA'      => ['color' => '#0891b2', 'soft_color' => '#ecfeff', 'text_color' => '#0e7490', 'label' => 'Asesoría'],
+        'RADIO'         => ['color' => '#db2777', 'soft_color' => '#fdf2f8', 'text_color' => '#be185d', 'label' => 'Radio'],
     ];
 
     public static function eventTypes(): array
@@ -36,8 +38,27 @@ class AgendaService
 
         $allEvents = collect();
 
-        if (!$tipos || in_array('CLASE_CURSO', $tipos)) {
-            $allEvents = $allEvents->concat($this->getClases($fechaInicio, $fechaFin));
+        // El filtro visible "Cursos" debe incluir tanto clases ya generadas
+        // como ofertas de curso calculadas desde su horario.
+        $includeClasses = !$tipos || in_array('CLASE_CURSO', $tipos) || in_array('CURSO', $tipos);
+        $includeProgrammedCourses = !$tipos || (bool) array_intersect(['CURSO', 'CURSO_PERSONALIZADO'], $tipos);
+
+        if ($includeClasses || $includeProgrammedCourses) {
+            $clases = $includeClasses ? $this->getClases($fechaInicio, $fechaFin) : collect();
+            $allEvents = $allEvents->concat($clases);
+
+            if ($includeProgrammedCourses) {
+                $courseEvents = $this->getCursosProgramados($fechaInicio, $fechaFin);
+                if ($tipos) {
+                    $courseEvents = $courseEvents->filter(fn (array $event) => in_array($event['tipo_evento'], $tipos, true));
+                }
+                $classKeys = $clases->map(fn (array $event) => ($event['curso_id'] ?? '') . '|' . ($event['fecha'] ?? ''));
+                $allEvents = $allEvents->concat(
+                    $courseEvents->reject(fn (array $event) => $classKeys->contains(
+                        ($event['curso_id'] ?? '') . '|' . ($event['fecha'] ?? '')
+                    ))
+                );
+            }
         }
 
         if (!$tipos || in_array('TALLER', $tipos)) {
@@ -77,6 +98,10 @@ class AgendaService
         switch ($tipoEvento) {
             case 'CLASE_CURSO':
                 $event = $this->getClaseDetail($referenciaId);
+                break;
+            case 'CURSO':
+            case 'CURSO_PERSONALIZADO':
+                $event = $this->getCursoProgramadoDetail($referenciaId, $tipoEvento);
                 break;
             case 'TALLER':
                 $event = $this->getTallerDetail($referenciaId);
@@ -119,6 +144,7 @@ class AgendaService
             ->whereBetween('c.fecha_clase', [$fechaInicio, $fechaFin])
             ->select(
                 'c.id as referencia_id',
+                'ca.id as curso_abierto_id',
                 DB::raw("'CLASE_CURSO' as tipo_evento"),
                 DB::raw("('Clase: ' || cc.nombre) as titulo"),
                 'c.fecha_clase as fecha',
@@ -138,6 +164,98 @@ class AgendaService
             ->map(function ($row) {
                 return $this->normalizeEvent((array) $row, 'CLASE_CURSO');
             });
+    }
+
+    /**
+     * Genera ocurrencias desde CursoAbierto -> Horario -> HorarioDia.
+     * Cubre cursos personalizados y cursos que aún no tienen filas en
+     * academic.clases.
+     */
+    private function getCursosProgramados(string $fechaInicio, string $fechaFin): Collection
+    {
+        $cursos = DB::connection('pgsql')
+            ->table('academic.cursos_abiertos as ca')
+            ->join('academic.horarios as h', 'ca.horario_id', '=', 'h.id')
+            ->join('academic.horarios_dias as hd', 'h.id', '=', 'hd.horario_id')
+            ->leftJoin('academic.catalogo_cursos as cc', 'ca.catalogo_curso_id', '=', 'cc.id')
+            ->leftJoin('people.personas as doc', 'ca.docente_id', '=', 'doc.id')
+            ->leftJoin('core.ciudades as ciu', 'ca.ciudad_id', '=', 'ciu.id')
+            ->whereNull('ca.deleted_at')
+            ->where('ca.es_activo', true)
+            ->whereDate('ca.fecha_inicio', '<=', $fechaFin)
+            ->whereDate('ca.fecha_fin', '>=', $fechaInicio)
+            ->select(
+                'ca.id as curso_id',
+                'ca.es_personalizado',
+                'ca.nombre_instancia',
+                'ca.fecha_inicio',
+                'ca.fecha_fin',
+                'ca.docente_id as instructor_id',
+                DB::raw("doc.nombres || ' ' || doc.apellidos as instructor_nombre"),
+                'ca.modalidad',
+                'ca.capacidad_maxima',
+                'ca.estado',
+                'ciu.nombre as ciudad_nombre',
+                'cc.nombre as catalogo_nombre',
+                'h.hora_inicio',
+                'h.hora_fin',
+                'hd.dia_semana',
+                DB::raw("(SELECT COUNT(*) FROM academic.matriculas mat WHERE mat.curso_abierto_id = ca.id AND mat.estado IN ('activo', 'completado') AND mat.deleted_at IS NULL) as participantes_count")
+            )
+            ->get();
+
+        $events = collect();
+        foreach ($cursos as $curso) {
+            $inicio = Carbon::parse($curso->fecha_inicio)->startOfDay()->max(Carbon::parse($fechaInicio)->startOfDay());
+            $fin = Carbon::parse($curso->fecha_fin)->startOfDay()->min(Carbon::parse($fechaFin)->startOfDay());
+            $tipo = (bool) $curso->es_personalizado ? 'CURSO_PERSONALIZADO' : 'CURSO';
+
+            for ($fecha = $inicio->copy(); $fecha->lte($fin); $fecha->addDay()) {
+                if ((int) $curso->dia_semana !== $fecha->dayOfWeekIso) continue;
+
+                $events->push($this->normalizeEvent([
+                    'referencia_id' => $curso->curso_id . ':' . $fecha->toDateString(),
+                    'titulo' => $curso->es_personalizado
+                        ? $curso->nombre_instancia
+                        : ($curso->catalogo_nombre ?: $curso->nombre_instancia),
+                    'fecha' => $fecha->toDateString(),
+                    'hora_inicio' => $curso->hora_inicio,
+                    'hora_fin' => $curso->hora_fin,
+                    'instructor_id' => $curso->instructor_id,
+                    'instructor_nombre' => $curso->instructor_nombre,
+                    'estado' => $curso->estado,
+                    'modalidad' => $curso->modalidad,
+                    'participantes_count' => (int) $curso->participantes_count,
+                    'capacidad_maxima' => $curso->capacidad_maxima,
+                    'ciudad_nombre' => $curso->ciudad_nombre,
+                    'catalogo_nombre' => $curso->catalogo_nombre,
+                    'nombre_instancia' => $curso->nombre_instancia,
+                    'curso_abierto_id' => $curso->curso_id,
+                ], $tipo));
+            }
+        }
+
+        return $events;
+    }
+
+    private function getCursoProgramadoDetail(string $referenciaId, string $tipoEvento): ?array
+    {
+        $cursoId = explode(':', $referenciaId, 2)[0];
+        $curso = $this->getCursosProgramados(
+            Carbon::now()->subYears(100)->toDateString(),
+            Carbon::now()->addYears(100)->toDateString()
+        )->first(fn (array $event) => $event['curso_id'] === $cursoId && $event['tipo_evento'] === $tipoEvento);
+
+        if (!$curso) return null;
+
+        $curso['referencia_id'] = $cursoId;
+        $curso['detalle'] = [
+            'fecha_inicio' => $curso['fecha_inicio'] ?? null,
+            'fecha_fin' => $curso['fecha_fin'] ?? null,
+            'catalogo' => $curso['catalogo_nombre'] ?? null,
+        ];
+
+        return $curso;
     }
 
     private function getClaseDetail(string $id): ?array
@@ -824,10 +942,15 @@ class AgendaService
             'participantes_count' => $row['participantes_count'] ?? null,
             'capacidad_maxima' => $row['capacidad_maxima'] ?? null,
             'color' => $info['color'],
+            'soft_color' => $info['soft_color'] ?? '#eff4ff',
+            'text_color' => $info['text_color'] ?? '#45464d',
             'tipo_label' => $info['label'],
             'ciudad_nombre' => $row['ciudad_nombre'] ?? null,
             'catalogo_nombre' => $row['catalogo_nombre'] ?? null,
             'nombre_instancia' => $row['nombre_instancia'] ?? null,
+            // Ya viene seleccionado en el detalle de clases; exponerlo evita
+            // una segunda consulta únicamente para navegar al curso relacionado.
+            'curso_id' => $row['curso_abierto_id'] ?? null,
         ];
     }
 

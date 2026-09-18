@@ -6,11 +6,11 @@ use App\Models\CambioHorario;
 use App\Models\Matricula;
 use App\Models\CursoAbierto;
 use Tests\TestCase;
-use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Foundation\Testing\DatabaseTransactions;
 
 class CambioHorarioTest extends TestCase
 {
-    use RefreshDatabase;
+    use DatabaseTransactions;
 
     protected function setUp(): void
     {

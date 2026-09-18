@@ -58,6 +58,8 @@ class StoreRegistrationRequest extends FormRequest
             // Curso y pago
             'curso_abierto_id' => 'required|uuid|exists:cursos_abiertos,id',
             'monto_solicitado' => 'required|numeric|min:0',
+            'monto_declarado' => 'nullable|numeric|min:0',
+            'referencia_declarada' => 'nullable|string|max:100',
             'tipo_pago' => 'required|in:completo,abono',
             
             // Comprobante (URL o archivo)
@@ -132,6 +134,13 @@ class StoreRegistrationRequest extends FormRequest
      */
     protected function prepareForValidation(): void
     {
+        // La fecha de la solicitud se genera automáticamente cuando no viene
+        // desde el formulario. La aprobación puede registrar posteriormente
+        // la fecha real del pago si corresponde.
+        if (!$this->filled('fecha_pago_declarada')) {
+            $this->merge(['fecha_pago_declarada' => now()->toDateString()]);
+        }
+
         // Si es estudiante registrado, limpiar campos de datos personales
         // (solo los que identificarían/crearían un ClienteExterno duplicado)
         if ($this->has('persona_id') && !empty($this->persona_id)) {

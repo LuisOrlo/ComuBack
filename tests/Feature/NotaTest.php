@@ -6,11 +6,11 @@ use App\Models\Nota;
 use App\Models\Matricula;
 use App\Models\Modulo;
 use Tests\TestCase;
-use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Foundation\Testing\DatabaseTransactions;
 
 class NotaTest extends TestCase
 {
-    use RefreshDatabase;
+    use DatabaseTransactions;
 
     protected function setUp(): void
     {

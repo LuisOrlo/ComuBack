@@ -11,15 +11,22 @@ use App\Models\CuentaPorCobrar;
 use App\Models\TransaccionIngreso;
 use App\Models\ArchivoEliminado;
 use App\Services\StorageCleanupService;
+use App\Services\StudentScheduleConflictService;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Illuminate\Http\Exceptions\HttpResponseException;
 
 class InscripcionTallerController extends Controller
 {
+    public function __construct(private StudentScheduleConflictService $scheduleConflictService)
+    {
+    }
+
     public function index(string $tallerId, Request $request): JsonResponse
     {
         Taller::findOrFail($tallerId);
@@ -48,7 +55,21 @@ class InscripcionTallerController extends Controller
 
     public function listarPendientes(Request $request): JsonResponse
     {
-        $query = InscripcionTaller::with('taller');
+        $query = InscripcionTaller::select([
+            'id',
+            'taller_id',
+            'nombres',
+            'apellidos',
+            'correo',
+            'estado',
+            'pago_verificado',
+            'fecha_inscripcion',
+            'observaciones',
+            'created_at',
+        ])->with([
+            'taller:id,nombre,modalidad,ciudad_id',
+            'taller.ciudad:id,nombre',
+        ]);
 
         if ($request->filled('pago_verificado')) {
             $query->where('pago_verificado', $request->pago_verificado === 'true');
@@ -63,8 +84,12 @@ class InscripcionTallerController extends Controller
             $query->where(function ($q) use ($s) {
                 $q->where('nombres', 'ilike', "%{$s}%")
                   ->orWhere('apellidos', 'ilike', "%{$s}%")
-                  ->orWhere('cedula', 'ilike', "%{$s}%");
+                  ->orWhere('correo', 'ilike', "%{$s}%");
             });
+        }
+
+        if ($request->filled('taller_id')) {
+            $query->where('taller_id', $request->taller_id);
         }
 
         if ($request->filled('fecha_desde')) {
@@ -78,7 +103,28 @@ class InscripcionTallerController extends Controller
         $inscripciones = $query->orderBy('fecha_inscripcion', 'desc')
             ->paginate(min(100, max(10, (int) ($request->per_page ?? 20))));
 
-        return response()->json($inscripciones);
+        $statsQuery = InscripcionTaller::query();
+        if ($request->filled('taller_id')) {
+            $statsQuery->where('taller_id', $request->taller_id);
+        }
+        $statsRaw = (clone $statsQuery)->selectRaw("
+            count(*) as total,
+            count(*) filter (where estado = 'activo' and (pago_verificado = false or pago_verificado is null)) as pendientes,
+            count(*) filter (where pago_verificado = true) as aprobados,
+            count(*) filter (where estado = 'retirado') as rechazados
+        ")->first();
+
+        $stats = [
+            'todos' => (int) ($statsRaw->total ?? 0),
+            'pendientes' => (int) ($statsRaw->pendientes ?? 0),
+            'aprobados' => (int) ($statsRaw->aprobados ?? 0),
+            'rechazados' => (int) ($statsRaw->rechazados ?? 0),
+        ];
+
+        $res = $inscripciones->toArray();
+        $res['stats'] = $stats;
+
+        return response()->json($res);
     }
 
     public function store(Request $request): JsonResponse
@@ -98,6 +144,8 @@ class InscripcionTallerController extends Controller
             'nivel_educativo' => 'nullable|string|in:educacion inicial,general basica,bachillerato,tecnico/tecnologico,superior,otro',
             'tipo_pago' => 'required|in:completo,abono',
             'monto_pagado' => 'required|numeric|min:0',
+            'monto_declarado' => 'nullable|numeric|min:0',
+            'referencia_declarada' => 'nullable|string|max:100',
             'metodo_pago' => 'nullable|string|max:50',
             'fecha_pago' => 'nullable|date',
             'comprobante' => 'nullable|file|image|max:5120',
@@ -136,8 +184,12 @@ class InscripcionTallerController extends Controller
             ], 422);
         }
 
-        // 1. Determinar si es estudiante o participante externo
-        $personaId = $request->user()->persona_id ?? null;
+        // 1. Determinar si es estudiante o participante externo sin vincular indebidamente al funcionario
+        $authUser = $request->user();
+        $personaId = null;
+        if ($authUser && $authUser->persona_id && $authUser->persona && ($authUser->persona->correo === $validated['correo'] || $authUser->persona->cedula === $validated['cedula'])) {
+            $personaId = $authUser->persona_id;
+        }
         $participanteExternoId = null;
 
         if (empty($personaId)) {
@@ -158,9 +210,7 @@ class InscripcionTallerController extends Controller
 
             $participanteExterno = ClienteExterno::where('correo', $validated['correo'])->first();
 
-            if ($participanteExterno) {
-                $participanteExterno->update(array_filter($datosExterno, fn ($v) => $v !== null));
-            } else {
+            if (!$participanteExterno) {
                 $participanteExterno = ClienteExterno::create($datosExterno);
             }
             $participanteExternoId = $participanteExterno->id;
@@ -186,6 +236,11 @@ class InscripcionTallerController extends Controller
 
         try {
             $inscripcion = DB::transaction(function () use ($validated, $personaId, $participanteExternoId, $comprobanteUrl, $cedulaUrl) {
+                $taller = Taller::where('id', $validated['taller_id'])->lockForUpdate()->firstOrFail();
+                if (!$taller->permitirInscripcion() || $taller->capacidadDisponible() <= 0) {
+                    abort(422, 'El taller ya no dispone de cupos disponibles');
+                }
+
                 return InscripcionTaller::create([
                     'taller_id' => $validated['taller_id'],
                     'persona_id' => $personaId,
@@ -201,6 +256,23 @@ class InscripcionTallerController extends Controller
                     'estado_civil' => $validated['estado_civil'] ?? null,
                     'edad' => $validated['edad'] ?? null,
                     'nivel_educativo' => $validated['nivel_educativo'] ?? null,
+                    'datos_declarados' => [
+                        'nombres' => $validated['nombres'],
+                        'apellidos' => $validated['apellidos'],
+                        'cedula' => $validated['cedula'],
+                        'correo' => $validated['correo'],
+                        'telefono' => $validated['telefono'] ?? null,
+                        'ocupacion' => $validated['ocupacion'] ?? null,
+                        'direccion' => $validated['direccion'] ?? null,
+                        'ciudad' => $validated['ciudad'] ?? null,
+                        'estado_civil' => $validated['estado_civil'] ?? null,
+                        'edad' => $validated['edad'] ?? null,
+                        'nivel_educativo' => $validated['nivel_educativo'] ?? null,
+                        'monto_declarado' => $validated['monto_declarado'] ?? $validated['monto_pagado'] ?? null,
+                        'referencia_declarada' => $validated['referencia_declarada'] ?? null,
+                        'metodo_pago_declarado' => $validated['metodo_pago'] ?? null,
+                        'fecha_pago_declarada' => $validated['fecha_pago'] ?? now()->timezone('America/Guayaquil')->toDateString(),
+                    ],
                     'fecha_inscripcion' => now()->timezone('America/Guayaquil')->toDateString(),
                     'estado' => 'activo',
                     'tipo_pago' => $validated['tipo_pago'],
@@ -225,6 +297,29 @@ class InscripcionTallerController extends Controller
         }
     }
 
+    private function autorizarModificacionArchivos(Request $request, InscripcionTaller $inscripcion): void
+    {
+        if ($inscripcion->pago_verificado) {
+            abort(422, 'No se puede modificar archivos de una inscripción con pago ya verificado');
+        }
+
+        $user = auth('sanctum')->user() ?? $request->user();
+        if ($user) {
+            if ($user->hasAnyRole(['Administrador', 'Secretaria'])) {
+                return;
+            }
+            if ($inscripcion->persona_id && $user->persona_id === $inscripcion->persona_id) {
+                return;
+            }
+        }
+
+        if ($request->hasValidSignature()) {
+            return;
+        }
+
+        abort(403, 'No autorizado para subir o modificar archivos de esta inscripción');
+    }
+
     public function uploadComprobante(Request $request, string $id): JsonResponse
     {
         $request->validate([
@@ -232,10 +327,13 @@ class InscripcionTallerController extends Controller
         ]);
 
         $inscripcion = InscripcionTaller::findOrFail($id);
+        $this->autorizarModificacionArchivos($request, $inscripcion);
+
         $service = app(StorageCleanupService::class);
+        $eliminadoPor = auth('sanctum')->id() ?? auth('sanctum')->user()?->persona_id ?? null;
 
         if ($inscripcion->comprobante_url) {
-            $service->deleteFilePhysically($inscripcion, 'comprobante_url');
+            $service->deleteFile($inscripcion, 'comprobante_url', $eliminadoPor, ArchivoEliminado::ACCION_BORRADO_ARCHIVO);
         }
 
         $file = $request->file('archivo');
@@ -253,64 +351,79 @@ class InscripcionTallerController extends Controller
 
     public function verificarPago(Request $request, string $id): JsonResponse
     {
-        \Log::info('verificarPago ejecutado', ['id' => $id, 'data' => $request->all()]);
-        $inscripcion = InscripcionTaller::with('taller')->findOrFail($id);
+        $validated = $request->validate([
+            'monto_pagado' => 'nullable|numeric|min:0',
+            'precio_ajustado' => 'nullable|numeric|min:0',
+            'motivo_ajuste' => 'nullable|string|max:255',
+            'metodo_pago' => 'nullable|string|max:50',
+            'fecha_pago' => 'nullable|date',
+            'tipo_pago' => 'nullable|string|in:completo,abono',
+        ]);
 
-        DB::transaction(function () use ($inscripcion, $request) {
+        $inscripcion = InscripcionTaller::with(['taller', 'cuentaPorCobrar'])->findOrFail($id);
+
+        // Idempotencia: si ya fue verificado, devolver estado actual sin duplicar transacciones ni dinero
+        if ($inscripcion->pago_verificado) {
+            return response()->json([
+                'mensaje' => 'El pago de esta inscripción ya fue verificado previamente',
+                'pago_verificado' => true,
+                'data' => $inscripcion->fresh(['cuentaPorCobrar.transacciones']),
+            ], 200);
+        }
+
+        DB::transaction(function () use ($inscripcion, $validated, $request) {
+            $precioBase = (float) ($inscripcion->taller->precio ?? 0);
+            $precioPactado = isset($validated['precio_ajustado']) ? (float) $validated['precio_ajustado'] : $precioBase;
+
+            // Determinar monto verificado/abonado
+            $montoAbonado = isset($validated['monto_pagado'])
+                ? (float) $validated['monto_pagado']
+                : (float) ($inscripcion->monto_pagado ?? 0);
+
             $updateData = [
                 'pago_verificado' => true,
-                'metodo_pago' => $request->metodo_pago ?? $inscripcion->metodo_pago,
-                'fecha_pago' => $request->fecha_pago ?? now()->timezone('America/Guayaquil')->toDateString(),
+                'monto_pagado' => $montoAbonado, // Conservar el abono real, NO sobrescribir con el precio total
+                'metodo_pago' => $validated['metodo_pago'] ?? $inscripcion->metodo_pago,
+                'fecha_pago' => $validated['fecha_pago'] ?? now()->timezone('America/Guayaquil')->toDateString(),
+                'tipo_pago' => $validated['tipo_pago'] ?? ($montoAbonado >= $precioPactado ? 'completo' : 'abono'),
             ];
 
-            if ($request->has('monto_pagado')) {
-                $updateData['monto_pagado'] = $request->monto_pagado;
-            }
-            if ($request->has('tipo_pago')) {
-                $updateData['tipo_pago'] = $request->tipo_pago;
+            if (!empty($validated['motivo_ajuste'])) {
+                $updateData['motivo_ajuste'] = $validated['motivo_ajuste'];
             }
 
             $inscripcion->update($updateData);
 
-            $precioTotal = $request->filled('precio_ajustado')
-                ? $request->precio_ajustado
-                : ($inscripcion->taller->precio ?? 0);
-
-            // Guardar el precio ajustado en la inscripción para que persista
-            if ($request->filled('precio_ajustado')) {
-                $inscripcion->update(['monto_pagado' => $precioTotal]);
-            }
-
-            if ($request->filled('motivo_ajuste')) {
-                $inscripcion->update(['motivo_ajuste' => $request->motivo_ajuste]);
-            }
-
-            $montoAbonado = $request->monto_pagado ?? $inscripcion->monto_pagado ?? 0;
-            $estado = $montoAbonado >= $precioTotal
-                ? CuentaPorCobrar::ESTADO_PAGADO
-                : ($montoAbonado > 0 ? CuentaPorCobrar::ESTADO_ABONADO : CuentaPorCobrar::ESTADO_PENDIENTE);
+            $estadoCuenta = match (true) {
+                $montoAbonado >= $precioPactado => CuentaPorCobrar::ESTADO_PAGADO,
+                $montoAbonado > 0 => CuentaPorCobrar::ESTADO_ABONADO,
+                default => CuentaPorCobrar::ESTADO_PENDIENTE,
+            };
 
             $cuenta = CuentaPorCobrar::updateOrCreate(
                 ['inscripcion_taller_id' => $inscripcion->id],
                 [
-                    'monto_total' => $precioTotal,
+                    'monto_total' => $precioPactado,
                     'monto_abonado' => $montoAbonado,
-                    'estado' => $estado,
+                    'estado' => $estadoCuenta,
+                    'es_legacy' => false,
                 ]
             );
 
-            if ($request->monto_pagado > 0) {
+            // Crear asiento contable si existe dinero recibido
+            if ($montoAbonado > 0) {
                 $personaId = auth()->user()->persona_id ?? null;
                 if ($personaId && !Persona::where('id', $personaId)->exists()) {
                     $personaId = null;
                 }
+
                 TransaccionIngreso::create([
                     'cuenta_cobrar_id' => $cuenta->id,
-                    'monto' => $request->monto_pagado,
-                    'metodo_pago' => $inscripcion->metodo_pago,
-                    'fecha_pago' => $request->fecha_pago ?? $inscripcion->fecha_pago ?? now()->timezone('America/Guayaquil')->toDateString(),
+                    'monto' => $montoAbonado,
+                    'metodo_pago' => $inscripcion->metodo_pago ?? 'efectivo',
+                    'fecha_pago' => $validated['fecha_pago'] ?? $inscripcion->fecha_pago ?? now()->timezone('America/Guayaquil')->toDateString(),
                     'comprobante_url' => $inscripcion->comprobante_url,
-                    'estado_verificacion' => 'aprobado',
+                    'estado_verificacion' => TransaccionIngreso::VERIFICACION_APROBADO,
                     'registrado_por' => $personaId,
                     'verificado_por' => $personaId,
                     'fecha_verificacion' => now(),
@@ -331,10 +444,13 @@ class InscripcionTallerController extends Controller
         ]);
 
         $inscripcion = InscripcionTaller::findOrFail($id);
+        $this->autorizarModificacionArchivos($request, $inscripcion);
+
         $service = app(StorageCleanupService::class);
+        $eliminadoPor = auth('sanctum')->id() ?? auth('sanctum')->user()?->persona_id ?? null;
 
         if ($inscripcion->cedula_url) {
-            $service->deleteFilePhysically($inscripcion, 'cedula_url');
+            $service->deleteFile($inscripcion, 'cedula_url', $eliminadoPor, ArchivoEliminado::ACCION_BORRADO_ARCHIVO);
         }
 
         $file = $request->file('archivo');
@@ -555,6 +671,8 @@ class InscripcionTallerController extends Controller
             'taller_id' => 'required|uuid|exists:pgsql.academic.talleres,id',
             'monto_pagado' => 'required|numeric|min:0',
             'metodo_pago' => 'nullable|string|max:50',
+            'comprobante_url' => 'nullable|string|max:500',
+            'cedula_url' => 'nullable|string|max:500',
         ]);
 
         $persona = Persona::findOrFail($validated['estudiante_id']);
@@ -579,7 +697,30 @@ class InscripcionTallerController extends Controller
             ], Response::HTTP_UNPROCESSABLE_ENTITY);
         }
 
-        $inscripcion = DB::transaction(function () use ($validated, $persona, $taller, $precioTaller, $montoPagado) {
+        $inscripcion = DB::transaction(function () use ($validated, $persona, $montoPagado) {
+            $taller = Taller::where('id', $validated['taller_id'])->lockForUpdate()->firstOrFail();
+            $precioTaller = (float) ($taller->precio ?? 0);
+
+            if (!$taller->permitirInscripcion() || $taller->capacidadDisponible() <= 0) {
+                abort(422, 'El taller ya no dispone de cupos para inscripción.');
+            }
+
+            if (InscripcionTaller::where('taller_id', $taller->id)
+                ->where('persona_id', $persona->id)
+                ->whereIn('estado', ['activo', 'completado'])
+                ->lockForUpdate()
+                ->exists()) {
+                abort(409, 'El estudiante ya está inscrito en este taller.');
+            }
+
+            $conflictos = $this->scheduleConflictService->conflictsForWorkshop($persona->id, $taller);
+            if ($conflictos) {
+                throw new HttpResponseException(response()->json([
+                    'mensaje' => 'El estudiante tiene un conflicto de horario.',
+                    'conflictos' => $conflictos,
+                ], Response::HTTP_CONFLICT));
+            }
+
             $inscripcion = InscripcionTaller::create([
                 'taller_id' => $validated['taller_id'],
                 'persona_id' => $persona->id,
@@ -594,9 +735,45 @@ class InscripcionTallerController extends Controller
                 'metodo_pago' => $validated['metodo_pago'] ?? 'efectivo',
                 'fecha_pago' => now()->timezone('America/Guayaquil')->toDateString(),
                 'estado' => 'activo',
-                // Un taller gratuito no requiere una transacción; los pagos directos sí quedan verificados.
-                'pago_verificado' => $precioTaller <= 0 || $montoPagado > 0,
+            'pago_verificado' => $precioTaller <= 0 || $montoPagado > 0,
+                'comprobante_url' => $validated['comprobante_url'] ?? null,
+                'cedula_url' => $validated['cedula_url'] ?? null,
             ]);
+
+            $estadoCuenta = match (true) {
+                $precioTaller <= 0 || $montoPagado >= $precioTaller => CuentaPorCobrar::ESTADO_PAGADO,
+                $montoPagado > 0 => CuentaPorCobrar::ESTADO_ABONADO,
+                default => CuentaPorCobrar::ESTADO_PENDIENTE,
+            };
+
+            $cuenta = CuentaPorCobrar::create([
+                'inscripcion_taller_id' => $inscripcion->id,
+                'monto_total' => $precioTaller,
+                'monto_abonado' => $montoPagado,
+                'estado' => $estadoCuenta,
+                'es_legacy' => false,
+            ]);
+
+            if ($montoPagado > 0) {
+                $personaId = auth()->user()->persona_id ?? null;
+                if ($personaId && !Persona::where('id', $personaId)->exists()) {
+                    $personaId = null;
+                }
+
+                TransaccionIngreso::create([
+                    'cuenta_cobrar_id' => $cuenta->id,
+                    'monto' => $montoPagado,
+                    'metodo_pago' => $validated['metodo_pago'] ?? 'efectivo',
+                    'fecha_pago' => now()->timezone('America/Guayaquil')->toDateString(),
+                    'registrado_por' => $personaId,
+                    'verificado_por' => $personaId,
+                    'fecha_verificacion' => now(),
+                    'estado_verificacion' => TransaccionIngreso::VERIFICACION_APROBADO,
+                    'observaciones' => 'Inscripción directa a taller desde perfil',
+                ]);
+            }
+
+            Cache::forget('finance.resumen');
 
             return $inscripcion;
         });

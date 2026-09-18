@@ -23,6 +23,9 @@ use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
+use Illuminate\Database\QueryException;
 use League\Csv\Reader;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 
@@ -640,6 +643,7 @@ class EstudianteController extends Controller
                     'estado' => $matricula->estado,
                     'fecha_inscripcion' => $matricula->fecha_inscripcion ?? $matricula->created_at,
                     'porcentaje_asistencia' => 0,
+                    'total_modulos' => 0,
                     'notas' => [],
                     'promedio' => null,
                 ];
@@ -656,6 +660,7 @@ class EstudianteController extends Controller
                 'estado' => $matricula->estado,
                 'fecha_inscripcion' => $matricula->fecha_inscripcion ?? $matricula->created_at,
                 'porcentaje_asistencia' => $porcentajeAsistencia,
+                'total_modulos' => $matricula->cursoAbierto->modulos ? $matricula->cursoAbierto->modulos->count() : 0,
                 'notas' => $matricula->notas->map(function ($nota) {
                     return [
                         'modulo' => $nota->modulo->nombre_modulo ?? 'Sin modulo',
@@ -747,34 +752,96 @@ class EstudianteController extends Controller
     {
         $datos = $request->validated();
 
-        $estudiante = DB::transaction(function () use ($datos) {
-            $persona = Persona::create([
-                'tipo' => 'estudiante',
-                'cedula' => $datos['cedula'] ?? null,
-                'nombres' => $datos['nombres'],
-                'apellidos' => $datos['apellidos'],
-                'correo' => $datos['correo'] ?? null,
-                'celular' => $datos['celular'] ?? null,
-                'ciudad_id' => $datos['ciudad_id'] ?? null,
-            ]);
+        try {
+            [$estudiante, $reutilizada, $conflictMessage, $conflictStudentId] = DB::transaction(function () use ($datos) {
+                $persona = null;
 
-            PerfilEstudiante::create([
-                'persona_id' => $persona->id,
-                'notas_internas' => $datos['notas_internas'] ?? null,
-                'ocupacion' => $datos['ocupacion'] ?? null,
-                'direccion' => $datos['direccion'] ?? null,
-                'estado_civil' => $datos['estado_civil'] ?? null,
-                'edad' => $datos['edad'] ?? null,
-                'nivel_educativo' => $datos['nivel_educativo'] ?? null,
-            ]);
+                if (!empty($datos['cedula'])) {
+                    $persona = Persona::withTrashed()
+                        ->where('cedula', $datos['cedula'])
+                        ->lockForUpdate()
+                        ->first();
 
-            return $persona->load(['ciudad', 'perfilEstudiante']);
-        });
+                    if ($persona?->trashed()) {
+                        return [null, false, 'La cédula pertenece a un registro eliminado.', null];
+                    }
+
+                    if ($persona && $persona->tipo !== 'estudiante') {
+                        return [null, false, 'La cédula ya pertenece a una Persona con otro rol. No se modificó ese registro.', null];
+                    }
+
+                    if ($persona?->perfilEstudiante) {
+                        return [null, false, 'Ya existe un estudiante registrado con esta cédula.', $persona->id];
+                    }
+                }
+
+                $reutilizada = (bool) $persona;
+                if (!$persona) {
+                    $persona = Persona::create([
+                        'tipo' => 'estudiante',
+                        'cedula' => $datos['cedula'] ?? null,
+                        'nombres' => $datos['nombres'],
+                        'apellidos' => $datos['apellidos'],
+                        'correo' => $datos['correo'] ?? null,
+                        'celular' => $datos['celular'] ?? null,
+                        'ciudad_id' => $datos['ciudad_id'] ?? null,
+                        'ciudad' => $datos['ciudad'] ?? null,
+                    ]);
+                }
+
+                PerfilEstudiante::create([
+                    'persona_id' => $persona->id,
+                    'notas_internas' => $datos['notas_internas'] ?? null,
+                    'ocupacion' => $datos['ocupacion'] ?? null,
+                    'direccion' => $datos['direccion'] ?? null,
+                    'estado_civil' => $datos['estado_civil'] ?? null,
+                    'edad' => $datos['edad'] ?? null,
+                    'nivel_educativo' => $datos['nivel_educativo'] ?? null,
+                ]);
+
+                return [$persona->load(['ciudad', 'perfilEstudiante']), $reutilizada, null, null];
+            });
+
+            if (!$estudiante) {
+                return response()->json(array_filter([
+                    'mensaje' => $conflictMessage,
+                    'estudiante_id' => $conflictStudentId,
+                ], static fn ($value) => $value !== null), JsonResponse::HTTP_CONFLICT);
+            }
+
+            if ($request->hasFile('archivo_cedula')) {
+                $file = $request->file('archivo_cedula');
+                $filename = Str::uuid() . '.' . $file->getClientOriginalExtension();
+                $path = $file->storeAs('cedulas', $filename);
+                $estudiante->update(['cedula_photo_url' => Storage::disk()->url($path)]);
+                $estudiante->load(['ciudad', 'perfilEstudiante']);
+            }
+        } catch (QueryException $e) {
+            // La restricción única de cédula protege también carreras entre
+            // solicitudes concurrentes; no debe crear una Persona parcial.
+            if (in_array((string) $e->getCode(), ['23505', '23000'], true)) {
+                $estudianteExistente = !empty($datos['cedula'])
+                    ? Persona::query()
+                        ->estudiantes()
+                        ->where('cedula', $datos['cedula'])
+                        ->whereHas('perfilEstudiante')
+                        ->value('id')
+                    : null;
+
+                return response()->json([
+                    'mensaje' => 'La cédula ya se encuentra registrada.',
+                    ...($estudianteExistente ? ['estudiante_id' => $estudianteExistente] : []),
+                ], JsonResponse::HTTP_CONFLICT);
+            }
+            throw $e;
+        }
 
         return response()->json([
-            'mensaje' => 'Estudiante registrado exitosamente.',
+            'mensaje' => $reutilizada
+                ? 'Se reutilizó la Persona existente y se creó su PerfilEstudiante.'
+                : 'Estudiante registrado exitosamente.',
             'datos' => new EstudianteResource($estudiante),
-        ], 201);
+        ], $reutilizada ? 200 : 201);
     }
 
     public function update(EstudianteUpdateRequest $request, string $id): JsonResponse
@@ -793,10 +860,14 @@ class EstudianteController extends Controller
                 'direccion',
                 'estado_civil',
                 'edad',
+                'ciudad',
                 'nivel_educativo',
             ]));
 
             $datosPersona = array_diff_key($datos, $datosPerfil);
+            if (isset($datos['ciudad'])) {
+                $datosPersona['ciudad'] = $datos['ciudad'];
+            }
 
             if (!empty($datosPersona)) {
                 $estudiante->update($datosPersona);
@@ -841,7 +912,7 @@ class EstudianteController extends Controller
         $inscripcion = \App\Models\InscripcionTaller::find($id);
         if ($inscripcion) {
             DB::transaction(function () use ($inscripcion) {
-                CuentaPorCobrar::where('inscripcion_taller_id', $inscripcion->id)->delete();
+                // Se conserva la cuenta por cobrar y transacciones históricas
                 $inscripcion->delete();
             });
             return response()->json(['mensaje' => 'Participante de taller eliminado exitosamente.']);
@@ -875,7 +946,7 @@ class EstudianteController extends Controller
 
                 $inscripcion = \App\Models\InscripcionTaller::find($id);
                 if ($inscripcion) {
-                    CuentaPorCobrar::where('inscripcion_taller_id', $inscripcion->id)->delete();
+                    // Se conserva la cuenta por cobrar y transacciones históricas
                     $inscripcion->delete();
                     continue;
                 }
@@ -897,33 +968,19 @@ class EstudianteController extends Controller
             $matriculaIds = Matricula::where('estudiante_id', $estudiante->id)->pluck('id');
 
             if ($matriculaIds->isNotEmpty()) {
-                // Eliminar transacciones legacy (cuenta_cobrar)
-                TransaccionIngreso::whereIn('cuenta_cobrar_id', function ($q) use ($matriculaIds) {
-                    $q->select('id')->from('finance.cuentas_por_cobrar')->whereIn('matricula_id', $matriculaIds);
-                })->delete();
-
-                // Eliminar transacciones nuevas (linea_pago_modulo)
-                TransaccionIngreso::whereIn('linea_pago_modulo_id', function ($q) use ($matriculaIds) {
-                    $q->select('id')->from('finance.lineas_pago_modulo')->whereIn('matricula_id', $matriculaIds);
-                })->delete();
-
-                // Eliminar líneas de pago por módulo
-                \App\Models\Finance\LineaPagoModulo::whereIn('matricula_id', $matriculaIds)->delete();
-
-                CuentaPorCobrar::whereIn('matricula_id', $matriculaIds)->delete();
-
+                // Separar la baja académica de la contabilidad histórica:
+                // Se conservan transacciones de ingreso, cuentas por cobrar y líneas de pago
+                // para mantener la integridad contable y trazabilidad histórica.
                 Nota::whereIn('matricula_id', $matriculaIds)->delete();
-
                 Asistencia::whereIn('matricula_id', $matriculaIds)->delete();
-
                 Matricula::whereIn('id', $matriculaIds)->delete();
             }
 
-            PerfilEstudiante::where('persona_id', $estudiante->id)->delete();
+            // Desactivar expediente y aplicar soft delete
+            $estudiante->update(['es_activo' => false]);
+            $estudiante->delete();
 
             $this->eliminarServiciosYFinanzasVinculados('persona_id', $estudiante->id);
-
-            $estudiante->delete();
         });
     }
 
@@ -936,29 +993,17 @@ class EstudianteController extends Controller
 
             foreach ($solicitudes as $solicitud) {
                 if ($solicitud->matricula) {
-                    $matricula = $solicitud->matricula;
-
-                    TransaccionIngreso::whereIn('cuenta_cobrar_id', function ($q) use ($matricula) {
-                        $q->select('id')->from('finance.cuentas_por_cobrar')->where('matricula_id', $matricula->id);
-                    })->delete();
-
-                    CuentaPorCobrar::where('matricula_id', $matricula->id)->delete();
-                    Nota::where('matricula_id', $matricula->id)->delete();
-                    Asistencia::where('matricula_id', $matricula->id)->delete();
-                    $matricula->delete();
+                    // Conservar transacciones de ingreso y cuentas por cobrar históricas
+                    Nota::where('matricula_id', $solicitud->matricula->id)->delete();
+                    Asistencia::where('matricula_id', $solicitud->matricula->id)->delete();
+                    $solicitud->matricula->delete();
                 }
 
-                TransaccionIngreso::whereIn('cuenta_cobrar_id', function ($q) use ($solicitud) {
-                    $q->select('id')->from('finance.cuentas_por_cobrar')->where('solicitud_inscripcion_id', $solicitud->id);
-                })->delete();
-                CuentaPorCobrar::where('solicitud_inscripcion_id', $solicitud->id)->delete();
                 $solicitud->delete();
             }
 
             $cliente->solicitudesInscripcion()->delete();
-
             $this->eliminarServiciosYFinanzasVinculados('cliente_externo_id', $cliente->id);
-
             $cliente->delete();
         });
     }
@@ -981,32 +1026,7 @@ class EstudianteController extends Controller
                 ->delete();
         }
 
-        $aulaIds = DB::table('services.reservas_aulas')->where($columna, $id)->pluck('id')->toArray();
-        $alquilerIds = DB::table('services.alquiler_equipos')->where($columna, $id)->pluck('id')->toArray();
-        $asesoriaIds = DB::table('academic.asesorias')->where($columna, $id)->pluck('id')->toArray();
-
-        $tieneCuentas = !empty($podcastIds) || !empty($streamingIds) || !empty($produccionIds) || !empty($edicionIds) || !empty($aulaIds) || !empty($alquilerIds) || !empty($asesoriaIds);
-
-        if ($tieneCuentas) {
-            $cuentasCobrarIds = DB::table('finance.cuentas_por_cobrar')
-                ->where(function ($query) use ($podcastIds, $streamingIds, $produccionIds, $edicionIds, $aulaIds, $alquilerIds, $asesoriaIds) {
-                    if (!empty($podcastIds)) $query->orWhereIn('reserva_podcast_id', $podcastIds);
-                    if (!empty($streamingIds)) $query->orWhereIn('servicio_streaming_id', $streamingIds);
-                    if (!empty($produccionIds)) $query->orWhereIn('servicio_produccion_id', $produccionIds);
-                    if (!empty($edicionIds)) $query->orWhereIn('edicion_video_id', $edicionIds);
-                    if (!empty($aulaIds)) $query->orWhereIn('reserva_aula_id', $aulaIds);
-                    if (!empty($alquilerIds)) $query->orWhereIn('alquiler_equipo_id', $alquilerIds);
-                    if (!empty($asesoriaIds)) $query->orWhereIn('asesoria_id', $asesoriaIds);
-                })
-                ->pluck('id')
-                ->toArray();
-
-            if (!empty($cuentasCobrarIds)) {
-                TransaccionIngreso::whereIn('cuenta_cobrar_id', $cuentasCobrarIds)->delete();
-                CuentaPorCobrar::whereIn('id', $cuentasCobrarIds)->delete();
-            }
-        }
-
+        // NO se eliminan TransaccionIngreso ni CuentaPorCobrar para preservar trazabilidad fiscal y contable.
         DB::table('academic.asesorias')->where($columna, $id)->delete();
         DB::table('services.reservas_aulas')->where($columna, $id)->delete();
         DB::table('services.reservas_podcast')->where($columna, $id)->delete();
@@ -1707,6 +1727,79 @@ class EstudianteController extends Controller
     /**
      * Estadisticas generales de estudiantes
      */
+    private function countStudentsWithPendingPayments(): int
+    {
+        $studentKeys = [];
+
+        // Una cuenta por cobrar puede pertenecer a otros modulos del sistema.
+        // Solo se toma en cuenta si se puede relacionar con un estudiante,
+        // participante externo o inscripcion de taller.
+        $cuentasPendientes = CuentaPorCobrar::query()
+            ->where('estado', CuentaPorCobrar::ESTADO_PENDIENTE)
+            ->whereRaw('COALESCE(monto_total, 0) - COALESCE(monto_abonado, 0) > 0')
+            ->select([
+                'id',
+                'matricula_id',
+                'solicitud_inscripcion_id',
+                'inscripcion_taller_id',
+            ])
+            ->with([
+                'matricula:id,estudiante_id,solicitud_inscripcion_id',
+                'solicitudInscripcion:id,persona_id,participante_externo_id',
+                'inscripcionTaller:id,persona_id,participante_externo_id,nombres,apellidos,cedula,estado',
+            ])
+            ->chunk(500, function ($cuentasPendientes) use (&$studentKeys) {
+                foreach ($cuentasPendientes as $cuenta) {
+                    if ($cuenta->matricula?->estudiante_id) {
+                        $studentKeys['persona:' . $cuenta->matricula->estudiante_id] = true;
+                    }
+
+                    $solicitud = $cuenta->solicitudInscripcion;
+                    if ($solicitud?->persona_id) {
+                        $studentKeys['persona:' . $solicitud->persona_id] = true;
+                    }
+                    if ($solicitud?->participante_externo_id) {
+                        $studentKeys['externo:' . $solicitud->participante_externo_id] = true;
+                    }
+
+                    $inscripcionTaller = $cuenta->inscripcionTaller;
+                    if (!$inscripcionTaller || !in_array($inscripcionTaller->estado, ['activo', 'completado'], true)) {
+                        continue;
+                    }
+
+                    if ($inscripcionTaller->persona_id) {
+                        $studentKeys['persona:' . $inscripcionTaller->persona_id] = true;
+                    } elseif ($inscripcionTaller->participante_externo_id) {
+                        $studentKeys['externo:' . $inscripcionTaller->participante_externo_id] = true;
+                    } else {
+                        $cedula = trim((string) $inscripcionTaller->cedula);
+                        $nombre = mb_strtolower(trim(($inscripcionTaller->nombres ?? '') . ' ' . ($inscripcionTaller->apellidos ?? '')));
+
+                        if ($cedula !== '') {
+                            $studentKeys['taller:cedula:' . $cedula] = true;
+                        } elseif ($nombre !== '') {
+                            $studentKeys['taller:nombre:' . $nombre] = true;
+                        }
+                    }
+                }
+            });
+
+        // Las lineas de pago de una matricula también representan deuda,
+        // aunque todavía no exista una cuenta por cobrar asociada.
+        $lineasPendientes = DB::table('finance.lineas_pago_modulo as l')
+            ->join('academic.matriculas as m', 'm.id', '=', 'l.matricula_id')
+            ->whereNull('m.deleted_at')
+            ->where('l.estado', 'pendiente')
+            ->whereRaw('COALESCE(l.monto_ajustado, 0) - COALESCE(l.monto_abonado, 0) > 0')
+            ->whereNotNull('m.estudiante_id')
+            ->distinct()
+            ->pluck('m.estudiante_id');
+
+        $lineasPendientes->each(fn ($estudianteId) => $studentKeys['persona:' . $estudianteId] = true);
+
+        return count($studentKeys);
+    }
+
     public function stats(Request $request): JsonResponse
     {
         $internosCount = Persona::query()
@@ -1821,11 +1914,15 @@ class EstudianteController extends Controller
         $cursosCount = CursoAbierto::query()->count();
         $talleresCount = Taller::query()->count();
         $ciudadesCount = $porCiudad->count();
+        $pagosPendientesCount = $this->countStudentsWithPendingPayments();
+        $nuevosEsteMes = Persona::query()->estudiantes()->whereNull('deleted_at')->where('created_at', '>=', now()->startOfMonth())->count();
 
         return response()->json([
-        'datos' => [
-            'total_estudiantes' => $internosCount + $externosCount + $talleresNuevosCount,
-            'por_ciudad' => $porCiudad,
+            'datos' => [
+                'total_estudiantes' => $internosCount + $externosCount + $talleresNuevosCount,
+                'nuevos_este_mes' => $nuevosEsteMes,
+                'pagos_pendientes_count' => $pagosPendientesCount,
+                'por_ciudad' => $porCiudad,
                 'matriculas_por_estado' => $matriculasStats,
                 'promedio_general' => round((float) $promedioGeneral, 2),
                 'tasa_completacion' => $tasaCompletacion,
@@ -2146,16 +2243,17 @@ class EstudianteController extends Controller
     public function exportStudents(Request $request): \Illuminate\Http\Response|\Illuminate\Http\JsonResponse|\Symfony\Component\HttpFoundation\BinaryFileResponse
     {
         $request->validate([
-            'formato' => 'required|string|in:csv,pdf,excel',
+            'formato' => 'required|string|in:csv,pdf,excel,json',
             'campos' => 'nullable|array',
             'ids' => 'nullable|array',
             'buscar' => 'nullable|string',
             'estado_pago' => 'nullable|string',
+            'ciudad' => 'nullable|string',
         ]);
 
         $formato = $request->input('formato', 'csv');
         $camposSeleccionados = $request->input('campos', [
-            'nombres', 'apellidos', 'cedula', 'correo', 'celular', 'edad', 'direccion', 'ocupacion', 'estado_civil', 'total_cursos', 'estado_pago', 'saldo_pendiente'
+            'nombres', 'apellidos', 'cedula', 'correo', 'celular', 'telefono', 'ciudad', 'edad', 'direccion', 'ocupacion', 'estado_civil', 'total_cursos', 'estado_pago', 'estado_financiero', 'saldo', 'saldo_pendiente'
         ]);
         $ids = $request->input('ids');
 
@@ -2174,6 +2272,7 @@ class EstudianteController extends Controller
             $internos->where(function ($q) use ($buscar) {
                 $q->whereRaw('LOWER(nombres) LIKE ?', ["%{$buscar}%"])
                   ->orWhereRaw('LOWER(apellidos) LIKE ?', ["%{$buscar}%"])
+                  ->orWhereRaw('LOWER(correo) LIKE ?', ["%{$buscar}%"])
                   ->orWhere('cedula', 'like', "%{$buscar}%");
             });
         }
@@ -2196,6 +2295,17 @@ class EstudianteController extends Controller
                 }
             }
 
+            $saldoPendiente = $p->matriculas->sum(function($m) {
+                if ($m->cuentaPorCobrar) {
+                    return $m->cuentaPorCobrar->monto_total - $m->cuentaPorCobrar->monto_abonado;
+                }
+                $lineasSum = $m->lineasPago->sum('saldo_pendiente');
+                if ($lineasSum > 0) return $lineasSum;
+                return $m->cursoAbierto->precio_base ?? 0;
+            });
+
+            $ciudadNombre = $p->ciudad ? (is_string($p->ciudad) ? $p->ciudad : ($p->ciudad->nombre ?? '')) : ($p->perfilEstudiante?->ciudad ?? '');
+
             return [
                 'id' => $p->id,
                 'nombres' => $p->nombres,
@@ -2203,16 +2313,15 @@ class EstudianteController extends Controller
                 'cedula' => $p->cedula,
                 'correo' => $p->correo,
                 'celular' => $p->celular,
+                'telefono' => $p->celular,
+                'ciudad' => $ciudadNombre,
+                'direccion' => $p->perfilEstudiante?->direccion ?? '',
+                'ocupacion' => $p->perfilEstudiante?->ocupacion ?? '',
                 'total_cursos' => $totalMatriculas,
                 'estado_pago' => $estadoPago === 'ninguno' ? 'Sin cursos' : $estadoPago,
-                    'saldo_pendiente' => $p->matriculas->sum(function($m) {
-                        if ($m->cuentaPorCobrar) {
-                            return $m->cuentaPorCobrar->monto_total - $m->cuentaPorCobrar->monto_abonado;
-                        }
-                        $lineasSum = $m->lineasPago->sum('saldo_pendiente');
-                        if ($lineasSum > 0) return $lineasSum;
-                        return $m->cursoAbierto->precio_base ?? 0;
-                    }),
+                'estado_financiero' => $estadoPago === 'ninguno' ? 'Sin cursos' : $estadoPago,
+                'saldo' => $saldoPendiente,
+                'saldo_pendiente' => $saldoPendiente,
             ];
         });
 
@@ -2236,6 +2345,8 @@ class EstudianteController extends Controller
             $buscar = mb_strtolower($request->buscar);
             $clientesQuery->where(function ($q) use ($buscar) {
                 $q->whereRaw('LOWER(nombres) LIKE ?', ["%{$buscar}%"])
+                  ->orWhereRaw('LOWER(apellidos) LIKE ?', ["%{$buscar}%"])
+                  ->orWhereRaw('LOWER(correo) LIKE ?', ["%{$buscar}%"])
                   ->orWhere('cedula', 'like', "%{$buscar}%");
             });
         }
@@ -2259,6 +2370,17 @@ class EstudianteController extends Controller
                 }
             }
 
+            $saldoPendiente = $solicitudes->sum(function($s) {
+                $cuenta = $s->cuentasPorCobrar->first();
+                if ($cuenta) {
+                    return $cuenta->monto_total - $cuenta->monto_abonado;
+                }
+                return ($s->cursoAbierto->precio_base ?? 0) - ($s->monto_solicitado ?? 0);
+            });
+
+            $ciudadRes = $this->resolverCiudad($c);
+            $ciudadNombre = is_array($ciudadRes) ? ($ciudadRes['nombre'] ?? '') : ($c->ciudad?->nombre ?? '');
+
             return [
                 'id' => $c->id,
                 'nombres' => $c->nombres,
@@ -2266,15 +2388,15 @@ class EstudianteController extends Controller
                 'cedula' => $c->cedula,
                 'correo' => $c->correo,
                 'celular' => $c->celular,
+                'telefono' => $c->celular,
+                'ciudad' => $ciudadNombre,
+                'direccion' => $c->direccion ?? '',
+                'ocupacion' => $c->ocupacion ?? '',
                 'total_cursos' => $totalSolicitudes,
                 'estado_pago' => $estadoPago === 'ninguno' ? 'Sin cursos' : $estadoPago,
-                'saldo_pendiente' => $solicitudes->sum(function($s) {
-                    $cuenta = $s->cuentasPorCobrar->first();
-                    if ($cuenta) {
-                        return $cuenta->monto_total - $cuenta->monto_abonado;
-                    }
-                    return ($s->cursoAbierto->precio_base ?? 0) - ($s->monto_solicitado ?? 0);
-                }),
+                'estado_financiero' => $estadoPago === 'ninguno' ? 'Sin cursos' : $estadoPago,
+                'saldo' => $saldoPendiente,
+                'saldo_pendiente' => $saldoPendiente,
             ];
         });
 
@@ -2309,12 +2431,16 @@ class EstudianteController extends Controller
                     'cedula' => $p->cedula,
                     'correo' => $p->correo,
                     'celular' => $p->telefono,
+                    'telefono' => $p->telefono,
+                    'ciudad' => $p->ciudad ?? '',
                     'total_cursos' => $grupo->count(),
                     'estado_pago' => $estadoPago,
+                    'estado_financiero' => $estadoPago,
+                    'saldo' => $saldo,
                     'saldo_pendiente' => $saldo,
                     'edad' => $p->edad,
-                    'direccion' => $p->direccion,
-                    'ocupacion' => $p->ocupacion,
+                    'direccion' => $p->direccion ?? '',
+                    'ocupacion' => $p->ocupacion ?? '',
                     'estado_civil' => $p->estado_civil,
                     'nivel_educativo' => $p->nivel_educativo,
                 ];
@@ -2331,7 +2457,22 @@ class EstudianteController extends Controller
             $estudiantes = $estudiantes->filter(fn($e) => $e['estado_pago'] === $estado);
         }
 
+        if ($request->filled('ciudad')) {
+            $ciudad = mb_strtolower($request->ciudad);
+            $estudiantes = $estudiantes->filter(function ($e) use ($ciudad) {
+                $nombre = is_array($e['ciudad'] ?? null) ? ($e['ciudad']['nombre'] ?? '') : ($e['ciudad'] ?? '');
+                return $nombre && mb_strtolower($nombre) === $ciudad;
+            });
+        }
+
         $estudiantes = $estudiantes->sortBy('nombres', SORT_NATURAL | SORT_FLAG_CASE)->values();
+
+        if ($formato === 'json') {
+            return response()->json([
+                'datos' => $estudiantes,
+                'total' => $estudiantes->count(),
+            ]);
+        }
 
         $rows = $estudiantes->map(function ($e) use ($camposSeleccionados) {
             $fila = [];

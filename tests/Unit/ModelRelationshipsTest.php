@@ -9,12 +9,12 @@ use App\Models\Modulo;
 use App\Models\Matricula;
 use App\Models\Nota;
 use Tests\TestCase;
-use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Carbon\Carbon;
 
 class ModelRelationshipsTest extends TestCase
 {
-    use RefreshDatabase;
+    use DatabaseTransactions;
 
     /**
      * Test: CatalogoCurso tiene muchos CursoAbierto

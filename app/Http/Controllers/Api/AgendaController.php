@@ -33,6 +33,9 @@ class AgendaController extends Controller
         $tipos = $request->validated('tipos');
 
         $events = $this->agendaService->getEvents($fechaInicio, $fechaFin, $tipos);
+        // Se agrupa sobre la misma colección ya cargada para la agenda: no añade
+        // consultas y permite que los filtros comuniquen su volumen real.
+        $eventCounts = $events->countBy('tipo_evento');
 
         $perPage = $request->validated('per_page', 100);
         $page = $request->input('page', 1);
@@ -47,15 +50,28 @@ class AgendaController extends Controller
                 'current_page' => (int) $page,
                 'last_page' => (int) ceil($total / $perPage),
             ],
-            'tipos_disponibles' => [
-                ['tipo' => 'CLASE_CURSO', 'label' => 'Cursos', 'color' => '#6366f1'],
+            'tipos_disponibles' => collect([
+                ['tipo' => 'CURSO', 'label' => 'Cursos', 'color' => '#6366f1'],
+                ['tipo' => 'CURSO_PERSONALIZADO', 'label' => 'Cursos personalizados', 'color' => '#0f766e'],
                 ['tipo' => 'TALLER', 'label' => 'Talleres', 'color' => '#f59e0b'],
                 ['tipo' => 'ALQUILER_AULA', 'label' => 'Alquiler de Aulas', 'color' => '#10b981'],
                 ['tipo' => 'PODCAST', 'label' => 'Podcast', 'color' => '#ec4899'],
                 ['tipo' => 'STREAMING', 'label' => 'Streaming', 'color' => '#06b6d4'],
                 ['tipo' => 'ASESORIA', 'label' => 'Asesorías', 'color' => '#8b5cf6'],
                 ['tipo' => 'RADIO', 'label' => 'Radio', 'color' => '#ef4444'],
-            ],
+            ])->map(function (array $type) use ($eventCounts) {
+                $count = $eventCounts[$type['tipo']] ?? 0;
+                // "Cursos" agrupa clases materializadas y ofertas calculadas
+                // desde CursoAbierto.
+                if ($type['tipo'] === 'CURSO') {
+                    $count += $eventCounts['CLASE_CURSO'] ?? 0;
+                }
+
+                return [
+                    ...$type,
+                    'count' => (int) $count,
+                ];
+            })->values(),
         ]);
     }
 

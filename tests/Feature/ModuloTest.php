@@ -7,11 +7,11 @@ use App\Models\CatalogoCurso;
 use App\Models\CursoAbierto;
 use App\Models\Nota;
 use Tests\TestCase;
-use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Foundation\Testing\DatabaseTransactions;
 
 class ModuloTest extends TestCase
 {
-    use RefreshDatabase;
+    use DatabaseTransactions;
 
     protected function setUp(): void
     {

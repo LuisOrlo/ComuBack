@@ -26,6 +26,14 @@ class PersonaController extends Controller
      */
     public function storeCompleto(Request $request)
     {
+        if ($request->input('tipo') === 'admin' && !auth()->user()?->hasRole('Administrador')) {
+            return response()->json(['message' => 'Solo un Administrador puede crear cuentas administrativas'], Response::HTTP_FORBIDDEN);
+        }
+
+        if ($request->boolean('crear_cuenta') && !auth()->user()?->hasRole('Administrador') && !auth()->user()?->hasPermissionTo('gestionar_cuentas_sistema')) {
+            return response()->json(['message' => 'Solo un Administrador puede crear credenciales de sistema'], Response::HTTP_FORBIDDEN);
+        }
+
         $validated = validator($request->all(), [
             'tipo' => 'required|in:instructor,staff,secretaria,admin',
             'cedula' => ['nullable', 'string', 'max:20', Rule::unique('pgsql.people.personas', 'cedula')->withoutTrashed()],
@@ -193,6 +201,7 @@ class PersonaController extends Controller
      */
     public function crearCuenta(StoreCuentaSistemaRequest $request, $id)
     {
+        abort_unless(auth()->user()?->hasRole('Administrador'), Response::HTTP_FORBIDDEN, 'Solo un Administrador puede crear cuentas');
         $persona = Persona::findOrFail($id);
 
         $cuenta = CuentaSistema::create([
@@ -211,6 +220,7 @@ class PersonaController extends Controller
 
     public function actualizarCuenta(UpdateCuentaSistemaRequest $request, $id)
     {
+        abort_unless(auth()->user()?->hasRole('Administrador'), Response::HTTP_FORBIDDEN, 'Solo un Administrador puede modificar cuentas');
         $persona = Persona::findOrFail($id);
         $cuenta = $persona->cuentaSistema;
 
@@ -224,6 +234,8 @@ class PersonaController extends Controller
 
         if ($request->filled('password')) {
             $cuenta->password_hash = $request->password;
+            // Revocar sesiones/tokens activos ante cambio de credencial sensible
+            $cuenta->tokens()->delete();
         }
 
         $cuenta->save();

@@ -23,6 +23,11 @@ return Application::configure(basePath: dirname(__DIR__))
             'role' => \Spatie\Permission\Middleware\RoleMiddleware::class,
             'permission' => \Spatie\Permission\Middleware\PermissionMiddleware::class,
             'role_or_permission' => \Spatie\Permission\Middleware\RoleOrPermissionMiddleware::class,
+            'active.user' => \App\Http\Middleware\EnsureUserIsActive::class,
+        ]);
+
+        $middleware->api(append: [
+            \App\Http\Middleware\EnsureUserIsActive::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
@@ -36,6 +41,7 @@ return Application::configure(basePath: dirname(__DIR__))
                     'mensaje' => match (true) {
                         $e instanceof \Illuminate\Validation\ValidationException => $e->getMessage(),
                         $e instanceof \Illuminate\Auth\AuthenticationException => 'No autenticado.',
+                        $e instanceof \Symfony\Component\HttpKernel\Exception\HttpException => $e->getMessage(),
                         default => config('app.debug') ? $e->getMessage() : 'Error interno del servidor.',
                     },
                     'codigo' => $e->getCode(),

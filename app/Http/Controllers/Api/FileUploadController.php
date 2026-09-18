@@ -17,7 +17,7 @@ class FileUploadController extends Controller
     public function uploadComprobante(Request $request)
     {
         $request->validate([
-            'archivo' => 'required|file|image|max:5120',
+            'archivo' => 'required|file|image|mimes:jpeg,png,jpg,webp|max:5120',
         ]);
 
         $file = $request->file('archivo');
@@ -42,7 +42,7 @@ class FileUploadController extends Controller
     public function uploadCedula(Request $request)
     {
         $request->validate([
-            'archivo' => 'required|file|image|max:5120',
+            'archivo' => 'required|file|image|mimes:jpeg,png,jpg,webp|max:5120',
         ]);
 
         $file = $request->file('archivo');

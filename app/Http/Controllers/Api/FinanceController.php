@@ -758,9 +758,14 @@ class FinanceController extends Controller
         DB::beginTransaction();
         try {
             $cuenta = CuentaPorCobrar::lockForUpdate()->find($request->cuenta_cobrar_id);
+            if (! $cuenta) {
+                DB::rollBack();
+                return response()->json(['mensaje' => 'La cuenta por cobrar no existe o fue eliminada'], 404);
+            }
             
             $saldo = $cuenta->monto_total - $cuenta->monto_abonado;
             if ($request->monto > ($saldo + 0.01)) { 
+                DB::rollBack();
                 return response()->json(['mensaje' => 'El monto ($' . $request->monto . ') supera el saldo pendiente ($' . $saldo . ')'], 422);
             }
 
@@ -784,6 +789,15 @@ class FinanceController extends Controller
 
             DB::commit();
 
+            Log::channel('audit')->info('pago.ingreso_registrado', [
+                'transaccion_id' => $transaccion->id,
+                'cuenta_cobrar_id' => $cuenta->id,
+                'monto' => (float) $transaccion->monto,
+                'metodo_pago' => $transaccion->metodo_pago,
+                'usuario_id' => auth()->id(),
+                'ip' => $request->ip(),
+            ]);
+
             $cuenta->refresh();
             $nuevoSaldo = $cuenta->monto_total - $cuenta->monto_abonado;
             if ($nuevoSaldo <= 0 && $cuenta->reserva_podcast_id) {
@@ -791,6 +805,8 @@ class FinanceController extends Controller
             }
 
             Cache::forget('finance.resumen');
+            Cache::increment('estadisticas.version');
+            Cache::increment('estadisticas.version');
             return response()->json([
                 'mensaje' => 'Pago registrado correctamente',
                 'datos' => $transaccion
@@ -838,54 +854,9 @@ class FinanceController extends Controller
     {
         $response = DB::transaction(function () use ($request) {
             $resultados = [];
-            $pagoUnificado = $request->boolean('pago_unificado', false);
-
-            if ($pagoUnificado && count($request->pagos) > 1) {
-                $total = collect($request->pagos)->sum('monto');
-                $primerPago = $request->pagos[0];
-
-                $transaccion = TransaccionIngreso::create([
-                    'linea_pago_modulo_id' => $primerPago['linea_pago_modulo_id'],
-                    'monto' => $total,
-                    'metodo_pago' => $primerPago['metodo_pago'],
-                    'fecha_pago' => $primerPago['fecha_pago'] ?? now(),
-                    'comprobante_url' => $primerPago['comprobante_url'] ?? null,
-                    'registrado_por' => auth()->user()->persona_id ?? auth()->id(),
-                    'estado_verificacion' => TransaccionIngreso::VERIFICACION_APROBADO,
-                ]);
-
-                foreach ($request->pagos as $pago) {
-                    $linea = LineaPagoModulo::findOrFail($pago['linea_pago_modulo_id']);
-                    if (! empty($pago['monto_ajustado']) && $pago['monto_ajustado'] != $linea->monto_ajustado) {
-                        $linea->update([
-                            'monto_ajustado' => $pago['monto_ajustado'],
-                            'motivo_ajuste' => $pago['motivo_ajuste'] ?? null,
-                            'ajustado_por' => auth()->user()->persona_id ?? auth()->id(),
-                            'fecha_ajuste' => now(),
-                        ]);
-                        $linea->refresh();
-                    }
-                    $linea->increment('monto_abonado', $pago['monto']);
-                    $linea->refresh();
-
-                    $resultados[] = [
-                        'linea_pago_modulo_id' => $linea->id,
-                        'transaccion_id' => $transaccion->id,
-                        'nuevo_estado' => $linea->estado,
-                        'monto_abonado' => (float) $linea->monto_abonado,
-                        'monto_ajustado' => (float) $linea->monto_ajustado,
-                    ];
-                }
-
-                return response()->json([
-                    'mensaje' => 'Pago registrado correctamente',
-                    'transaccion_id' => $transaccion->id,
-                    'pagos' => $resultados,
-                ], 201);
-            }
 
             foreach ($request->pagos as $pago) {
-                $linea = LineaPagoModulo::findOrFail($pago['linea_pago_modulo_id']);
+                $linea = LineaPagoModulo::whereKey($pago['linea_pago_modulo_id'])->lockForUpdate()->firstOrFail();
 
                 // Ajuste de precio para este estudiante, si se solicitó
                 if (! empty($pago['monto_ajustado']) && $pago['monto_ajustado'] != $linea->monto_ajustado) {
@@ -898,6 +869,8 @@ class FinanceController extends Controller
                     $linea->refresh();
                 }
 
+                // Crear transacción individual para esta línea con su monto correspondiente.
+                // El TransaccionIngresoObserver aplicará el abono y actualizará el estado de la línea una sola vez.
                 $transaccion = TransaccionIngreso::create([
                     'linea_pago_modulo_id' => $linea->id,
                     'monto' => $pago['monto'],
@@ -909,6 +882,22 @@ class FinanceController extends Controller
                 ]);
 
                 $linea->refresh();
+
+                // Sincronizar la cuenta por cobrar padre de la matrícula si existe
+                if ($linea->matricula && $linea->matricula->cuentaPorCobrar) {
+                    $cuentaPadre = $linea->matricula->cuentaPorCobrar;
+                    $totalAbonado = (float) LineaPagoModulo::where('matricula_id', $linea->matricula_id)->sum('monto_abonado');
+                    $totalAjustado = (float) LineaPagoModulo::where('matricula_id', $linea->matricula_id)->sum('monto_ajustado');
+                    $cuentaPadre->update([
+                        'monto_abonado' => $totalAbonado,
+                        'monto_total' => $totalAjustado,
+                        'estado' => match (true) {
+                            $totalAbonado >= $totalAjustado => CuentaPorCobrar::ESTADO_PAGADO,
+                            $totalAbonado > 0 => CuentaPorCobrar::ESTADO_ABONADO,
+                            default => CuentaPorCobrar::ESTADO_PENDIENTE,
+                        },
+                    ]);
+                }
 
                 $resultados[] = [
                     'linea_pago_modulo_id' => $linea->id,
@@ -928,6 +917,7 @@ class FinanceController extends Controller
         });
 
         Cache::forget('finance.resumen');
+        Cache::increment('estadisticas.version');
         return $response;
     }
 
@@ -1243,7 +1233,11 @@ class FinanceController extends Controller
                 $estudiante = $mat?->estudiante
                     ?? $mat?->solicitudInscripcion?->estudiante
                     ?? $mat?->solicitudInscripcion?->participanteExterno;
-                $cursoNombre = $mat?->cursoAbierto?->catalogo?->nombre;
+                $curso = $mat?->cursoAbierto;
+                $esPersonalizado = (bool) ($curso?->es_personalizado ?? false);
+                $cursoNombre = $esPersonalizado
+                    ? ($curso?->nombre_instancia ?: $curso?->catalogo?->nombre)
+                    : ($curso?->catalogo?->nombre ?: $curso?->nombre_instancia);
                 $montoTotal = round((float) $grupo->sum('monto'), 2);
                 $detalle = $grupo->filter(fn($x) => $x->lineaPagoModulo?->modulo?->nombre_modulo)
                     ->map(fn($x) => [
@@ -1268,7 +1262,8 @@ class FinanceController extends Controller
                     'estudiante_nombre' => $estudiante ? trim(($estudiante->nombres ?? '') . ' ' . ($estudiante->apellidos ?? '')) : null,
                     'estudiante_cedula' => $estudiante?->cedula ?? null,
                     'curso_nombre' => $cursoNombre,
-                    'categoria_nombre' => null,
+                    'categoria_nombre' => $esPersonalizado ? 'Cursos personalizados' : 'Cursos',
+                    'es_personalizado' => $esPersonalizado,
                     'modulo_nombre' => null,
                     'modulos_count' => $detalle->count(),
                     'modulos_detalle' => $detalle,
@@ -1280,16 +1275,21 @@ class FinanceController extends Controller
             $estudiante = null;
             $cursoNombre = null;
             $moduloNombre = null;
+            $esPersonalizado = false;
+            $cp = $m->cuentaPorCobrar;
 
             if ($m->lineaPagoModulo) {
                 $mat = $m->lineaPagoModulo->matricula;
                 $estudiante = $mat?->estudiante
                     ?? $mat?->solicitudInscripcion?->estudiante
                     ?? $mat?->solicitudInscripcion?->participanteExterno;
-                $cursoNombre = $mat?->cursoAbierto?->catalogo?->nombre;
+                $curso = $mat?->cursoAbierto;
+                $esPersonalizado = (bool) ($curso?->es_personalizado ?? false);
+                $cursoNombre = $esPersonalizado
+                    ? ($curso?->nombre_instancia ?: $curso?->catalogo?->nombre)
+                    : ($curso?->catalogo?->nombre ?: $curso?->nombre_instancia);
                 $moduloNombre = $m->lineaPagoModulo->modulo?->nombre_modulo;
             } elseif ($m->cuentaPorCobrar) {
-                $cp = $m->cuentaPorCobrar;
                 $estudiante = $cp->matricula?->estudiante
                     ?? $cp->inscripcionTaller
                     ?? $cp->reservaPodcast?->persona
@@ -1301,7 +1301,11 @@ class FinanceController extends Controller
                     ?? $cp->reservaRadio?->persona
                     ?? $cp->reservaRadio?->clienteExterno;
 
-                $cursoNombre = $cp->matricula?->cursoAbierto?->catalogo?->nombre
+                $curso = $cp->matricula?->cursoAbierto;
+                $esPersonalizado = (bool) ($curso?->es_personalizado ?? false);
+                $cursoNombre = $esPersonalizado
+                    ? ($curso?->nombre_instancia ?: $curso?->catalogo?->nombre)
+                    : ($curso?->catalogo?->nombre ?: $curso?->nombre_instancia)
                     ?? $cp->inscripcionTaller?->taller?->nombre
                     ?? $cp->reservaPodcast?->titulo
                     ?? $cp->reservaPodcast?->paquete?->nombre
@@ -1322,6 +1326,8 @@ class FinanceController extends Controller
                 'estudiante_nombre' => $estudiante ? trim(($estudiante->nombres ?? '') . ' ' . ($estudiante->apellidos ?? '')) : null,
                 'estudiante_cedula' => $estudiante?->cedula ?? null,
                 'curso_nombre' => $cursoNombre,
+                'categoria_nombre' => $esPersonalizado ? 'Cursos personalizados' : ($cp?->inscripcion_taller_id ? 'Talleres' : 'Cursos'),
+                'es_personalizado' => $esPersonalizado,
                 'modulo_nombre' => $moduloNombre,
                 'cuenta_por_cobrar' => $m->cuentaPorCobrar,
             ];
@@ -1880,7 +1886,9 @@ class FinanceController extends Controller
                 'fecha_pago' => $t->fecha_pago?->format('Y-m-d H:i'),
                 'estado_verificacion' => $t->estado_verificacion,
                 'comprobante_url' => $t->comprobante_url,
-                'modulo_nombre' => $t->lineaPagoModulo?->modulo?->nombre_modulo ?? null,
+                'modulo_nombre' => $t->lineaPagoModulo?->tipo === 'inscripcion'
+                    ? 'Inscripción / Matrícula'
+                    : ($t->lineaPagoModulo?->modulo?->nombre_modulo ?? null),
                 'referencia_pago' => $t->referencia_pago,
             ]);
 
@@ -1892,7 +1900,10 @@ class FinanceController extends Controller
                 ],
                 'curso' => [
                     'id' => $curso->id,
-                    'nombre' => $curso->catalogo?->nombre ?? 'Curso',
+                    'nombre' => $curso->es_personalizado
+                        ? ($curso->nombre_instancia ?: $curso->catalogo?->nombre ?: 'Curso personalizado')
+                        : ($curso->catalogo?->nombre ?: $curso->nombre_instancia ?: 'Curso'),
+                    'es_personalizado' => (bool) $curso->es_personalizado,
                 ],
                 'modulos' => $modulosData,
                 'historial' => $transacciones,
@@ -2038,8 +2049,9 @@ class FinanceController extends Controller
             $cuenta->estado = $nuevoSaldo <= 0 ? 'pagado' : 'abonado';
             $cuenta->save();
 
-            if ($nuevoSaldo <= 0 && $cuenta->reserva_podcast_id) {
-                $cuenta->reservaPodcast()->update(['estado' => 'completado']);
+            // Separar estado operativo del financiero: pago no completa la sesión operativa
+            if ($cuenta->reserva_podcast_id && $cuenta->reservaPodcast?->estado === 'reservado') {
+                $cuenta->reservaPodcast()->update(['estado' => 'confirmado']);
             }
 
             Cache::forget('finance.resumen');
@@ -2074,7 +2086,12 @@ class FinanceController extends Controller
 
         $categoriaFilter = $request->get('categoria');
         if ($categoriaFilter) {
-            if ($categoriaFilter === 'cursos') {
+            if ($categoriaFilter === 'cursos_personalizados') {
+                $query->where(function ($q) {
+                    $q->whereHas('cuentaPorCobrar.matricula.cursoAbierto', fn($sq) => $sq->where('es_personalizado', true))
+                      ->orWhereHas('lineaPagoModulo.matricula.cursoAbierto', fn($sq) => $sq->where('es_personalizado', true));
+                });
+            } elseif ($categoriaFilter === 'cursos') {
                 $query->where(function ($q) {
                     $q->whereHas('cuentaPorCobrar', fn($sq) => $sq->whereNotNull('matricula_id'))
                       ->orWhereNotNull('linea_pago_modulo_id');
@@ -2161,7 +2178,12 @@ class FinanceController extends Controller
             $ingresoIdsQuery->where('metodo_pago', $metodo);
         }
         if ($categoriaFilter) {
-            if ($categoriaFilter === 'cursos') {
+            if ($categoriaFilter === 'cursos_personalizados') {
+                $ingresoIdsQuery->where(function ($q) {
+                    $q->whereHas('cuentaPorCobrar.matricula.cursoAbierto', fn($sq) => $sq->where('es_personalizado', true))
+                      ->orWhereHas('lineaPagoModulo.matricula.cursoAbierto', fn($sq) => $sq->where('es_personalizado', true));
+                });
+            } elseif ($categoriaFilter === 'cursos') {
                 $ingresoIdsQuery->where(function ($q) {
                     $q->whereHas('cuentaPorCobrar', fn($sq) => $sq->whereNotNull('matricula_id'))
                       ->orWhereNotNull('linea_pago_modulo_id');
@@ -2303,7 +2325,11 @@ class FinanceController extends Controller
             $cp = $rep->cuentaPorCobrar;
             $cat = 'Otros';
             if ($cp) {
-                if ($cp->matricula_id) $cat = 'Cursos';
+                if ($cp->matricula_id) {
+                    $cat = $cp->matricula?->cursoAbierto?->es_personalizado
+                        ? 'Cursos personalizados'
+                        : 'Cursos';
+                }
                 elseif ($cp->inscripcion_taller_id) $cat = 'Talleres';
                 elseif ($cp->reserva_podcast_id) $cat = 'Podcast';
                 elseif ($cp->reserva_aula_id) $cat = 'Alquiler de Aulas';
@@ -2314,7 +2340,9 @@ class FinanceController extends Controller
                 elseif ($cp->servicio_produccion_id) $cat = 'Producción Audiovisual';
                 elseif ($cp->clase_extra_id) $cat = 'Asesorías';
             } elseif ($rep->linea_pago_modulo_id) {
-                $cat = 'Cursos';
+                $cat = $rep->lineaPagoModulo?->matricula?->cursoAbierto?->es_personalizado
+                    ? 'Cursos personalizados'
+                    : 'Cursos';
             }
 
             $estudiante = $cp?->matricula?->estudiante
@@ -2333,8 +2361,15 @@ class FinanceController extends Controller
                 ?? $cp?->edicionVideo?->clienteExterno
                 ?? $rep->lineaPagoModulo?->matricula?->estudiante;
 
-            $concepto = $cp?->matricula?->cursoAbierto?->catalogo?->nombre
-                ?? $cp?->matricula?->cursoAbierto?->nombre_instancia
+            $curso = $cp?->matricula?->cursoAbierto
+                ?? $rep->lineaPagoModulo?->matricula?->cursoAbierto;
+
+            // Los personalizados pueden no tener catálogo ni módulos. Su concepto
+            // debe salir de la instancia del curso y nunca de un placeholder de
+            // módulo o de una representación visual.
+            $concepto = $curso?->es_personalizado
+                ? ($curso->nombre_instancia ?: $curso->catalogo?->nombre)
+                : ($curso?->catalogo?->nombre ?: $curso?->nombre_instancia)
                 ?? $cp?->inscripcionTaller?->taller?->nombre
                 ?? $cp?->reservaPodcast?->titulo
                 ?? $cp?->reservaPodcast?->paquete?->nombre
@@ -2349,6 +2384,7 @@ class FinanceController extends Controller
                 'tipo_movimiento' => 'ingreso',
                 'fecha_pago' => $rep->fecha_pago?->format('Y-m-d'),
                 'concepto' => $concepto,
+                'es_personalizado' => (bool) ($curso?->es_personalizado ?? false),
                 'estudiante_nombre' => $estudiante ? trim(($estudiante->nombres ?? '') . ' ' . ($estudiante->apellidos ?? '')) : null,
                 'categoria' => $cat,
                 'monto' => $monto,
@@ -2392,6 +2428,12 @@ class FinanceController extends Controller
             ->leftJoin('finance.cuentas_por_cobrar as cp', 'cp.id', '=', 'finance.transacciones_ingreso.cuenta_cobrar_id')
             ->selectRaw("
                 CASE
+                    WHEN EXISTS (
+                        SELECT 1
+                        FROM academic.matriculas m
+                        JOIN academic.cursos_abiertos ca ON ca.id = m.curso_abierto_id
+                        WHERE m.id = cp.matricula_id AND ca.es_personalizado = true
+                    ) THEN 'Cursos personalizados'
                     WHEN cp.matricula_id IS NOT NULL OR finance.transacciones_ingreso.linea_pago_modulo_id IS NOT NULL THEN 'Cursos'
                     WHEN cp.inscripcion_taller_id IS NOT NULL THEN 'Talleres'
                     WHEN cp.reserva_podcast_id IS NOT NULL THEN 'Podcast'

@@ -15,7 +15,8 @@ class CatalogoCursoController extends Controller
 {
     public function index(Request $request)
     {
-        $query = CatalogoCurso::query();
+        $query = CatalogoCurso::query()
+            ->withCount(['cursosAbiertos as cursos_count']);
 
         if ($request->has('programa_id')) {
             $query->where('programa_id', $request->programa_id);

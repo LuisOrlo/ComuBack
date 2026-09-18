@@ -6,8 +6,11 @@ use App\Http\Controllers\Controller;
 use App\Models\CuentaPorCobrar;
 use App\Models\Persona;
 use App\Models\Services\TrabajoEdicion;
+use App\Models\TransaccionIngreso;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 
 class TrabajoEdicionController extends Controller
 {
@@ -179,6 +182,14 @@ class TrabajoEdicionController extends Controller
 
         $trabajo->update($validated);
 
+        if (isset($validated['precio_cobrado'])) {
+            $cuenta = CuentaPorCobrar::where('edicion_video_id', $trabajo->id)->first();
+            if ($cuenta) {
+                $cuenta->update(['monto_total' => $validated['precio_cobrado']]);
+            }
+            Cache::forget('finance.resumen');
+        }
+
         return response()->json([
             'message' => 'Trabajo de edición actualizado exitosamente.',
             'data' => $this->formatTrabajo($trabajo->fresh()),
@@ -188,7 +199,10 @@ class TrabajoEdicionController extends Controller
     public function destroy($id)
     {
         $trabajo = TrabajoEdicion::findOrFail($id);
+        CuentaPorCobrar::where('edicion_video_id', $id)->delete();
         $trabajo->delete();
+
+        Cache::forget('finance.resumen');
 
         return response()->json([
             'message' => 'Trabajo de edición eliminado exitosamente.',
@@ -204,11 +218,21 @@ class TrabajoEdicionController extends Controller
             'precio_cobrado' => 'nullable|numeric|min:0',
         ]);
 
+        $precioFinal = $validated['precio_cobrado'] ?? $trabajo->precio_cobrado;
+
         $trabajo->update([
             'estado' => 'entregado',
             'fecha_entrega' => $validated['fecha_entrega'],
-            'precio_cobrado' => $validated['precio_cobrado'] ?? $trabajo->precio_cobrado,
+            'precio_cobrado' => $precioFinal,
         ]);
+
+        if ($precioFinal !== null) {
+            $cuenta = CuentaPorCobrar::where('edicion_video_id', $trabajo->id)->first();
+            if ($cuenta) {
+                $cuenta->update(['monto_total' => $precioFinal]);
+            }
+            Cache::forget('finance.resumen');
+        }
 
         return response()->json([
             'message' => 'Entrega registrada exitosamente.',
@@ -216,7 +240,7 @@ class TrabajoEdicionController extends Controller
         ]);
     }
 
-    public function registrarCobro($id)
+    public function registrarCobro(Request $request, $id)
     {
         $trabajo = TrabajoEdicion::findOrFail($id);
 
@@ -228,12 +252,68 @@ class TrabajoEdicionController extends Controller
             return response()->json(['message' => 'El cobro ya fue registrado'], 422);
         }
 
-        $trabajo->update(['cobro_registrado' => true]);
-
-        return response()->json([
-            'message' => 'Cobro registrado exitosamente.',
-            'data' => $this->formatTrabajo($trabajo->fresh()),
+        $validated = $request->validate([
+            'monto' => 'nullable|numeric|min:0.01',
+            'metodo_pago' => 'nullable|string',
+            'comprobante_url' => 'nullable|string',
+            'fecha_pago' => 'nullable|date',
+            'observaciones' => 'nullable|string',
         ]);
+
+        return DB::transaction(function () use ($trabajo, $validated) {
+            $precio = (float) ($trabajo->precio_cobrado ?? 0);
+
+            $cuenta = CuentaPorCobrar::firstOrCreate(
+                ['edicion_video_id' => $trabajo->id],
+                [
+                    'monto_total' => $precio,
+                    'monto_abonado' => 0,
+                    'estado' => 'pendiente',
+                    'es_legacy' => false,
+                ]
+            );
+
+            if ($cuenta->monto_total != $precio && $precio > 0) {
+                $cuenta->update(['monto_total' => $precio]);
+            }
+
+            $saldo = max(0, (float) $cuenta->monto_total - (float) $cuenta->monto_abonado);
+            $monto = isset($validated['monto']) ? (float) $validated['monto'] : ($saldo > 0 ? $saldo : $precio);
+
+            $personaId = auth()->user()->persona_id ?? null;
+            if ($personaId && !Persona::where('id', $personaId)->exists()) {
+                $personaId = null;
+            }
+
+            if ($monto > 0) {
+                TransaccionIngreso::create([
+                    'cuenta_cobrar_id' => $cuenta->id,
+                    'monto' => $monto,
+                    'metodo_pago' => $validated['metodo_pago'] ?? 'efectivo',
+                    'comprobante_url' => $validated['comprobante_url'] ?? null,
+                    'fecha_pago' => $validated['fecha_pago'] ?? now()->toDateString(),
+                    'registrado_por' => $personaId,
+                    'observaciones' => $validated['observaciones'] ?? ('Cobro registrado de trabajo de edición: ' . ($trabajo->titulo ?? 'Sin título')),
+                    'estado_verificacion' => 'aprobado',
+                    'verificado_por' => $personaId,
+                    'fecha_verificacion' => now(),
+                ]);
+
+                $cuenta->monto_abonado += $monto;
+                $nuevoSaldo = max(0, (float) $cuenta->monto_total - (float) $cuenta->monto_abonado);
+                $cuenta->estado = $nuevoSaldo <= 0.01 ? 'pagado' : 'abonado';
+                $cuenta->save();
+            }
+
+            $trabajo->update(['cobro_registrado' => true]);
+
+            Cache::forget('finance.resumen');
+
+            return response()->json([
+                'message' => 'Cobro registrado exitosamente.',
+                'data' => $this->formatTrabajo($trabajo->fresh()),
+            ]);
+        });
     }
 
     private function formatTrabajo(TrabajoEdicion $t)

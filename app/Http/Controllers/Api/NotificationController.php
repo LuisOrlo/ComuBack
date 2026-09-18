@@ -12,9 +12,26 @@ class NotificationController extends Controller
     public function index()
     {
         return response()->json((function () {
-        $solicitudes = SolicitudInscripcion::where('estado', 'pendiente_validacion')
-            ->where('created_at', '>=', Carbon::now()->subDays(14))
-            ->with([
+            $user = auth()->user();
+            $isDocenteOnly = $user && $user->hasRole('Docente') && !$user->hasAnyRole(['Administrador', 'Super Admin', 'Secretaria', 'Coordinador']);
+
+            $solicitudesQuery = SolicitudInscripcion::where('estado', 'pendiente_validacion')
+                ->where('created_at', '>=', Carbon::now()->subDays(14));
+
+            $inscripcionesQuery = InscripcionTaller::where('estado', 'activo')
+                ->where('pago_verificado', false)
+                ->where('fecha_inscripcion', '>=', Carbon::now()->subDays(14));
+
+            if ($isDocenteOnly) {
+                $solicitudesQuery->whereHas('cursoAbierto', function ($q) use ($user) {
+                    $q->where('docente_id', $user->persona_id);
+                });
+                $inscripcionesQuery->whereHas('taller', function ($q) use ($user) {
+                    $q->where('instructor_id', $user->persona_id);
+                });
+            }
+
+            $solicitudes = $solicitudesQuery->with([
                 'estudiante:id,nombres,apellidos',
                 'participanteExterno:id,nombres,apellidos',
                 'cursoAbierto:id,catalogo_curso_id,precio_base',
@@ -42,10 +59,7 @@ class NotificationController extends Controller
                 ];
             });
 
-        $inscripciones = InscripcionTaller::where('estado', 'activo')
-            ->where('pago_verificado', false)
-            ->where('fecha_inscripcion', '>=', Carbon::now()->subDays(14))
-            ->with('taller:id,nombre')
+            $inscripciones = $inscripcionesQuery->with('taller:id,nombre')
             ->orderByDesc('fecha_inscripcion')
             ->get()
             ->map(function ($i) {
@@ -62,13 +76,18 @@ class NotificationController extends Controller
                 ];
             });
 
-        $merged = $solicitudes->concat($inscripciones)
-            ->sortByDesc('fecha_creacion')
-            ->take(20)
-            ->values();
+            $merged = $solicitudes->concat($inscripciones)
+                ->sortByDesc('fecha_creacion')
+                ->take(20)
+                ->values();
 
-        $count = SolicitudInscripcion::where('estado', 'pendiente_validacion')->count()
-            + InscripcionTaller::where('estado', 'activo')->where('pago_verificado', false)->count();
+            $countQuerySol = SolicitudInscripcion::where('estado', 'pendiente_validacion');
+            $countQueryIns = InscripcionTaller::where('estado', 'activo')->where('pago_verificado', false);
+            if ($isDocenteOnly) {
+                $countQuerySol->whereHas('cursoAbierto', fn($q) => $q->where('docente_id', $user->persona_id));
+                $countQueryIns->whereHas('taller', fn($q) => $q->where('instructor_id', $user->persona_id));
+            }
+            $count = $countQuerySol->count() + $countQueryIns->count();
 
         $grouped = $merged->groupBy(function ($item) {
             return Carbon::parse($item['fecha_creacion'])->timezone(config('app.timezone'))->format('Y-m-d');

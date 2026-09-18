@@ -6,11 +6,11 @@ use App\Models\TrasladoModulo;
 use App\Models\Matricula;
 use App\Models\Modulo;
 use Tests\TestCase;
-use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Foundation\Testing\DatabaseTransactions;
 
 class TrasladoModuloTest extends TestCase
 {
-    use RefreshDatabase;
+    use DatabaseTransactions;
 
     protected function setUp(): void
     {

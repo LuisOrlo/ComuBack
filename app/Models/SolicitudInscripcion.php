@@ -32,6 +32,7 @@ class SolicitudInscripcion extends Model
         'validado_por',
         'motivo_rechazo',
         'observaciones_validacion',
+        'datos_declarados',
         'fecha_validacion',
     ];
 
@@ -43,6 +44,7 @@ class SolicitudInscripcion extends Model
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
         'deleted_at' => 'datetime',
+        'datos_declarados' => 'array',
     ];
 
     protected $hidden = ['deleted_at'];

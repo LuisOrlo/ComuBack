@@ -12,27 +12,55 @@ class CursoPersonalizado extends CursoAbierto
     protected $table = 'academic.cursos_abiertos';
 
     // Atributos específicos para cursos personalizados
-    protected $fillable = array_merge(parent::getFillable(), [
-        'dirigido_a',  // Descripción de público objetivo
-        'requisitos_especiales',  // Requisitos específicos
-        'certificado_emitido',  // Si emite certificado
-        'costo_unitario',  // Costo por participante (NULL para interno)
-    ]);
+    protected $fillable = [
+        'catalogo_curso_id',
+        'es_personalizado',
+        'nombre_instancia',
+        'semestre',
+        'fecha_inicio',
+        'fecha_fin',
+        'capacidad_maxima',
+        'docente_id',
+        'es_activo',
+        'observaciones',
+        'modalidad',
+        'ciudad_id',
+        'horario_id',
+        'precio_base',
+        'dirigido_a',
+        'requisitos_especiales',
+        'certificado_emitido',
+        'costo_unitario',
+    ];
 
-    protected $casts = array_merge(parent::getCasts(), [
+    protected $casts = [
+        'es_activo' => 'boolean',
+        'capacidad_maxima' => 'integer',
+        'fecha_inicio' => 'datetime',
+        'fecha_fin' => 'datetime',
+        'created_at' => 'datetime',
+        'updated_at' => 'datetime',
+        'deleted_at' => 'datetime',
         'certificado_emitido' => 'boolean',
         'costo_unitario' => 'decimal:2',
-    ]);
+    ];
 
-    // Bootear el modelo para filtrar solo personalizados
+    // Bootear el modelo para filtrar solo personalizados.
+    // La categoría del catálogo se conserva como fallback temporal para
+    // registros históricos creados antes de existir es_personalizado.
     protected static function boot()
     {
         parent::boot();
 
-        // Filtrar automáticamente solo cursos personalizados
         static::addGlobalScope('personalizado', function ($query) {
-            $query->whereHas('catalogo', function ($q) {
-                $q->where('categoria', 'personalizado');
+            $query->where(function ($q) {
+                $q->where('es_personalizado', true)
+                    ->orWhere(function ($legacy) {
+                        $legacy->whereNull('es_personalizado')
+                            ->whereHas('catalogo', function ($catalogo) {
+                                $catalogo->where('categoria', 'personalizado');
+                            });
+                    });
             });
         });
     }
@@ -73,8 +101,9 @@ class CursoPersonalizado extends CursoAbierto
      */
     public function scopeAbiertoParaInscripcion($query)
     {
-        return $query->where('estado', 'abierto')
-                     ->where('fecha_inicio', '>', now());
+        return $query->where('es_activo', true)
+                     ->where('fecha_inicio', '>', now())
+                     ->whereColumn('estudiantes_inscritos', '<', 'capacidad_maxima');
     }
 
     // ========================================================================
@@ -94,7 +123,7 @@ class CursoPersonalizado extends CursoAbierto
      */
     public function capacidadDisponibleParticipantes(): int
     {
-        return $this->capacidad - $this->totalParticipantes();
+        return max(0, $this->capacidad_maxima - $this->totalParticipantes());
     }
 
     /**
@@ -102,7 +131,7 @@ class CursoPersonalizado extends CursoAbierto
      */
     public function aceptaInscripciones(): bool
     {
-        return $this->estado === 'abierto' &&
+        return $this->es_activo &&
                $this->fecha_inicio > now()->toDateString() &&
                $this->capacidadDisponibleParticipantes() > 0;
     }
@@ -120,8 +149,8 @@ class CursoPersonalizado extends CursoAbierto
             'estudiantes' => $estudiantes,
             'participantes_externos' => $externos,
             'total_participantes' => $total,
-            'capacidad' => $this->capacidad,
-            'tasa_ocupacion' => $this->capacidad > 0 ? round(($total / $this->capacidad) * 100, 2) : 0,
+            'capacidad' => $this->capacidad_maxima,
+            'tasa_ocupacion' => $this->capacidad_maxima > 0 ? round(($total / $this->capacidad_maxima) * 100, 2) : 0,
             'capacidad_disponible' => $this->capacidadDisponibleParticipantes(),
             'permitir_inscripcion' => $this->aceptaInscripciones(),
         ];

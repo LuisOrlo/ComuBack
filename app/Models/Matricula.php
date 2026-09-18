@@ -218,6 +218,44 @@ class Matricula extends Model
         return $query->where('horario_id', $horarioId);
     }
 
+    /**
+     * Determina si existe un registro que impida crear otra matrícula para la
+     * misma persona y oferta.
+     *
+     * Las matrículas retiradas y reprobadas no bloquean una nueva inscripción.
+     * Cualquier matrícula eliminada lógicamente sí bloquea hasta revisión
+     * administrativa, independientemente de su estado anterior.
+     */
+    public static function conflictoNuevaInscripcion(string $estudianteId, string $cursoAbiertoId): ?array
+    {
+        $base = static::withTrashed()
+            ->where('estudiante_id', $estudianteId)
+            ->where('curso_abierto_id', $cursoAbiertoId);
+
+        if ((clone $base)->whereNotNull('deleted_at')->exists()) {
+            return [
+                'tipo' => 'soft_deleted',
+                'mensaje' => 'Existe una matrícula eliminada para este estudiante y curso. Requiere revisión administrativa.',
+            ];
+        }
+
+        if ((clone $base)->whereNull('deleted_at')->where('estado', self::ESTADO_ACTIVO)->exists()) {
+            return [
+                'tipo' => 'activo',
+                'mensaje' => 'El estudiante ya tiene una matrícula activa en este curso.',
+            ];
+        }
+
+        if ((clone $base)->whereNull('deleted_at')->where('estado', self::ESTADO_COMPLETADO)->exists()) {
+            return [
+                'tipo' => 'completado',
+                'mensaje' => 'El estudiante ya completó esta edición del curso.',
+            ];
+        }
+
+        return null;
+    }
+
     // ========================================================================
     // MÉTODOS ÚTILES
     // ========================================================================

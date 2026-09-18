@@ -1,10 +1,11 @@
-@page { margin: 8mm; }
+@page { margin: 9mm; }
 
 * { box-sizing: border-box; }
 
 body {
-    font-family: 'Helvetica Neue', Arial, sans-serif;
-    color: #010101;
+    font-family: 'DejaVu Sans', Arial, sans-serif;
+    color: #0b1c30;
+    background: #f8f9ff;
     margin: 0;
     padding: 0;
 }
@@ -12,7 +13,9 @@ body {
 .pdf-header {
     display: table;
     width: 100%;
-    margin-bottom: 14px;
+    margin-bottom: 16px;
+    padding-bottom: 11px;
+    border-bottom: 1px solid #dce9ff;
 }
 
 .pdf-header-main {
@@ -21,16 +24,16 @@ body {
 }
 
 .pdf-header-main h1 {
-    font-size: 18px;
+    font-size: 19px;
     font-weight: 800;
     margin: 0 0 2px;
-    color: #D61A00;
-    letter-spacing: 0.02em;
+    color: #0b1c30;
+    letter-spacing: -0.01em;
 }
 
 .pdf-subtitle {
-    font-size: 11px;
-    color: #464646;
+    font-size: 10px;
+    color: #45464d;
     margin: 0;
     text-transform: capitalize;
 }
@@ -39,12 +42,12 @@ body {
     display: table-cell;
     text-align: right;
     vertical-align: bottom;
-    max-width: 55%;
+    max-width: 58%;
 }
 
 .legend-item {
-    font-size: 9px;
-    color: #464646;
+    font-size: 8px;
+    color: #45464d;
     display: inline;
     margin-left: 8px;
     white-space: nowrap;
@@ -58,4 +61,11 @@ body {
     flex-shrink: 0;
     margin-right: 2px;
     vertical-align: middle;
+}
+
+.agenda-card {
+    background: #ffffff;
+    border: 1px solid #dce9ff;
+    border-radius: 14px;
+    padding: 8px;
 }

@@ -4,11 +4,13 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\CuentaPorCobrar;
+use App\Models\TransaccionIngreso;
 use App\Models\Services\AsignacionPersonal;
 use App\Models\Services\ReservaPodcast;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 
 class ReservaPodcastController extends Controller
 {
@@ -24,12 +26,32 @@ class ReservaPodcastController extends Controller
             $query->where('fecha_reserva', $request->fecha);
         }
 
+        if ($request->has('fecha_desde')) {
+            $query->where('fecha_reserva', '>=', $request->fecha_desde);
+        }
+
+        if ($request->has('fecha_hasta')) {
+            $query->where('fecha_reserva', '<=', $request->fecha_hasta);
+        }
+
         if ($request->has('estado')) {
             $query->where('estado', $request->estado);
         }
 
+        $perPage = $request->get('per_page', 15);
+        if ($perPage === 'all' || $request->boolean('all')) {
+            $reservas = $query->orderBy('fecha_reserva')->orderBy('hora_inicio')->get();
+            return response()->json([
+                'data' => $reservas->map(fn ($r) => $this->formatReserva($r))->values(),
+                'meta' => [
+                    'total' => $reservas->count(),
+                    'all' => true,
+                ],
+            ]);
+        }
+
         $reservas = $query->orderBy('fecha_reserva')->orderBy('hora_inicio')
-            ->paginate($request->get('per_page', 15));
+            ->paginate((int) $perPage);
 
         return response()->json([
             'data' => $reservas->map(fn ($r) => $this->formatReserva($r))->values(),
@@ -95,47 +117,46 @@ class ReservaPodcastController extends Controller
             return response()->json(['message' => 'Solo puede especificar un tipo de responsable, no ambos'], 422);
         }
 
-        $conflicto = ReservaPodcast::where('paquete_id', $data['paquete_id'])
-            ->where('fecha_reserva', $data['fecha_reserva'])
-            ->where('estado', '!=', 'cancelado')
-            ->where(function ($q) use ($data) {
-                $q->where(function ($q2) use ($data) {
-                    $q2->where('hora_inicio', '<', $data['hora_fin'])
-                       ->where('hora_fin', '>', $data['hora_inicio']);
-                });
-            })->exists();
+        return DB::transaction(function () use ($data, $validated) {
+            $conflicto = ReservaPodcast::where('fecha_reserva', $data['fecha_reserva'])
+                ->where('estado', '!=', 'cancelado')
+                ->where('hora_inicio', '<', $data['hora_fin'])
+                ->where('hora_fin', '>', $data['hora_inicio'])
+                ->lockForUpdate()
+                ->exists();
 
-        if ($conflicto) {
-            return response()->json(['message' => 'El estudio ya está reservado en el horario seleccionado'], 422);
-        }
-
-        $reserva = ReservaPodcast::create($data);
-
-        CuentaPorCobrar::create([
-            'reserva_podcast_id' => $reserva->id,
-            'monto_total' => $data['precio_total'],
-            'monto_abonado' => 0,
-            'estado' => 'pendiente',
-            'es_legacy' => false,
-        ]);
-
-        if (!empty($validated['asignaciones'])) {
-            foreach ($validated['asignaciones'] as $asignacion) {
-                $reserva->asignacionesPersonal()->create([
-                    'persona_id' => $asignacion['persona_id'],
-                    'rol_en_servicio' => $asignacion['rol'] ?? null,
-                ]);
+            if ($conflicto) {
+                return response()->json(['message' => 'El estudio ya está reservado en el horario seleccionado'], 422);
             }
-        }
 
-        Cache::forget('finance.resumen');
+            $reserva = ReservaPodcast::create($data);
 
-        return response()->json([
-            'message' => 'Reserva creada exitosamente.',
-            'data' => $this->formatReserva($reserva->fresh()->load([
-                'paquete.items', 'persona', 'clienteExterno', 'asignacionesPersonal.persona',
-            ])),
-        ], Response::HTTP_CREATED);
+            CuentaPorCobrar::create([
+                'reserva_podcast_id' => $reserva->id,
+                'monto_total' => $data['precio_total'],
+                'monto_abonado' => 0,
+                'estado' => 'pendiente',
+                'es_legacy' => false,
+            ]);
+
+            if (!empty($validated['asignaciones'])) {
+                foreach ($validated['asignaciones'] as $asignacion) {
+                    $reserva->asignacionesPersonal()->create([
+                        'persona_id' => $asignacion['persona_id'],
+                        'rol_en_servicio' => $asignacion['rol'] ?? null,
+                    ]);
+                }
+            }
+
+            Cache::forget('finance.resumen');
+
+            return response()->json([
+                'message' => 'Reserva creada exitosamente.',
+                'data' => $this->formatReserva($reserva->fresh()->load([
+                    'paquete.items', 'persona', 'clienteExterno', 'asignacionesPersonal.persona', 'cuentaPorCobrar',
+                ])),
+            ], Response::HTTP_CREATED);
+        });
     }
 
     public function show($id)
@@ -162,6 +183,9 @@ class ReservaPodcastController extends Controller
             'hora_inicio' => 'sometimes|date_format:H:i',
             'hora_fin' => 'sometimes|date_format:H:i|after:hora_inicio',
             'precio_total' => 'sometimes|numeric|min:0',
+            'precio_original' => 'nullable|numeric|min:0',
+            'monto_descuento' => 'nullable|numeric|min:0',
+            'motivo_descuento' => 'nullable|string|max:255',
             'notas' => 'nullable|string',
             'titulo' => 'nullable|string|max:255',
             'estado' => 'sometimes|string|in:pendiente,reservado,confirmado,en_progreso,completado,cancelado',
@@ -185,7 +209,7 @@ class ReservaPodcastController extends Controller
         if (array_key_exists('titulo', $validated)) $data['titulo'] = $validated['titulo'];
         if (isset($validated['estado'])) $data['estado'] = $validated['estado'] === 'pendiente' ? 'reservado' : $validated['estado'];
 
-        if (empty($data['persona_id']) && empty($data['cliente_externo_id'])) {
+        if (empty($data['persona_id']) && empty($data['cliente_externo_id']) && empty($reserva->persona_id) && empty($reserva->cliente_externo_id)) {
             return response()->json(['message' => 'Debe especificar un responsable (persona o cliente externo)'], 422);
         }
 
@@ -193,28 +217,56 @@ class ReservaPodcastController extends Controller
             return response()->json(['message' => 'Solo puede especificar un tipo de responsable, no ambos'], 422);
         }
 
-        $reserva->update($data);
+        return DB::transaction(function () use ($reserva, $data, $validated) {
+            $fecha = $data['fecha_reserva'] ?? $reserva->fecha_reserva?->format('Y-m-d');
+            $inicio = $data['hora_inicio'] ?? $reserva->hora_inicio;
+            $fin = $data['hora_fin'] ?? $reserva->hora_fin;
+            $estado = $data['estado'] ?? $reserva->estado;
 
-        if (array_key_exists('asignaciones', $validated)) {
-            $reserva->asignacionesPersonal()->delete();
-            if (!empty($validated['asignaciones'])) {
-                foreach ($validated['asignaciones'] as $asignacion) {
-                    $reserva->asignacionesPersonal()->create([
-                        'persona_id' => $asignacion['persona_id'],
-                        'rol_en_servicio' => $asignacion['rol'] ?? null,
-                    ]);
+            if ($estado !== 'cancelado') {
+                $conflicto = ReservaPodcast::where('id', '!=', $reserva->id)
+                    ->where('fecha_reserva', $fecha)
+                    ->where('estado', '!=', 'cancelado')
+                    ->where('hora_inicio', '<', $fin)
+                    ->where('hora_fin', '>', $inicio)
+                    ->lockForUpdate()
+                    ->exists();
+
+                if ($conflicto) {
+                    return response()->json(['message' => 'El estudio ya está reservado en el horario seleccionado'], 422);
                 }
             }
-        }
 
-        Cache::forget('finance.resumen');
+            $reserva->update($data);
 
-        return response()->json([
-            'message' => 'Reserva actualizada exitosamente.',
-            'data' => $this->formatReserva($reserva->fresh()->load([
-                'paquete.items', 'persona', 'clienteExterno', 'asignacionesPersonal.persona',
-            ])),
-        ]);
+            if (isset($data['precio_total'])) {
+                $cuenta = CuentaPorCobrar::where('reserva_podcast_id', $reserva->id)->first();
+                if ($cuenta) {
+                    $cuenta->update(['monto_total' => $data['precio_total']]);
+                }
+            }
+
+            if (array_key_exists('asignaciones', $validated)) {
+                $reserva->asignacionesPersonal()->delete();
+                if (!empty($validated['asignaciones'])) {
+                    foreach ($validated['asignaciones'] as $asignacion) {
+                        $reserva->asignacionesPersonal()->create([
+                            'persona_id' => $asignacion['persona_id'],
+                            'rol_en_servicio' => $asignacion['rol'] ?? null,
+                        ]);
+                    }
+                }
+            }
+
+            Cache::forget('finance.resumen');
+
+            return response()->json([
+                'message' => 'Reserva actualizada exitosamente.',
+                'data' => $this->formatReserva($reserva->fresh()->load([
+                    'paquete.items', 'persona', 'clienteExterno', 'asignacionesPersonal.persona', 'cuentaPorCobrar',
+                ])),
+            ]);
+        });
     }
 
     public function destroy($id)
@@ -231,7 +283,7 @@ class ReservaPodcastController extends Controller
         ]);
     }
 
-    public function registrarPago($id)
+    public function registrarPago(Request $request, $id)
     {
         $reserva = ReservaPodcast::findOrFail($id);
 
@@ -239,16 +291,76 @@ class ReservaPodcastController extends Controller
             return response()->json(['message' => 'No se puede registrar pago de una reserva cancelada'], 422);
         }
 
-        $reserva->update(['estado' => 'confirmado']);
-
-        Cache::forget('finance.resumen');
-
-        return response()->json([
-            'message' => 'Pago registrado exitosamente.',
-            'data' => $this->formatReserva($reserva->fresh()->load([
-                'paquete.items', 'persona', 'clienteExterno', 'asignacionesPersonal.persona',
-            ])),
+        $validated = $request->validate([
+            'monto' => 'nullable|numeric|min:0.01',
+            'metodo_pago' => 'nullable|string',
+            'comprobante_url' => 'nullable|string',
+            'fecha_pago' => 'nullable|date',
+            'observaciones' => 'nullable|string',
         ]);
+
+        return DB::transaction(function () use ($reserva, $validated) {
+            $cuenta = CuentaPorCobrar::firstOrCreate(
+                ['reserva_podcast_id' => $reserva->id],
+                [
+                    'monto_total' => $reserva->precio_total ?? 0,
+                    'monto_abonado' => 0,
+                    'estado' => 'pendiente',
+                    'es_legacy' => false,
+                ]
+            );
+
+            $saldo = max(0, (float) $cuenta->monto_total - (float) $cuenta->monto_abonado);
+            $monto = isset($validated['monto']) ? (float) $validated['monto'] : $saldo;
+
+            if ($monto <= 0 && $saldo <= 0) {
+                return response()->json(['message' => 'La reserva ya se encuentra totalmente pagada'], 422);
+            }
+
+            if ($monto > ($saldo + 0.01)) {
+                return response()->json(['message' => "El monto (\${$monto}) supera el saldo pendiente (\${$saldo})"], 422);
+            }
+
+            $personaId = auth()->user()->persona_id ?? null;
+            if ($personaId && !\App\Models\Persona::where('id', $personaId)->exists()) {
+                $personaId = null;
+            }
+
+            if ($monto > 0) {
+                TransaccionIngreso::create([
+                    'cuenta_cobrar_id' => $cuenta->id,
+                    'monto' => $monto,
+                    'metodo_pago' => $validated['metodo_pago'] ?? 'efectivo',
+                    'comprobante_url' => $validated['comprobante_url'] ?? null,
+                    'fecha_pago' => $validated['fecha_pago'] ?? now()->toDateString(),
+                    'registrado_por' => $personaId,
+                    'observaciones' => $validated['observaciones'] ?? 'Pago registrado en reserva de podcast',
+                    'estado_verificacion' => 'aprobado',
+                    'verificado_por' => $personaId,
+                    'fecha_verificacion' => now(),
+                ]);
+
+                $cuenta->monto_abonado += $monto;
+                $nuevoSaldo = max(0, (float) $cuenta->monto_total - (float) $cuenta->monto_abonado);
+                $cuenta->estado = $nuevoSaldo <= 0.01 ? 'pagado' : 'abonado';
+                $cuenta->save();
+            }
+
+            // Separar estado operativo del financiero:
+            // Si la reserva estaba en 'reservado', se confirma la reserva. No forzar 'completado'.
+            if ($reserva->estado === 'reservado') {
+                $reserva->update(['estado' => 'confirmado']);
+            }
+
+            Cache::forget('finance.resumen');
+
+            return response()->json([
+                'message' => 'Pago registrado exitosamente.',
+                'data' => $this->formatReserva($reserva->fresh()->load([
+                    'paquete.items', 'persona', 'clienteExterno', 'asignacionesPersonal.persona', 'cuentaPorCobrar',
+                ])),
+            ]);
+        });
     }
 
     public function cambiarEstado(Request $request, $id)
@@ -260,6 +372,20 @@ class ReservaPodcastController extends Controller
         $reserva = ReservaPodcast::findOrFail($id);
         $estado = $validated['estado'] === 'pendiente' ? 'reservado' : $validated['estado'];
 
+        if ($reserva->estado === 'cancelado' && $estado !== 'cancelado') {
+            $fecha = $reserva->fecha_reserva?->format('Y-m-d');
+            $conflicto = ReservaPodcast::where('id', '!=', $reserva->id)
+                ->where('fecha_reserva', $fecha)
+                ->where('estado', '!=', 'cancelado')
+                ->where('hora_inicio', '<', $reserva->hora_fin)
+                ->where('hora_fin', '>', $reserva->hora_inicio)
+                ->exists();
+
+            if ($conflicto) {
+                return response()->json(['message' => 'No se puede reactivar la reserva porque el estudio ya está ocupado en ese horario'], 422);
+            }
+        }
+
         $reserva->update(['estado' => $estado]);
 
         Cache::forget('finance.resumen');
@@ -267,7 +393,7 @@ class ReservaPodcastController extends Controller
         return response()->json([
             'message' => 'Estado actualizado correctamente.',
             'data' => $this->formatReserva($reserva->fresh()->load([
-                'paquete.items', 'persona', 'clienteExterno', 'asignacionesPersonal.persona',
+                'paquete.items', 'persona', 'clienteExterno', 'asignacionesPersonal.persona', 'cuentaPorCobrar',
             ])),
         ]);
     }
@@ -304,6 +430,11 @@ class ReservaPodcastController extends Controller
             ])->values()->toArray()
             : [];
 
+        $cuenta = $r->relationLoaded('cuentaPorCobrar') ? $r->cuentaPorCobrar : null;
+        $pagoRegistrado = $cuenta
+            ? ($cuenta->monto_total > 0 && $cuenta->monto_abonado >= $cuenta->monto_total)
+            : in_array($r->estado, ['confirmado', 'en_progreso', 'completado']);
+
         return [
             'id' => $r->id,
             'paquete_id' => (string) $r->paquete_id,
@@ -313,7 +444,8 @@ class ReservaPodcastController extends Controller
             'hora_inicio' => $r->hora_inicio,
             'hora_fin' => $r->hora_fin,
             'precio_total' => (float) $r->precio_total,
-            'pago_registrado' => in_array($r->estado, ['confirmado', 'en_progreso', 'completado']),
+            'pago_registrado' => $pagoRegistrado,
+            'pago_abonado' => $cuenta ? ($cuenta->monto_abonado > 0) : false,
             'estado' => $r->estado === 'reservado' ? 'pendiente' : $r->estado,
             'titulo' => $r->titulo,
             'notas' => $r->observaciones,

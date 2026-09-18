@@ -5,8 +5,11 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\CuentaPorCobrar;
 use App\Models\Services\ReservaAula;
+use App\Models\Services\Aula;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class ReservaAulaController extends Controller
 {
@@ -18,12 +21,30 @@ class ReservaAulaController extends Controller
             $query->where('aula_id', $request->aula_id);
         }
 
+        if ($request->has('fecha')) {
+            $query->where('fecha_reserva', $request->fecha);
+        }
+
         if ($request->has('fecha_inicio') && $request->has('fecha_fin')) {
             $query->whereBetween('fecha_reserva', [$request->fecha_inicio, $request->fecha_fin]);
+        } elseif ($request->has('fecha_desde') && $request->has('fecha_hasta')) {
+            $query->whereBetween('fecha_reserva', [$request->fecha_desde, $request->fecha_hasta]);
+        }
+
+        $perPage = $request->get('per_page', 15);
+        if ($perPage === 'all' || $request->boolean('all')) {
+            $reservas = $query->orderBy('fecha_reserva')->orderBy('hora_inicio')->get();
+            return response()->json([
+                'data' => $reservas,
+                'meta' => [
+                    'total' => $reservas->count(),
+                    'all' => true,
+                ],
+            ]);
         }
 
         $reservas = $query->orderBy('fecha_reserva')->orderBy('hora_inicio')
-            ->paginate($request->get('per_page', 15));
+            ->paginate((int) $perPage);
 
         return response()->json([
             'data' => $reservas->items(),
@@ -80,15 +101,31 @@ class ReservaAulaController extends Controller
             $validated['estado'] = 'reservado';
         }
 
-        $reserva = ReservaAula::create($validated);
-
-        CuentaPorCobrar::create([
-            'reserva_aula_id' => $reserva->id,
-            'monto_total' => $validated['precio_total'],
-            'monto_abonado' => 0,
-            'estado' => 'pendiente',
-            'es_legacy' => false,
-        ]);
+        $reserva = DB::transaction(function () use ($validated) {
+            // Bloquear el recurso padre hace que la comprobación sea segura aun
+            // cuando todavía no existan reservas previas para esa aula.
+            Aula::whereKey($validated['aula_id'])->lockForUpdate()->firstOrFail();
+            // Bloqueo para evitar dos reservas simultáneas del mismo horario.
+            $conflicto = ReservaAula::where('aula_id', $validated['aula_id'])
+                ->where('fecha_reserva', $validated['fecha_reserva'])
+                ->where('estado', '!=', 'cancelado')
+                ->where('hora_inicio', '<', $validated['hora_fin'])
+                ->where('hora_fin', '>', $validated['hora_inicio'])
+                ->lockForUpdate()->exists();
+            if ($conflicto) {
+                abort(422, 'El aula ya está reservada en el horario seleccionado');
+            }
+            $reserva = ReservaAula::create($validated);
+            CuentaPorCobrar::create([
+                'reserva_aula_id' => $reserva->id,
+                'monto_total' => $validated['precio_total'],
+                'monto_abonado' => 0,
+                'estado' => CuentaPorCobrar::ESTADO_PENDIENTE,
+                'es_legacy' => false,
+            ]);
+            return $reserva;
+        });
+        Log::channel('audit')->info('reserva_aula.creada', ['reserva_id' => $reserva->id, 'usuario_id' => auth()->id(), 'ip' => request()->ip()]);
 
         return response()->json([
             'message' => 'Reserva creada exitosamente.',
@@ -114,6 +151,9 @@ class ReservaAulaController extends Controller
             'hora_inicio' => 'sometimes|date_format:H:i',
             'hora_fin' => 'sometimes|date_format:H:i|after:hora_inicio',
             'precio_total' => 'sometimes|numeric|min:0',
+            'precio_original' => 'nullable|numeric|min:0',
+            'monto_descuento' => 'nullable|numeric|min:0',
+            'motivo_descuento' => 'nullable|string|max:255',
             'estado' => 'sometimes|string|in:reservado,confirmado,en_progreso,completado,cancelado'
         ]);
 
@@ -130,6 +170,19 @@ class ReservaAulaController extends Controller
         if (array_key_exists('motivo_descuento', $validated)) $data['motivo_descuento'] = $validated['motivo_descuento'];
         if (isset($validated['estado'])) $data['estado'] = $validated['estado'];
 
+        if (isset($data['estado']) && $data['estado'] !== $reserva->estado) {
+            $transiciones = [
+                'reservado' => ['confirmado', 'cancelado'],
+                'confirmado' => ['en_progreso', 'cancelado'],
+                'en_progreso' => ['completado', 'cancelado'],
+                'completado' => [],
+                'cancelado' => [],
+            ];
+            if (!in_array($data['estado'], $transiciones[$reserva->estado] ?? [], true)) {
+                return response()->json(['message' => 'Transición de estado no permitida: '.$reserva->estado.' → '.$data['estado']], 422);
+            }
+        }
+
         // Asegurar que solo uno (persona o cliente externo) esté presente
         $personaId = $data['persona_id'] ?? $reserva->persona_id;
         $clienteExternoId = array_key_exists('cliente_externo_id', $data)
@@ -144,62 +197,71 @@ class ReservaAulaController extends Controller
             return response()->json(['message' => 'Solo puede especificar un tipo de responsable, no ambos'], 422);
         }
 
-        // Validar disponibilidad si cambió aula, fecha u horario (excluyendo esta reserva)
-        if (isset($data['aula_id']) || isset($data['fecha_reserva']) || isset($data['hora_inicio']) || isset($data['hora_fin'])) {
+        return DB::transaction(function () use ($reserva, $data, $request) {
             $aulaId = $data['aula_id'] ?? $reserva->aula_id;
-            $fecha = $data['fecha_reserva'] ?? $reserva->fecha_reserva;
-            $horaInicio = $data['hora_inicio'] ?? $reserva->hora_inicio;
-            $horaFin = $data['hora_fin'] ?? $reserva->hora_fin;
+            Aula::whereKey($aulaId)->lockForUpdate()->firstOrFail();
 
-            $conflicto = ReservaAula::where('aula_id', $aulaId)
-                ->where('fecha_reserva', $fecha)
-                ->where('id', '!=', $reserva->id)
-                ->where('estado', '!=', 'cancelado')
-                ->where(function ($q) use ($horaInicio, $horaFin) {
-                    $q->where('hora_inicio', '<', $horaFin)
-                       ->where('hora_fin', '>', $horaInicio);
-                })->exists();
+            // Validar disponibilidad si cambió aula, fecha u horario (excluyendo esta reserva)
+            if (isset($data['aula_id']) || isset($data['fecha_reserva']) || isset($data['hora_inicio']) || isset($data['hora_fin']) || (isset($data['estado']) && $data['estado'] !== 'cancelado')) {
+                $fecha = $data['fecha_reserva'] ?? $reserva->fecha_reserva;
+                $horaInicio = $data['hora_inicio'] ?? $reserva->hora_inicio;
+                $horaFin = $data['hora_fin'] ?? $reserva->hora_fin;
+                $estado = $data['estado'] ?? $reserva->estado;
 
-            if ($conflicto) {
-                return response()->json(['message' => 'El aula ya está reservada en el horario seleccionado'], 422);
-            }
-        }
+                if ($estado !== 'cancelado') {
+                    $conflicto = ReservaAula::where('aula_id', $aulaId)
+                        ->where('fecha_reserva', $fecha)
+                        ->where('id', '!=', $reserva->id)
+                        ->where('estado', '!=', 'cancelado')
+                        ->where(function ($q) use ($horaInicio, $horaFin) {
+                            $q->where('hora_inicio', '<', $horaFin)
+                               ->where('hora_fin', '>', $horaInicio);
+                        })
+                        ->lockForUpdate()
+                        ->exists();
 
-        // Sincronizar la cuenta por cobrar si cambia el precio
-        if (isset($data['precio_total'])) {
-            $cuenta = CuentaPorCobrar::where('reserva_aula_id', $reserva->id)->first();
-
-            if ($cuenta) {
-                if ((float) $cuenta->monto_abonado > (float) $data['precio_total']) {
-                    return response()->json([
-                        'message' => 'El monto total no puede ser menor al monto ya abonado ('.$cuenta->monto_abonado.')',
-                    ], 422);
-                }
-
-                if ((float) $cuenta->monto_total !== (float) $data['precio_total']) {
-                    $saldo = (float) $data['precio_total'] - (float) $cuenta->monto_abonado;
-
-                    $cuenta->update([
-                        'monto_total' => $data['precio_total'],
-                        'estado' => $saldo <= 0 ? CuentaPorCobrar::ESTADO_PAGADO
-                            : ((float) $cuenta->monto_abonado > 0 ? CuentaPorCobrar::ESTADO_ABONADO : CuentaPorCobrar::ESTADO_PENDIENTE),
-                    ]);
+                    if ($conflicto) {
+                        abort(422, 'El aula ya está reservada en el horario seleccionado');
+                    }
                 }
             }
-        }
 
-        $reserva->update($data);
+            // Sincronizar la cuenta por cobrar si cambia el precio
+            if (isset($data['precio_total'])) {
+                $cuenta = CuentaPorCobrar::where('reserva_aula_id', $reserva->id)->first();
 
-        return response()->json([
-            'message' => 'Reserva actualizada exitosamente.',
-            'data' => $reserva->fresh()->load(['aula', 'persona', 'clienteExterno'])
-        ]);
+                if ($cuenta) {
+                    if ((float) $cuenta->monto_abonado > (float) $data['precio_total']) {
+                        abort(422, 'El monto total no puede ser menor al monto ya abonado ('.$cuenta->monto_abonado.')');
+                    }
+
+                    if ((float) $cuenta->monto_total !== (float) $data['precio_total']) {
+                        $saldo = (float) $data['precio_total'] - (float) $cuenta->monto_abonado;
+
+                        $cuenta->update([
+                            'monto_total' => $data['precio_total'],
+                            'estado' => $saldo <= 0 ? CuentaPorCobrar::ESTADO_PAGADO
+                                : ((float) $cuenta->monto_abonado > 0 ? CuentaPorCobrar::ESTADO_ABONADO : CuentaPorCobrar::ESTADO_PENDIENTE),
+                        ]);
+                    }
+                }
+            }
+
+            $reserva->update($data);
+            Log::channel('audit')->info('reserva_aula.actualizada', ['reserva_id' => $reserva->id, 'cambios' => $reserva->getChanges(), 'usuario_id' => auth()->id(), 'ip' => $request->ip()]);
+
+            return response()->json([
+                'message' => 'Reserva de aula actualizada exitosamente',
+                'data' => $reserva->fresh(['aula', 'persona', 'clienteExterno', 'cuentaPorCobrar'])
+            ]);
+        });
     }
 
     public function destroy($id)
     {
         $reserva = ReservaAula::findOrFail($id);
         $reserva->delete();
+        Log::channel('audit')->info('reserva_aula.eliminada', ['reserva_id' => $reserva->id, 'usuario_id' => auth()->id(), 'ip' => request()->ip()]);
 
         return response()->json([
             'message' => 'Reserva eliminada exitosamente.'

@@ -19,6 +19,7 @@ class CursoAbierto extends Model
 
     protected $fillable = [
         'catalogo_curso_id',
+        'es_personalizado',
         'nombre_instancia',
         'semestre',
         'fecha_inicio',
@@ -35,6 +36,7 @@ class CursoAbierto extends Model
 
     protected $casts = [
         'es_activo' => 'boolean',
+        'es_personalizado' => 'boolean',
         'capacidad_maxima' => 'integer',
         'fecha_inicio' => 'datetime',
         'fecha_fin' => 'datetime',

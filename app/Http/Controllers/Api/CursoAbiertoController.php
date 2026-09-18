@@ -22,13 +22,25 @@ class CursoAbiertoController extends Controller
     public function index(Request $request)
     {
         $query = CursoAbierto::with([
-            'catalogo:id,nombre,categoria,color,imagen',
+            'catalogo:id,nombre,categoria,color,imagen,horas_totales,modulos_default',
             'ciudad:id,nombre',
             'horario.diasSemana',
             'docente:id,nombres,apellidos',
             'modulos',
         ])
             ->withCount(['matriculas as total_matriculas']);
+
+        // Esta ruta alimenta el listado de cursos normales. Los cursos
+        // personalizados tienen su propio endpoint y no deben mezclarse aquí.
+        $query->where(function ($q) {
+            $q->where('es_personalizado', false)
+                ->orWhere(function ($legacy) {
+                    $legacy->whereNull('es_personalizado')
+                        ->whereDoesntHave('catalogo', function ($catalogo) {
+                            $catalogo->where('categoria', 'personalizado');
+                        });
+                });
+        });
 
         if ($request->filled('catalogo_curso_id')) {
             $query->where('catalogo_curso_id', $request->catalogo_curso_id);
@@ -156,83 +168,87 @@ class CursoAbiertoController extends Controller
             }
         }
 
-        // Si se enviaron horas, crear un Horario y vincularlo
-        if (!empty($data['hora_inicio']) && !empty($data['hora_fin'])) {
-            $horarioId = (string) \Illuminate\Support\Str::uuid();
-            $dias = !empty($data['dias_semana']) ? $data['dias_semana'] : [1, 2, 3, 4, 5];
-            
-            // Insertar horario
-            Horario::create([
-                'id' => $horarioId,
-                'nombre_referencial' => 'Horario de ' . ($data['nombre_instancia'] ?? 'Curso'),
-                'hora_inicio' => $data['hora_inicio'],
-                'hora_fin' => $data['hora_fin'],
-                'es_activo' => true,
-            ]);
-            
-            // Crear registros de días en horarios_dias
-            foreach ($dias as $dia) {
-                HorarioDia::create([
-                    'horario_id' => $horarioId,
-                    'dia_semana' => $dia,
+        $curso = DB::transaction(function () use ($data, $request) {
+            // Si se enviaron horas, crear un Horario y vincularlo
+            if (!empty($data['hora_inicio']) && !empty($data['hora_fin'])) {
+                $horarioId = (string) \Illuminate\Support\Str::uuid();
+                $dias = !empty($data['dias_semana']) ? $data['dias_semana'] : [1, 2, 3, 4, 5];
+                
+                // Insertar horario
+                Horario::create([
+                    'id' => $horarioId,
+                    'nombre_referencial' => 'Horario de ' . ($data['nombre_instancia'] ?? 'Curso'),
+                    'hora_inicio' => $data['hora_inicio'],
+                    'hora_fin' => $data['hora_fin'],
+                    'es_activo' => true,
                 ]);
+                
+                // Crear registros de días en horarios_dias
+                foreach ($dias as $dia) {
+                    HorarioDia::create([
+                        'horario_id' => $horarioId,
+                        'dia_semana' => $dia,
+                    ]);
+                }
+                
+                $data['horario_id'] = $horarioId;
+                unset($data['hora_inicio'], $data['hora_fin']);
+            } else {
+                unset($data['hora_inicio'], $data['hora_fin']);
             }
-            
-            $data['horario_id'] = $horarioId;
-            unset($data['hora_inicio'], $data['hora_fin']);
-        } else {
-            unset($data['hora_inicio'], $data['hora_fin']);
-        }
-        unset($data['dias_semana']);
+            unset($data['dias_semana']);
 
-        // Precio base obligatorio en DB, default 0 si no se envía
-        if (empty($data['precio_base'])) {
-            $data['precio_base'] = 0;
-        }
-
-        $curso = CursoAbierto::create($data);
-
-        $catalogo = \App\Models\CatalogoCurso::find($data['catalogo_curso_id']);
-
-        // Los talleres no tienen módulos
-        if ($catalogo && $catalogo->categoria === 'taller') {
-            return response()->json(['data' => $curso, 'message' => 'Creado exitosamente'], Response::HTTP_CREATED);
-        }
-
-        // Crear módulos si se enviaron en el request, sino usar default del catálogo
-        $precioBase = $data['precio_base'] ?? 0;
-        $modulosRecibidos = $request->input('modulos', []);
-        if (!empty($modulosRecibidos)) {
-            foreach ($modulosRecibidos as $i => $mod) {
-                \App\Models\Modulo::create([
-                    'curso_abierto_id' => $curso->id,
-                    'nombre_modulo' => $mod['nombre'] ?? ('Módulo ' . ($i + 1)),
-                    'numero_orden' => $i + 1,
-                    'fecha_inicio' => $mod['fecha_inicio'] ?? null,
-                    'fecha_fin' => $mod['fecha_fin'] ?? null,
-                    'precio_base' => $mod['precio_base'] ?? $precioBase,
-                ]);
+            // Precio base obligatorio en DB, default 0 si no se envía
+            if (empty($data['precio_base'])) {
+                $data['precio_base'] = 0;
             }
-        } else {
-            $numModulos = $catalogo ? ($catalogo->modulos_default ?: 2) : 2;
-            for ($i = 1; $i <= $numModulos; $i++) {
-                \App\Models\Modulo::create([
-                    'curso_abierto_id' => $curso->id,
-                    'nombre_modulo' => 'Módulo ' . $i,
-                    'numero_orden' => $i,
-                    'precio_base' => $precioBase,
-                ]);
-            }
-        }
 
-        // Generar clases automaticamente si hay modulos con fechas y dias
-        $diasSemana = $request->input('dias_semana', []);
-        $horaInicio = $request->input('hora_inicio');
-        $horaFin = $request->input('hora_fin');
-        if (!empty($diasSemana) && $horaInicio && $horaFin) {
-            $curso->refresh()->load('modulos');
-            $this->generarClasesParaCurso($curso, $diasSemana, $horaInicio, $horaFin);
-        }
+            $curso = CursoAbierto::create($data);
+
+            $catalogo = \App\Models\CatalogoCurso::find($data['catalogo_curso_id']);
+
+            // Los talleres no tienen módulos
+            if ($catalogo && $catalogo->categoria === 'taller') {
+                return $curso;
+            }
+
+            // Crear módulos si se enviaron en el request, sino usar default del catálogo
+            $precioBase = $data['precio_base'] ?? 0;
+            $modulosRecibidos = $request->input('modulos', []);
+            if (!empty($modulosRecibidos)) {
+                foreach ($modulosRecibidos as $i => $mod) {
+                    \App\Models\Modulo::create([
+                        'curso_abierto_id' => $curso->id,
+                        'nombre_modulo' => $mod['nombre'] ?? ('Módulo ' . ($i + 1)),
+                        'numero_orden' => $i + 1,
+                        'fecha_inicio' => $mod['fecha_inicio'] ?? null,
+                        'fecha_fin' => $mod['fecha_fin'] ?? null,
+                        'precio_base' => $mod['precio_base'] ?? $precioBase,
+                    ]);
+                }
+            } else {
+                $numModulos = $catalogo ? ($catalogo->modulos_default ?: 2) : 2;
+                for ($i = 1; $i <= $numModulos; $i++) {
+                    \App\Models\Modulo::create([
+                        'curso_abierto_id' => $curso->id,
+                        'nombre_modulo' => 'Módulo ' . $i,
+                        'numero_orden' => $i,
+                        'precio_base' => $precioBase,
+                    ]);
+                }
+            }
+
+            // Generar clases automáticamente si hay módulos con fechas y días
+            $diasSemana = $request->input('dias_semana', []);
+            $horaInicio = $request->input('hora_inicio');
+            $horaFin = $request->input('hora_fin');
+            if (!empty($diasSemana) && $horaInicio && $horaFin) {
+                $curso->refresh()->load('modulos');
+                $this->generarClasesParaCurso($curso, $diasSemana, $horaInicio, $horaFin);
+            }
+
+            return $curso;
+        });
 
         return response()->json(['data' => $curso, 'message' => 'Creado exitosamente'], Response::HTTP_CREATED);
     }
@@ -296,104 +312,106 @@ class CursoAbiertoController extends Controller
             }
         }
 
-        // Si se enviaron horas, crear/actualizar Horario
-        if (!empty($data['hora_inicio']) && !empty($data['hora_fin'])) {
-            $dias = !empty($data['dias_semana']) ? $data['dias_semana'] : [1, 2, 3, 4, 5];
-            
-            if ($curso->horario_id) {
-                // Actualizar horario existente
-                $horario = Horario::findOrFail($curso->horario_id);
-                $horario->update([
-                    'hora_inicio' => $data['hora_inicio'],
-                    'hora_fin' => $data['hora_fin'],
-                ]);
+        DB::transaction(function () use ($data, $request, $curso) {
+            // Si se enviaron horas, crear/actualizar Horario
+            if (!empty($data['hora_inicio']) && !empty($data['hora_fin'])) {
+                $dias = !empty($data['dias_semana']) ? $data['dias_semana'] : [1, 2, 3, 4, 5];
                 
-                // Eliminar días existentes y crear nuevos
-                HorarioDia::where('horario_id', $curso->horario_id)->delete();
-                foreach ($dias as $dia) {
-                    HorarioDia::create([
-                        'horario_id' => $curso->horario_id,
-                        'dia_semana' => $dia,
+                if ($curso->horario_id) {
+                    // Actualizar horario existente
+                    $horario = Horario::findOrFail($curso->horario_id);
+                    $horario->update([
+                        'hora_inicio' => $data['hora_inicio'],
+                        'hora_fin' => $data['hora_fin'],
                     ]);
-                }
-            } else {
-                // Crear nuevo horario
-                $horarioId = (string) \Illuminate\Support\Str::uuid();
-                Horario::create([
-                    'id' => $horarioId,
-                    'nombre_referencial' => 'Horario de ' . ($data['nombre_instancia'] ?? 'Curso'),
-                    'hora_inicio' => $data['hora_inicio'],
-                    'hora_fin' => $data['hora_fin'],
-                    'es_activo' => true,
-                ]);
-                
-                foreach ($dias as $dia) {
-                    HorarioDia::create([
-                        'horario_id' => $horarioId,
-                        'dia_semana' => $dia,
-                    ]);
-                }
-                
-                $data['horario_id'] = $horarioId;
-            }
-            unset($data['hora_inicio'], $data['hora_fin']);
-        }
-        unset($data['dias_semana']);
-
-        $curso->update($data);
-
-        // Sincronizar módulos si se enviaron en el request
-        $modulosRecibidos = $request->input('modulos');
-        if ($modulosRecibidos !== null) {
-            $catalogo = \App\Models\CatalogoCurso::find($curso->catalogo_curso_id);
-
-            if (!$catalogo || $catalogo->categoria !== 'taller') {
-                $existingIds = $curso->modulos()->pluck('id')->toArray();
-                $newIds = [];
-
-                foreach ($modulosRecibidos as $i => $mod) {
-                    $modId = $mod['id'] ?? null;
-                    $cursoPrecio = $data['precio_base'] ?? $curso->precio_base;
-                    $modData = [
-                        'nombre_modulo' => $mod['nombre'] ?? ('Módulo ' . ($i + 1)),
-                        'numero_orden' => $i + 1,
-                        'fecha_inicio' => $mod['fecha_inicio'] ?? null,
-                        'fecha_fin' => $mod['fecha_fin'] ?? null,
-                        'precio_base' => $mod['precio_base'] ?? $cursoPrecio,
-                    ];
-
-                    if ($modId && in_array($modId, $existingIds)) {
-                        Modulo::where('id', $modId)
-                              ->where('curso_abierto_id', $curso->id)
-                              ->update($modData);
-                        $newIds[] = $modId;
-                    } else {
-                        $nuevoMod = Modulo::create(array_merge($modData, [
-                            'curso_abierto_id' => $curso->id,
-                        ]));
-                        $newIds[] = $nuevoMod->id;
+                    
+                    // Eliminar días existentes y crear nuevos
+                    HorarioDia::where('horario_id', $curso->horario_id)->delete();
+                    foreach ($dias as $dia) {
+                        HorarioDia::create([
+                            'horario_id' => $curso->horario_id,
+                            'dia_semana' => $dia,
+                        ]);
                     }
+                } else {
+                    // Crear nuevo horario
+                    $horarioId = (string) \Illuminate\Support\Str::uuid();
+                    Horario::create([
+                        'id' => $horarioId,
+                        'nombre_referencial' => 'Horario de ' . ($data['nombre_instancia'] ?? 'Curso'),
+                        'hora_inicio' => $data['hora_inicio'],
+                        'hora_fin' => $data['hora_fin'],
+                        'es_activo' => true,
+                    ]);
+                    
+                    foreach ($dias as $dia) {
+                        HorarioDia::create([
+                            'horario_id' => $horarioId,
+                            'dia_semana' => $dia,
+                        ]);
+                    }
+                    
+                    $data['horario_id'] = $horarioId;
                 }
-
-                $toDelete = array_diff($existingIds, $newIds);
-                if (!empty($toDelete)) {
-                    Clase::whereIn('modulo_id', $toDelete)->delete();
-                    Modulo::whereIn('id', $toDelete)->delete();
-                }
-
-                $curso->refresh();
+                unset($data['hora_inicio'], $data['hora_fin']);
             }
-        }
+            unset($data['dias_semana']);
 
-        // Regenerar clases si hay modulos con fechas y dias definidos
-        $diasSemana = $request->input('dias_semana', []);
-        $horaInicio = $request->input('hora_inicio');
-        $horaFin = $request->input('hora_fin');
-        if (!empty($diasSemana) && $horaInicio && $horaFin) {
-            $this->generarClasesParaCurso($curso, $diasSemana, $horaInicio, $horaFin);
-        }
+            $curso->update($data);
 
-        return response()->json(['data' => $curso, 'message' => 'Actualizado exitosamente']);
+            // Sincronizar módulos si se enviaron en el request
+            $modulosRecibidos = $request->input('modulos');
+            if ($modulosRecibidos !== null) {
+                $catalogo = \App\Models\CatalogoCurso::find($curso->catalogo_curso_id);
+
+                if (!$catalogo || $catalogo->categoria !== 'taller') {
+                    $existingIds = $curso->modulos()->pluck('id')->toArray();
+                    $newIds = [];
+
+                    foreach ($modulosRecibidos as $i => $mod) {
+                        $modId = $mod['id'] ?? null;
+                        $cursoPrecio = $data['precio_base'] ?? $curso->precio_base;
+                        $modData = [
+                            'nombre_modulo' => $mod['nombre'] ?? ('Módulo ' . ($i + 1)),
+                            'numero_orden' => $i + 1,
+                            'fecha_inicio' => $mod['fecha_inicio'] ?? null,
+                            'fecha_fin' => $mod['fecha_fin'] ?? null,
+                            'precio_base' => $mod['precio_base'] ?? $cursoPrecio,
+                        ];
+
+                        if ($modId && in_array($modId, $existingIds)) {
+                            Modulo::where('id', $modId)
+                                  ->where('curso_abierto_id', $curso->id)
+                                  ->update($modData);
+                            $newIds[] = $modId;
+                        } else {
+                            $nuevoMod = Modulo::create(array_merge($modData, [
+                                'curso_abierto_id' => $curso->id,
+                            ]));
+                            $newIds[] = $nuevoMod->id;
+                        }
+                    }
+
+                    $toDelete = array_diff($existingIds, $newIds);
+                    if (!empty($toDelete)) {
+                        Clase::whereIn('modulo_id', $toDelete)->delete();
+                        Modulo::whereIn('id', $toDelete)->delete();
+                    }
+
+                    $curso->refresh();
+                }
+            }
+
+            // Regenerar clases si hay módulos con fechas y días definidos
+            $diasSemana = $request->input('dias_semana', []);
+            $horaInicio = $request->input('hora_inicio');
+            $horaFin = $request->input('hora_fin');
+            if (!empty($diasSemana) && $horaInicio && $horaFin) {
+                $this->generarClasesParaCurso($curso, $diasSemana, $horaInicio, $horaFin);
+            }
+        });
+
+        return response()->json(['data' => $curso->fresh(), 'message' => 'Actualizado exitosamente']);
     }
 
     private function generarClasesParaCurso(CursoAbierto $curso, array $diasSemana, string $horaInicio, string $horaFin): void

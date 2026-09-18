@@ -5,11 +5,11 @@ namespace Tests\Feature;
 use App\Models\Horario;
 use App\Models\CursoAbierto;
 use Tests\TestCase;
-use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Foundation\Testing\DatabaseTransactions;
 
 class HorarioTest extends TestCase
 {
-    use RefreshDatabase;
+    use DatabaseTransactions;
 
     protected function setUp(): void
     {

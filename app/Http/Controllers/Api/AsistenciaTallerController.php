@@ -19,7 +19,8 @@ class AsistenciaTallerController extends Controller
      */
     public function index(string $taller_id, Request $request): JsonResponse
     {
-        Taller::findOrFail($taller_id);
+        $taller = Taller::findOrFail($taller_id);
+        $this->verificarAccesoInstructor($taller);
 
         $query = AsistenciaTaller::where('taller_id', $taller_id);
 
@@ -45,6 +46,7 @@ class AsistenciaTallerController extends Controller
     public function store(StoreAsistenciaTallerRequest $request): JsonResponse
     {
         $taller = Taller::findOrFail($request->taller_id);
+        $this->verificarAccesoInstructor($taller);
 
         $fecha = \Carbon\Carbon::parse($request->fecha_sesion);
 
@@ -134,6 +136,9 @@ class AsistenciaTallerController extends Controller
      */
     public function listEstudiantes(string $taller_id, string $asistencia_id): JsonResponse
     {
+        $taller = Taller::findOrFail($taller_id);
+        $this->verificarAccesoInstructor($taller);
+
         $asistencia = AsistenciaTaller::where('taller_id', $taller_id)->findOrFail($asistencia_id);
 
         $estudiantes = $asistencia->estudiantes()->with('inscripcionTaller')->get();
@@ -149,6 +154,9 @@ class AsistenciaTallerController extends Controller
      */
     public function storeEstudiantes(Request $request, string $taller_id, string $asistencia_id): JsonResponse
     {
+        $taller = Taller::findOrFail($taller_id);
+        $this->verificarAccesoInstructor($taller);
+
         $request->validate([
             'estudiantes' => 'required|array',
             'estudiantes.*.inscripcion_taller_id' => 'nullable|required_without:estudiantes.*.participante_externo_id|uuid|exists:inscripciones_taller,id',
@@ -163,6 +171,19 @@ class AsistenciaTallerController extends Controller
         DB::beginTransaction();
         try {
             foreach ($request->estudiantes as $data) {
+                // Comprobar que cada inscripción pertenezca efectivamente a este taller
+                if (!empty($data['inscripcion_taller_id'])) {
+                    $pertenece = \App\Models\InscripcionTaller::where('id', $data['inscripcion_taller_id'])
+                        ->where('taller_id', $taller_id)
+                        ->exists();
+                    if (!$pertenece) {
+                        DB::rollBack();
+                        return response()->json([
+                            'mensaje' => "La inscripción {$data['inscripcion_taller_id']} no pertenece a este taller",
+                        ], 422);
+                    }
+                }
+
                 AsistenciaTallerEstudiante::updateOrCreate(
                     [
                         'asistencia_taller_id' => $asistencia_id,
@@ -197,6 +218,7 @@ class AsistenciaTallerController extends Controller
     public function estadisticas(string $taller_id): JsonResponse
     {
         $taller = Taller::findOrFail($taller_id);
+        $this->verificarAccesoInstructor($taller);
 
         $asistencias = AsistenciaTaller::where('taller_id', $taller_id)->get();
 
@@ -215,5 +237,20 @@ class AsistenciaTallerController extends Controller
         ];
 
         return response()->json($stats);
+    }
+
+    /**
+     * Restringe a instructores a sus talleres asignados
+     */
+    private function verificarAccesoInstructor(Taller $taller): void
+    {
+        $user = auth()->user();
+        if (!$user) return;
+
+        if ($user->hasRole('Docente') && !$user->hasAnyRole(['Administrador', 'Super Admin', 'Secretaria', 'Coordinador'])) {
+            if ($taller->instructor_id !== $user->persona_id) {
+                abort(403, 'No tienes autorización para acceder o gestionar la asistencia de este taller.');
+            }
+        }
     }
 }

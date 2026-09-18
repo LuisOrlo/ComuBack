@@ -12,6 +12,7 @@ use App\Models\Services\ReservaRadio;
 use App\Models\Services\TrabajoEdicion;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 class ClienteExternoController extends Controller
 {
@@ -51,8 +52,8 @@ class ClienteExternoController extends Controller
         $validated = $request->validate([
             'nombres' => 'required|string|max:100',
             'apellidos' => 'nullable|string|max:100',
-            'cedula' => 'nullable|string|max:20',
-            'correo' => 'nullable|email|max:150',
+            'cedula' => 'nullable|string|max:20|unique:pgsql.people.clientes_externos,cedula',
+            'correo' => 'nullable|email|max:150|unique:pgsql.people.clientes_externos,correo',
             'celular' => 'nullable|string|max:20',
             'ciudad_id' => 'nullable|integer|exists:ciudades,id',
             'ciudad' => 'nullable|string|max:100',
@@ -62,6 +63,7 @@ class ClienteExternoController extends Controller
             'observaciones' => 'nullable|string',
         ]);
 
+        $validated = $this->normalizar($validated);
         $cliente = ClienteExterno::create([...$validated, 'es_cliente' => true]);
 
         return response()->json(['data' => $cliente], 201);
@@ -86,8 +88,8 @@ class ClienteExternoController extends Controller
         $validated = $request->validate([
             'nombres' => 'required|string|max:100',
             'apellidos' => 'nullable|string|max:100',
-            'cedula' => 'nullable|string|max:20',
-            'correo' => 'nullable|email|max:150',
+            'cedula' => ['nullable','string','max:20', Rule::unique('pgsql.people.clientes_externos', 'cedula')->ignore($cliente->id)],
+            'correo' => ['nullable','email','max:150', Rule::unique('pgsql.people.clientes_externos', 'correo')->ignore($cliente->id)],
             'celular' => 'nullable|string|max:20',
             'ciudad_id' => 'nullable|integer|exists:ciudades,id',
             'observaciones' => 'nullable|string',
@@ -98,7 +100,7 @@ class ClienteExternoController extends Controller
             'edad' => 'nullable|integer',
         ]);
 
-        $cliente->update($validated);
+        $cliente->update($this->normalizar($validated));
 
         return response()->json(['data' => $cliente]);
     }
@@ -120,13 +122,26 @@ class ClienteExternoController extends Controller
     {
         $request->validate(['cedula' => 'required|string|max:20']);
 
-        $cliente = ClienteExterno::where('cedula', $request->cedula)->first();
+        $cliente = ClienteExterno::where('cedula', trim($request->cedula))->first();
 
         if (!$cliente) {
             return response()->json(['data' => null], 200);
         }
 
         return response()->json(['data' => $cliente]);
+    }
+
+    private function normalizar(array $datos): array
+    {
+        foreach (['nombres', 'apellidos', 'direccion', 'ocupacion', 'estado_civil'] as $campo) {
+            if (array_key_exists($campo, $datos) && $datos[$campo] !== null) {
+                $datos[$campo] = trim((string) $datos[$campo]);
+            }
+        }
+        if (! empty($datos['correo'])) $datos['correo'] = strtolower(trim($datos['correo']));
+        if (! empty($datos['cedula'])) $datos['cedula'] = preg_replace('/\D+/', '', $datos['cedula']);
+        if (! empty($datos['celular'])) $datos['celular'] = preg_replace('/[^0-9+]/', '', $datos['celular']);
+        return $datos;
     }
 
     /**

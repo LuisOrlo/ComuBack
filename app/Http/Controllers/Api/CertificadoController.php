@@ -521,7 +521,24 @@ class CertificadoController extends Controller
             ), false) as archivo_purgado"))
             ->get();
 
-        return response()->json(['data' => $certificados]);
+        $data = $certificados->map(function ($c) {
+            return [
+                'id' => $c->id,
+                'codigo_certificado' => $c->codigo_certificado,
+                'codigo_unico' => $c->codigo_certificado,
+                'estudiante' => trim(($c->estudiante->nombres ?? '') . ' ' . ($c->estudiante->apellidos ?? '')),
+                'catalogo_curso' => [
+                    'nombre' => $c->catalogoCurso->nombre ?? $c->cursoAbierto?->nombre_instancia ?? 'Curso',
+                    'color' => $c->catalogoCurso->color ?? null,
+                ],
+                'fecha_emision' => $c->fecha_emision?->format('Y-m-d'),
+                'estado' => $c->estado,
+                'archivo_purgado' => (bool) $c->archivo_purgado,
+                'archivo_pdf_url' => $c->tienePdf() && !$c->archivo_purgado ? $c->archivo_pdf_url : null,
+            ];
+        });
+
+        return response()->json(['data' => $data]);
     }
 
     public function verificarPorCodigo(string $codigo): JsonResponse
@@ -539,7 +556,24 @@ class CertificadoController extends Controller
 
         $certificado->incrementarVerificaciones();
 
-        return response()->json(['data' => $certificado]);
+        return response()->json([
+            'data' => [
+                'id' => $certificado->id,
+                'codigo_certificado' => $certificado->codigo_certificado,
+                'codigo_unico' => $certificado->codigo_certificado,
+                'estudiante' => trim(($certificado->estudiante->nombres ?? '') . ' ' . ($certificado->estudiante->apellidos ?? '')),
+                'curso' => $certificado->catalogoCurso->nombre ?? $certificado->cursoAbierto?->nombre_instancia ?? '—',
+                'catalogo_curso' => [
+                    'nombre' => $certificado->catalogoCurso->nombre ?? $certificado->cursoAbierto?->nombre_instancia ?? '—',
+                    'color' => $certificado->catalogoCurso->color ?? null,
+                ],
+                'fecha_emision' => $certificado->fecha_emision?->format('Y-m-d'),
+                'estado' => $certificado->estado,
+                'horas_academicas' => $certificado->catalogoCurso->horas_academicas ?? null,
+                'archivo_pdf_url' => $certificado->tienePdf() ? $certificado->archivo_pdf_url : null,
+                'verificaciones_count' => $certificado->verificaciones_count,
+            ]
+        ]);
     }
 
     public function descargarPdf(string $id): Response|JsonResponse|StreamedResponse
@@ -584,8 +618,7 @@ class CertificadoController extends Controller
             ], Response::HTTP_NOT_FOUND);
         }
 
-        $certificado->marcarEntregado();
-
+        // Separar descarga de constancia de entrega: no marcar entregado en descarga pública o copia
         $nombres = strtoupper(str_replace(' ', '_', trim(($certificado->estudiante->nombres ?? '') . '_' . ($certificado->estudiante->apellidos ?? ''))));
         $catalogo = strtoupper(str_replace(' ', '_', $certificado->catalogoCurso->nombre ?? 'CERTIFICADO'));
         $filename = preg_replace('/[^A-Z0-9_]/', '', "{$nombres}_{$catalogo}") . '.pdf';

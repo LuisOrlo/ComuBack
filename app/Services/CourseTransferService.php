@@ -48,9 +48,9 @@ class CourseTransferService
 
     public function transferir(string $matriculaId, string $cursoAbiertoNuevoId, ?string $motivo = null, array $lineas = []): array
     {
-        return DB::transaction(function () use ($matriculaId, $cursoAbiertoNuevoId, $motivo) {
-            $matriculaOrigen = Matricula::findOrFail($matriculaId);
-            $cursoNuevo = CursoAbierto::findOrFail($cursoAbiertoNuevoId);
+        return DB::transaction(function () use ($matriculaId, $cursoAbiertoNuevoId, $motivo, $lineas) {
+            $matriculaOrigen = Matricula::whereKey($matriculaId)->lockForUpdate()->firstOrFail();
+            $cursoNuevo = CursoAbierto::whereKey($cursoAbiertoNuevoId)->lockForUpdate()->firstOrFail();
 
             if ($matriculaOrigen->estado !== Matricula::ESTADO_ACTIVO) {
                 throw new \Exception('La matrícula debe estar activa para transferir.');
@@ -66,7 +66,7 @@ class CourseTransferService
 
             $cursoViejo = $matriculaOrigen->cursoAbierto;
 
-            CambioHorario::create([
+            $cambio = CambioHorario::create([
                 'matricula_origen_id' => $matriculaOrigen->id,
                 'curso_abierto_antiguo_id' => $matriculaOrigen->curso_abierto_id,
                 'curso_abierto_nuevo_id' => $cursoNuevo->id,
@@ -109,6 +109,25 @@ class CourseTransferService
                 $cuentaActual->update(['es_legacy' => true]);
             }
 
+            // Si no se proporcionaron líneas explícitas, construir a partir de módulos del curso destino
+            if (empty($lineas)) {
+                $abonoHistoricoDisponible = (float) $matriculaOrigen->lineasPago()->sum('monto_abonado');
+                $modulos = $cursoNuevo->modulos()->orderBy('numero_orden')->get();
+                $precioModulo = $modulos->count() > 0 ? ((float) $cursoNuevo->precio_base / $modulos->count()) : (float) $cursoNuevo->precio_base;
+
+                foreach ($modulos as $i => $mod) {
+                    $montoAbonar = min($abonoHistoricoDisponible, $precioModulo);
+                    $abonoHistoricoDisponible -= $montoAbonar;
+
+                    $lineas[] = [
+                        'modulo_id' => $mod->id,
+                        'tipo' => 'modulo',
+                        'monto_ajustado' => $precioModulo,
+                        'monto_abonado' => $montoAbonar,
+                    ];
+                }
+            }
+
             // Crear líneas de pago con montos del payload de reconciliación
             foreach ($lineas as $i => $l) {
                 LineaPagoModulo::create([
@@ -148,7 +167,7 @@ class CourseTransferService
                 'success' => true,
                 'message' => 'Transferencia completada exitosamente',
                 'data' => [
-                    'cambio_horario_id' => $cambio->id ?? null,
+                    'cambio_horario_id' => $cambio->id,
                     'matricula_nueva_id' => $nuevaMatricula->id,
                     'notas_migradas' => $notasMigradas,
                     'diferencia_precio' => $diferenciaPrecio,

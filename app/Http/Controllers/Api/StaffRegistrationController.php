@@ -32,15 +32,28 @@ class StaffRegistrationController extends Controller
      */
     public function index(Request $request)
     {
-        $query = SolicitudInscripcion::with([
+        $query = SolicitudInscripcion::select([
+            'id',
+            'persona_id',
+            'participante_externo_id',
+            'es_participante_externo',
+            'curso_abierto_id',
+            'estado',
+            'validado_por',
+            'motivo_rechazo',
+            'fecha_validacion',
+            'created_at',
+        ])->with([
             'estudiante:id,nombres,apellidos,correo',
-            'participanteExterno:id,nombres,apellidos,correo,celular,cedula,ocupacion,direccion,ciudad,estado_civil,edad,nivel_educativo',
-            'cursoAbierto:id,catalogo_curso_id,precio_base,capacidad_maxima,estudiantes_inscritos',
-            'cursoAbierto.catalogo:id,nombre,categoria',
+            'participanteExterno:id,nombres,apellidos,correo,ciudad',
+            'cursoAbierto:id,catalogo_curso_id,es_personalizado,nombre_instancia,precio_base,modalidad,ciudad_id',
+            'cursoAbierto.catalogo:id,nombre,categoria,color',
+            'cursoAbierto.ciudad:id,nombre',
+            'validador:id,nombres,apellidos',
         ]);
 
         // Filtro por estado
-        if ($request->has('estado')) {
+        if ($request->filled('estado') && $request->estado !== 'todos') {
             $query->where('estado', $request->estado);
         }
 
@@ -50,7 +63,12 @@ class StaffRegistrationController extends Controller
         }
 
         if ($request->filled('categoria')) {
-            $query->whereHas('cursoAbierto.catalogo', fn ($catalogo) => $catalogo->where('categoria', $request->categoria));
+            if ($request->categoria === 'personalizado') {
+                $query->whereHas('cursoAbierto', fn ($curso) => $curso->where('es_personalizado', true));
+            } else {
+                $query->whereHas('cursoAbierto', fn ($curso) => $curso->where('es_personalizado', false))
+                    ->whereHas('cursoAbierto.catalogo', fn ($catalogo) => $catalogo->where('categoria', $request->categoria));
+            }
         }
 
         // Búsqueda por nombre/email del solicitante
@@ -73,12 +91,34 @@ class StaffRegistrationController extends Controller
         $perPage = min(100, max(10, (int) $request->get('per_page', 20)));
         $solicitudes = $query->paginate($perPage);
 
+        $countsQuery = SolicitudInscripcion::query();
+        if ($request->filled('categoria')) {
+            if ($request->categoria === 'personalizado') {
+                $countsQuery->whereHas('cursoAbierto', fn ($curso) => $curso->where('es_personalizado', true));
+            } else {
+                $countsQuery->whereHas('cursoAbierto', fn ($curso) => $curso->where('es_personalizado', false))
+                    ->whereHas('cursoAbierto.catalogo', fn ($c) => $c->where('categoria', $request->categoria));
+            }
+        }
+        $estadosCount = $countsQuery
+            ->selectRaw("estado, count(*) as total")
+            ->groupBy('estado')
+            ->pluck('total', 'estado');
+
+        $stats = [
+            'todos' => (int) $estadosCount->sum(),
+            'pendientes' => (int) ($estadosCount['pendiente_validacion'] ?? 0),
+            'aprobados' => (int) ($estadosCount['matricula_creada'] ?? 0),
+            'rechazados' => (int) ($estadosCount['rechazado'] ?? 0),
+        ];
+
         $baseQuery = SolicitudInscripcion::query();
         $fechaMin = (clone $baseQuery)->min('created_at');
         $fechaMax = (clone $baseQuery)->max('created_at');
 
         return response()->json([
             'data' => $solicitudes->items(),
+            'stats' => $stats,
             'meta' => [
                 'total' => $solicitudes->total(),
                 'per_page' => $solicitudes->perPage(),
@@ -99,7 +139,7 @@ class StaffRegistrationController extends Controller
         $solicitud = SolicitudInscripcion::with([
             'estudiante:id,nombres,apellidos,cedula,correo,celular',
             'participanteExterno:id,nombres,apellidos,correo,celular,cedula,ocupacion,direccion,ciudad,estado_civil,edad,nivel_educativo',
-            'cursoAbierto:id,catalogo_curso_id,nombre_instancia,precio_base,capacidad_maxima,estudiantes_inscritos,fecha_inicio,fecha_fin,modalidad,docente_id,ciudad_id,horario_id',
+            'cursoAbierto:id,catalogo_curso_id,es_personalizado,nombre_instancia,observaciones,precio_base,capacidad_maxima,estudiantes_inscritos,fecha_inicio,fecha_fin,modalidad,docente_id,ciudad_id,horario_id',
             'cursoAbierto.catalogo:id,nombre,descripcion,categoria,color',
             'cursoAbierto.docente:id,nombres,apellidos',
             'cursoAbierto.ciudad:id,nombre',
@@ -145,7 +185,8 @@ class StaffRegistrationController extends Controller
             $request->pagos ?? [],
             $request->metodo_pago ?? 'efectivo',
             $request->has('precio_inscripcion') ? (float) $request->precio_inscripcion : null,
-            (float) ($request->inscripcion_cubierta ?? 0)
+            (float) ($request->inscripcion_cubierta ?? 0),
+            $request->motivo_ajuste
         );
 
         if (!$resultado['exito']) {
@@ -355,6 +396,7 @@ class StaffRegistrationController extends Controller
             'id' => $solicitud->id,
             'solicitante' => [
                 'tipo' => $solicitud->esEstudiante() ? 'estudiante' : 'externo',
+                'datos_declarados' => $solicitud->datos_declarados,
                 'datos' => $solicitud->esEstudiante()
                     ? array_merge(
                         $solicitud->estudiante?->only([
@@ -371,16 +413,21 @@ class StaffRegistrationController extends Controller
             ],
             'curso' => $solicitud->cursoAbierto ? [
                 'id' => $solicitud->cursoAbierto->id,
+                'es_personalizado' => (bool) $solicitud->cursoAbierto->es_personalizado,
                 'nombre' => $solicitud->cursoAbierto->nombre_instancia ?: $solicitud->cursoAbierto->catalogo?->nombre,
                 'nombre_catalogo' => $solicitud->cursoAbierto->catalogo?->nombre,
-                'descripcion' => $solicitud->cursoAbierto->catalogo?->descripcion,
+                'descripcion' => $solicitud->cursoAbierto->observaciones ?: $solicitud->cursoAbierto->catalogo?->descripcion,
                 'color' => $solicitud->cursoAbierto->catalogo?->color,
                 'modalidad' => $solicitud->cursoAbierto->modalidad,
                 'precio_base' => $solicitud->cursoAbierto->precio_base,
                 'capacidad' => [
                     'maxima' => $solicitud->cursoAbierto->capacidad_maxima,
-                    'inscritos' => $solicitud->cursoAbierto->estudiantes_inscritos,
-                    'disponible' => $solicitud->cursoAbierto->capacidad_maxima - $solicitud->cursoAbierto->estudiantes_inscritos,
+                    'inscritos' => $solicitud->cursoAbierto->es_personalizado
+                        ? $solicitud->cursoAbierto->obtenerCountMatriculas()
+                        : $solicitud->cursoAbierto->estudiantes_inscritos,
+                    'disponible' => $solicitud->cursoAbierto->capacidad_maxima - ($solicitud->cursoAbierto->es_personalizado
+                        ? $solicitud->cursoAbierto->obtenerCountMatriculas()
+                        : $solicitud->cursoAbierto->estudiantes_inscritos),
                 ],
                 'fechas' => [
                     'inicio' => $solicitud->cursoAbierto->fecha_inicio,

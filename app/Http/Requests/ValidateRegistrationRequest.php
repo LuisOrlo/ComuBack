@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
+use App\Models\CursoAbierto;
 
 class ValidateRegistrationRequest extends FormRequest
 {
@@ -32,7 +33,37 @@ class ValidateRegistrationRequest extends FormRequest
             'metodo_pago' => 'nullable|string|in:efectivo,transferencia,deposito,tarjeta,otro',
             'precio_inscripcion' => 'nullable|numeric|min:0.01',
             'inscripcion_cubierta' => 'nullable|numeric|min:0',
+            'motivo_ajuste' => 'nullable|string|max:255',
         ];
+    }
+
+    public function withValidator($validator): void
+    {
+        $validator->after(function ($validator) {
+            $solicitud = \App\Models\SolicitudInscripcion::with('cursoAbierto')->find($this->route('id'));
+            $curso = $solicitud?->cursoAbierto;
+
+            if (!$curso?->es_personalizado) {
+                return;
+            }
+
+            $pago = $this->input('inscripcion_cubierta');
+            $precio = (float) ($this->input('precio_inscripcion') ?: ($curso->precio_base ?? 0));
+
+            if ($pago === null || (float) $pago <= 0) {
+                $validator->errors()->add('inscripcion_cubierta', 'El pago inicial del curso personalizado debe ser mayor que cero');
+            } elseif ((float) $pago > $precio) {
+                $validator->errors()->add('inscripcion_cubierta', 'El pago inicial no puede superar el precio total del curso');
+            }
+            if ($this->filled('precio_inscripcion') && (float) $this->input('precio_inscripcion') > (float) ($curso->precio_base ?? 0)) {
+                $validator->errors()->add('precio_inscripcion', 'El precio ajustado no puede superar el precio original del curso');
+            }
+            if ($this->filled('precio_inscripcion')
+                && (float) $this->input('precio_inscripcion') < (float) ($curso->precio_base ?? 0)
+                && trim((string) $this->input('motivo_ajuste')) === '') {
+                $validator->errors()->add('motivo_ajuste', 'Debes indicar el motivo del descuento');
+            }
+        });
     }
 
     public function messages(): array

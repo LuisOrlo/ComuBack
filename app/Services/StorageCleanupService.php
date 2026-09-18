@@ -58,14 +58,18 @@ class StorageCleanupService
         }
 
         $storagePath = $this->extractStoragePath($path, $config);
-        return DB::transaction(function () use ($model, $field, $config, $storagePath, $eliminadoPor, $accion, $path, $diskName) {
-            if (Storage::disk($diskName)->exists($storagePath)) {
+        $isShared = $this->isFileShared($path, $model, $field);
+
+        return DB::transaction(function () use ($model, $field, $config, $storagePath, $eliminadoPor, $accion, $path, $diskName, $isShared) {
+            if (!$isShared && Storage::disk($diskName)->exists($storagePath)) {
                 Storage::disk($diskName)->delete($storagePath);
 
                 if (Storage::disk($diskName)->exists($storagePath)) {
                     Log::error("StorageCleanupService: No se pudo eliminar el archivo {$storagePath}");
                     throw new \RuntimeException("El archivo {$storagePath} no pudo eliminarse del almacenamiento");
                 }
+            } elseif ($isShared) {
+                Log::info("StorageCleanupService: Archivo compartido con otro registro, se conserva en disco físico: {$storagePath}");
             }
 
             ArchivoEliminado::create([
@@ -210,6 +214,35 @@ class StorageCleanupService
     }
 
     /**
+     * Comprueba si el archivo físico está referenciado por otro registro en el sistema.
+     */
+    public function isFileShared(string $filePath, Model $excludeModel, string $excludeField): bool
+    {
+        $filename = basename($filePath);
+        if (empty($filename) || $filename === '.' || $filename === '..') {
+            return false;
+        }
+
+        foreach (self::ALLOWED_FIELDS as $checkClass => $checkFields) {
+            foreach (array_keys($checkFields) as $checkField) {
+                try {
+                    $q = $checkClass::query()->where($checkField, 'like', "%{$filename}%");
+                    if ($checkClass === get_class($excludeModel) && isset($excludeModel->id)) {
+                        $q->where('id', '!=', $excludeModel->id);
+                    }
+                    if ($q->exists()) {
+                        return true;
+                    }
+                } catch (\Throwable $e) {
+                    // Si la tabla o columna no está disponible en este momento, continuar
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /**
      * Eliminar físicamente un archivo del storage sin registrar auditoría.
      * Útil para reemplazos (uploads) donde no se quiere dejar constancia de
      * cada versión anterior.
@@ -223,6 +256,11 @@ class StorageCleanupService
             return;
         }
 
+        if ($this->isFileShared($path, $model, $field)) {
+            Log::info("StorageCleanupService: Archivo compartido detectado, se conserva en disco físico: {$path}");
+            return;
+        }
+
         $diskName = $config['disk'] ?? config('filesystems.default');
         $storagePath = $this->extractStoragePath($path, $config);
         if (Storage::disk($diskName)->exists($storagePath)) {
@@ -231,15 +269,18 @@ class StorageCleanupService
     }
 
     /**
-     * Para el comando Artisan: limpiar archivos de registros con más de X días de antigüedad.
+     * Para el comando Artisan: limpiar archivos de registros eliminados (soft-deleted) con más de X días de antigüedad.
+     * Los registros activos nunca se eliminan automáticamente por edad de created_at.
      */
-    public function cleanupOlderThan(int $days, ?string $modelClass = null, ?string $field = null): array
+    public function cleanupOlderThan(int $days, ?string $modelClass = null, ?string $field = null, bool $dryRun = false): array
     {
-        $results = ['total' => 0, 'eliminados' => 0, 'errores' => 0, 'detalles' => []];
+        $results = ['total' => 0, 'eliminados' => 0, 'errores' => 0, 'candidatos' => [], 'detalles' => []];
 
         $modelsConfig = $modelClass
             ? [$modelClass => self::ALLOWED_FIELDS[$modelClass] ?? []]
             : self::ALLOWED_FIELDS;
+
+        $cutoff = now()->subDays($days);
 
         foreach ($modelsConfig as $class => $fields) {
             if ($field && !isset($fields[$field])) {
@@ -248,37 +289,54 @@ class StorageCleanupService
 
             $fieldsToClean = $field ? [$field => $fields[$field]] : $fields;
 
+            // Detectar soporte de borrado lógico (SoftDeletes)
+            $usesSoftDeletes = in_array(\Illuminate\Database\Eloquent\SoftDeletes::class, class_uses_recursive($class));
+
+            // Si el modelo no usa SoftDeletes (ej: TransaccionIngreso, TransaccionEgreso, Equipo),
+            // NO debe purgarse automáticamente por antigüedad de creación.
+            if (!$usesSoftDeletes) {
+                Log::info("StorageCleanupService: Omitiendo {$class} de limpieza automática (modelo activo sin soft-deletes)");
+                continue;
+            }
+
             foreach ($fieldsToClean as $fieldName => $config) {
-                $query = $class::query();
+                // Seleccionar explícitamente registros eliminados lógicamente (onlyTrashed) cuya fecha de eliminación exceda el cutoff
+                $query = $class::onlyTrashed()
+                    ->whereNotNull('deleted_at')
+                    ->where('deleted_at', '<', $cutoff)
+                    ->whereNotNull($fieldName)
+                    ->where($fieldName, '!=', '');
 
-                if (method_exists($class, 'onlyTrashed')) {
-                    $query->onlyTrashed();
-                }
+                $query->chunkById(100, function ($records) use ($fieldName, $config, &$results, $dryRun) {
+                    foreach ($records as $record) {
+                        $results['total']++;
 
-                $cutoff = now()->subDays($days);
-
-                $query->whereNotNull($fieldName)
-                    ->where($fieldName, '!=', '')
-                    ->where('created_at', '<', $cutoff)
-                    ->chunkById(100, function ($records) use ($fieldName, $config, &$results) {
-                        foreach ($records as $record) {
-                            $results['total']++;
-                            try {
-                                $result = $this->deleteFile($record, $fieldName, null, ArchivoEliminado::ACCION_BORRADO_ARCHIVO);
-                                if ($result['eliminado']) {
-                                    $results['eliminados']++;
-                                }
-                            } catch (\Exception $e) {
-                                $results['errores']++;
-                                $results['detalles'][] = [
-                                    'model' => get_class($record),
-                                    'id' => $record->id,
-                                    'field' => $fieldName,
-                                    'error' => $e->getMessage(),
-                                ];
-                            }
+                        if ($dryRun) {
+                            $results['candidatos'][] = [
+                                'model' => get_class($record),
+                                'id' => $record->id,
+                                'field' => $fieldName,
+                                'deleted_at' => (string) $record->deleted_at,
+                            ];
+                            continue;
                         }
-                    });
+
+                        try {
+                            $result = $this->deleteFile($record, $fieldName, null, ArchivoEliminado::ACCION_BORRADO_ARCHIVO);
+                            if ($result['eliminado']) {
+                                $results['eliminados']++;
+                            }
+                        } catch (\Exception $e) {
+                            $results['errores']++;
+                            $results['detalles'][] = [
+                                'model' => get_class($record),
+                                'id' => $record->id,
+                                'field' => $fieldName,
+                                'error' => $e->getMessage(),
+                            ];
+                        }
+                    }
+                });
             }
         }
 

@@ -69,20 +69,25 @@ class RegistrationValidationService
             $errores[] = 'El curso ya ha comenzado';
         }
 
-        // 5. Validar capacidad disponible
-        $capacidadDisponible = $curso->capacidad_maxima - $curso->estudiantes_inscritos;
+        // 5. Validar capacidad disponible.
+        // Los personalizados no usan el contador cacheado: las matrículas
+        // aprobadas/vigentes son la fuente de verdad de sus cupos.
+        $ocupados = $curso->es_personalizado
+            ? $curso->obtenerCountMatriculas()
+            : (int) $curso->estudiantes_inscritos;
+        $capacidadDisponible = $curso->capacidad_maxima - $ocupados;
         if ($capacidadDisponible <= 0) {
             $errores[] = 'El curso está lleno. No hay capacidad disponible';
         }
 
-        // 6. Validar que el estudiante no está ya inscrito
+        // 6. Aplicar la misma política central de duplicados que utiliza la
+        // aprobación administrativa. Las matrículas retiradas y reprobadas
+        // permiten un nuevo intento; activas, completadas y soft-deleted no.
         if ($personaId) {
-            $yaInscrito = Matricula::where('estudiante_id', $personaId)
-                ->where('curso_abierto_id', $cursoAbiertoId)
-                ->exists();
+            $conflicto = Matricula::conflictoNuevaInscripcion($personaId, $cursoAbiertoId);
 
-            if ($yaInscrito) {
-                $errores[] = 'Ya está inscrito en este curso';
+            if ($conflicto) {
+                $errores[] = $conflicto['mensaje'];
             }
 
             // 7. Validar que no tiene solicitud pendiente/aprobada para este curso

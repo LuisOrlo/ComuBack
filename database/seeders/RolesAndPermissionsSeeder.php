@@ -48,6 +48,8 @@ class RolesAndPermissionsSeeder extends Seeder
             'gestionar_alquileres',
             'gestionar_solicitudes_inscripcion',
             'ver_clientes_externos',
+            'gestionar_personal',
+            'gestionar_cuentas_sistema',
         ];
 
         foreach ($permissions as $permission) {

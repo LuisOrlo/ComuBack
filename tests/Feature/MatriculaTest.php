@@ -7,14 +7,15 @@ use App\Models\CursoAbierto;
 use App\Models\Horario;
 use App\Models\Nota;
 use App\Models\Modulo;
+use App\Models\Persona;
 use App\Models\CambioHorario;
 use Tests\TestCase;
-use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Carbon\Carbon;
 
 class MatriculaTest extends TestCase
 {
-    use RefreshDatabase;
+    use DatabaseTransactions;
 
     protected function setUp(): void
     {
@@ -132,6 +133,36 @@ class MatriculaTest extends TestCase
         $this->assertDatabaseHas('academic.matriculas', [
             'estado' => 'activo',
         ]);
+    }
+
+    public function test_create_matricula_directa_aplica_la_politica_de_duplicados(): void
+    {
+        $curso = CursoAbierto::factory()->create();
+        $horario = Horario::factory()->create(['curso_abierto_id' => $curso->id]);
+        $estudiante = Persona::create([
+            'tipo' => 'estudiante',
+            'nombres' => 'Estudiante',
+            'apellidos' => 'Duplicado',
+            'correo' => fake()->unique()->safeEmail(),
+            'es_activo' => true,
+        ]);
+        Matricula::create([
+            'estudiante_id' => $estudiante->id,
+            'curso_abierto_id' => $curso->id,
+            'estado' => Matricula::ESTADO_ACTIVO,
+        ]);
+
+        $response = $this->authenticatedPost('/api/academic/matriculas', [
+            'estudiante_id' => $estudiante->id,
+            'curso_abierto_id' => $curso->id,
+            'horario_id' => $horario->id,
+            'estado' => Matricula::ESTADO_ACTIVO,
+            'fecha_inicio' => Carbon::now()->toDateString(),
+            'fecha_fin' => Carbon::now()->addWeeks(12)->toDateString(),
+        ]);
+
+        $response->assertStatus(409)
+            ->assertJsonPath('message', 'El estudiante ya tiene una matrícula activa en este curso.');
     }
 
     /**

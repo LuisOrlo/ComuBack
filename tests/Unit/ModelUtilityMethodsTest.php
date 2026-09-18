@@ -7,11 +7,11 @@ use App\Models\Matricula;
 use App\Models\Nota;
 use App\Models\Modulo;
 use Tests\TestCase;
-use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Foundation\Testing\DatabaseTransactions;
 
 class ModelUtilityMethodsTest extends TestCase
 {
-    use RefreshDatabase;
+    use DatabaseTransactions;
 
     /**
      * Test: CursoAbierto::estaLleno()

@@ -15,10 +15,15 @@ use Illuminate\Support\Facades\DB;
 class RegistrationStateService
 {
     private RegistrationValidationService $registrationValidator;
+    private StudentScheduleConflictService $scheduleConflictService;
 
-    public function __construct(RegistrationValidationService $registrationValidator)
+    public function __construct(
+        RegistrationValidationService $registrationValidator,
+        StudentScheduleConflictService $scheduleConflictService
+    )
     {
         $this->registrationValidator = $registrationValidator;
+        $this->scheduleConflictService = $scheduleConflictService;
     }
 
     /**
@@ -84,20 +89,117 @@ class RegistrationStateService
         array $pagos = [],
         string $metodoPago = 'efectivo',
         ?float $precioInscripcion = null,
-        float $inscripcionCubierta = 0
+        float $inscripcionCubierta = 0,
+        ?string $motivoAjuste = null
     ): array
     {
         try {
-            if ($solicitud->estado !== SolicitudInscripcion::ESTADO_PENDIENTE_VALIDACION) {
-                return [
-                    'exito' => false,
-                    'mensaje' => "Solo se pueden aprobar solicitudes en estado pendiente de validación",
-                    'matricula_id' => null,
-                    'cuenta_cobrar_id' => null,
-                ];
-            }
+            return DB::transaction(function () use ($solicitud, $validadorId, $observaciones, $pagos, $metodoPago, $precioInscripcion, $inscripcionCubierta, $motivoAjuste) {
+                // Bloquear la solicitud para evitar aprobaciones concurrentes simultáneas
+                $solicitudLocked = SolicitudInscripcion::where('id', $solicitud->id)->lockForUpdate()->first();
+                if (!$solicitudLocked || $solicitudLocked->estado !== SolicitudInscripcion::ESTADO_PENDIENTE_VALIDACION) {
+                    return [
+                        'exito' => false,
+                        'mensaje' => "La solicitud ya fue procesada o no está pendiente de validación",
+                        'matricula_id' => null,
+                        'cuenta_cobrar_id' => null,
+                    ];
+                }
+                $solicitud = $solicitudLocked;
 
-            return DB::transaction(function () use ($solicitud, $validadorId, $observaciones, $pagos, $metodoPago, $precioInscripcion, $inscripcionCubierta) {
+                // Cuando approve() se invoca directamente sobre una solicitud
+                // ya existente, este es el primer lock de la Persona. En el
+                // flujo administrativo el controlador lo adquiere antes de
+                // crear la solicitud; mantenerlo aquí unifica el orden para
+                // ambos caminos.
+                if ($solicitud->persona_id) {
+                    Persona::whereKey($solicitud->persona_id)->lockForUpdate()->first();
+                }
+
+                // El lock de la oferta serializa las inscripciones concurrentes
+                // y protege la evaluación de duplicados junto con la capacidad.
+                $curso = \App\Models\CursoAbierto::where('id', $solicitud->curso_abierto_id)
+                    ->lockForUpdate()
+                    ->first();
+                if (!$curso) {
+                    throw new Exception('El curso no existe');
+                }
+
+                // Las solicitudes de participantes externos todavía no tienen
+                // persona_id. No ejecutar una consulta UUID con una cadena
+                // vacía; la identidad se resuelve en crearMatricula().
+                $conflicto = $solicitud->persona_id
+                    ? Matricula::conflictoNuevaInscripcion(
+                        (string) $solicitud->persona_id,
+                        (string) $solicitud->curso_abierto_id
+                    )
+                    : null;
+                if ($conflicto) {
+                    return [
+                        'exito' => false,
+                        'codigo' => 'duplicado',
+                        'mensaje' => $conflicto['mensaje'],
+                        'matricula_id' => null,
+                        'cuenta_cobrar_id' => null,
+                    ];
+                }
+
+                $espaciosDisponibles = $curso->es_personalizado
+                    ? max(0, $curso->capacidad_maxima - $curso->obtenerCountMatriculas())
+                    : $curso->obtenerEspaciosDisponibles();
+                if ($curso->capacidad_maxima > 0 && $espaciosDisponibles <= 0) {
+                    return [
+                        'exito' => false,
+                        'codigo' => 'cupo',
+                        'mensaje' => 'El curso ya no dispone de cupos disponibles',
+                        'matricula_id' => null,
+                        'cuenta_cobrar_id' => null,
+                    ];
+                }
+
+                // Las solicitudes públicas de participantes externos todavía no
+                // tienen Persona. Se validan cuando ya existe persona_id, sin
+                // crear una Persona artificial solo para consultar horarios.
+                $conflictosHorario = $this->scheduleConflictService->conflictsForCourse(
+                    $solicitud->persona_id ? (string) $solicitud->persona_id : null,
+                    $curso
+                );
+                if ($conflictosHorario) {
+                    return [
+                        'exito' => false,
+                        'codigo' => 'conflicto_horario',
+                        'mensaje' => 'El estudiante tiene un conflicto de horario.',
+                        'conflictos' => $conflictosHorario,
+                        'matricula_id' => null,
+                        'cuenta_cobrar_id' => null,
+                    ];
+                }
+
+                $esCursoPersonalizado = (bool) ($curso?->es_personalizado);
+                $precioOriginalInscripcion = $precioInscripcion;
+                if ($esCursoPersonalizado) {
+                    $precioOriginalPersonalizado = (float) ($curso->precio_base ?? 0);
+                    $precioOriginalInscripcion = $precioOriginalPersonalizado;
+                    $precioPersonalizado = $precioInscripcion !== null ? (float) $precioInscripcion : $precioOriginalPersonalizado;
+                    $pagoInicial = (float) $inscripcionCubierta;
+
+                    if ($precioPersonalizado <= 0 || $precioPersonalizado > $precioOriginalPersonalizado || $pagoInicial <= 0 || $pagoInicial > $precioPersonalizado) {
+                        return [
+                            'exito' => false,
+                            'codigo' => 'validacion',
+                            'mensaje' => 'Para cursos personalizados el pago inicial debe ser mayor que cero y no superar el precio total',
+                            'matricula_id' => null,
+                            'cuenta_cobrar_id' => null,
+                        ];
+                    }
+
+                    // Reutiliza el bloque financiero existente de inscripción:
+                    // una sola línea tipo inscripcion y sin módulo asociado.
+                    $precioInscripcion = $precioPersonalizado;
+                    $inscripcionCubierta = $pagoInicial;
+                    $pagos = [];
+                }
+
                 $solicitud->estado = SolicitudInscripcion::ESTADO_APROBADO;
                 $solicitud->validado_por = $validadorId ?? null;
                 $solicitud->observaciones_validacion = $observaciones;
@@ -109,7 +211,12 @@ class RegistrationStateService
                     throw new Exception('No se pudo crear la matrícula');
                 }
 
-                $lineasPago = $this->crearLineasPagoModulo($solicitud, $matricula);
+                // Los cursos personalizados se liquidan únicamente mediante la
+                // línea global de inscripción; los cursos normales conservan sus
+                // líneas financieras por módulo.
+                $lineasPago = $esCursoPersonalizado
+                    ? []
+                    : $this->crearLineasPagoModulo($solicitud, $matricula);
                 $lineasPagoIds = collect($lineasPago)->pluck('id')->toArray();
 
                 $inscripcionLinea = null;
@@ -120,9 +227,10 @@ class RegistrationStateService
                         'matricula_id' => $matricula->id,
                         'modulo_id' => null,
                         'tipo' => 'inscripcion',
-                        'monto_original' => $precioInscripcion,
+                        'monto_original' => $precioOriginalInscripcion,
                         'monto_ajustado' => $precioInscripcion,
                         'monto_abonado' => 0,
+                        'motivo_ajuste' => $esCursoPersonalizado && $motivoAjuste ? $motivoAjuste : null,
                         'estado' => 'pendiente',
                         'orden' => 999,
                     ]);
@@ -149,14 +257,11 @@ class RegistrationStateService
 
                 $referencia = 'mat-' . $matricula->id . '-' . now()->timestamp;
 
-                if (! empty($pagos)) {
-                    $modulos = $solicitud->cursoAbierto->modulos()->orderBy('numero_orden')->get()->keyBy('id');
+                if (! empty($pagos) || ($esCursoPersonalizado && $inscripcionLinea && $inscripcionCubierta > 0)) {
                     $lineasPorModulo = collect($lineasPago)->keyBy('modulo_id');
 
                     foreach ($pagos as $pago) {
-                        if (empty($pago['monto']) || (float) $pago['monto'] <= 0) {
-                            continue;
-                        }
+                        if (empty($pago['monto']) || (float) $pago['monto'] <= 0) continue;
 
                         $linea = $lineasPorModulo->get($pago['modulo_id']);
                         if (! $linea) continue;
@@ -327,7 +432,13 @@ class RegistrationStateService
     private function crearMatricula(SolicitudInscripcion $solicitud): ?Matricula
     {
         try {
-            $curso = $solicitud->cursoAbierto;
+            $curso = \App\Models\CursoAbierto::where('id', $solicitud->curso_abierto_id)->lockForUpdate()->firstOrFail();
+            $espaciosDisponibles = $curso->es_personalizado
+                ? max(0, $curso->capacidad_maxima - $curso->obtenerCountMatriculas())
+                : $curso->obtenerEspaciosDisponibles();
+            if ($curso->capacidad_maxima > 0 && $espaciosDisponibles <= 0) {
+                throw new Exception('El curso ya no dispone de cupos disponibles');
+            }
 
             $estudianteId = $solicitud->persona_id;
 
@@ -371,13 +482,18 @@ class RegistrationStateService
                 }
             }
 
-            $existing = Matricula::withTrashed()
-                ->where('estudiante_id', $estudianteId)
-                ->where('curso_abierto_id', $solicitud->curso_abierto_id)
-                ->first();
-
-            if ($existing) {
-                throw new Exception('El estudiante ya está inscrito en este curso');
+            // Las solicitudes públicas pueden convertir un participante externo
+            // en Persona aquí; volver a evaluar evita que esa conversión omita
+            // la misma política de duplicados.
+            if (!$estudianteId) {
+                throw new Exception('La solicitud no tiene un estudiante o participante asociado');
+            }
+            $conflicto = Matricula::conflictoNuevaInscripcion(
+                (string) $estudianteId,
+                (string) $solicitud->curso_abierto_id
+            );
+            if ($conflicto) {
+                throw new Exception($conflicto['mensaje']);
             }
 
             $matricula = Matricula::create([

@@ -30,7 +30,8 @@ class EstadisticasService
 
     private function cacheKey(string $section): string
     {
-        return "estadisticas.{$section}.{$this->desde}.{$this->hasta}";
+        $version = (int) Cache::get('estadisticas.version', 1);
+        return "estadisticas.v{$version}.{$section}.{$this->desde}.{$this->hasta}";
     }
 
     private function rangoHasta(): string
@@ -92,20 +93,36 @@ class EstadisticasService
             $matriculasPeriodo = Matricula::whereBetween('fecha_inscripcion', [$this->desde, $this->rangoHasta()]);
             $matriculados = $matriculasPeriodo->count();
             $estudianteIds = $matriculasPeriodo->pluck('estudiante_id')->filter()->unique();
+            $totalEstudiantes = $estudianteIds->count();
+
+            // Estudiantes recurrentes comercialmente: ya se habían matriculado antes de este periodo
             $recurrentes = $estudianteIds->isEmpty() ? 0 : Matricula::whereIn('estudiante_id', $estudianteIds)
                 ->where('fecha_inscripcion', '<', $this->desde)
                 ->distinct('estudiante_id')
                 ->count('estudiante_id');
 
-            $tasaRetencion = $estudianteIds->count() > 0
-                ? round(($recurrentes / $estudianteIds->count()) * 100, 1)
+            $tasaRecurrencia = $totalEstudiantes > 0
+                ? round(($recurrentes / $totalEstudiantes) * 100, 1)
                 : 0;
 
-            $tasaAbandono = round(100 - $tasaRetencion, 1);
+            // Abandono real: estudiantes con retiro formal en este periodo
+            $retirados = (clone $matriculasPeriodo)
+                ->where('estado', 'retirado')
+                ->distinct('estudiante_id')
+                ->count('estudiante_id');
+
+            $tasaAbandono = $totalEstudiantes > 0
+                ? round(($retirados / $totalEstudiantes) * 100, 1)
+                : 0;
+
+            // Retención académica: porcentaje de estudiantes que no abandonan
+            $tasaRetencion = round(100 - $tasaAbandono, 1);
 
             return [
-                'estudiantes_matriculados' => $matriculados,
+                'estudiantes_matriculados' => $totalEstudiantes > 0 ? $totalEstudiantes : $matriculados,
+                'total_matriculas' => $matriculados,
                 'tasa_retencion' => $tasaRetencion,
+                'tasa_recurrencia' => $tasaRecurrencia,
                 'tasa_abandono' => $tasaAbandono,
             ];
         });
@@ -153,34 +170,39 @@ class EstadisticasService
     public function distribucionCategorias(): array
     {
         return Cache::remember($this->cacheKey('dist_cat'), now()->addMinutes(15), function () {
-            $ingresosTotales = (float) TransaccionIngreso::where('fecha_pago', '>=', $this->desde)
+            $txs = TransaccionIngreso::with([
+                    'cuentaPorCobrar.matricula.cursoAbierto',
+                    'lineaPagoModulo.matricula.cursoAbierto',
+                ])
+                ->where('fecha_pago', '>=', $this->desde)
                 ->where('fecha_pago', '<=', $this->rangoHasta())
                 ->where('estado_verificacion', 'aprobado')
-                ->sum('monto');
+                ->get();
 
-            return TransaccionIngreso::where('fecha_pago', '>=', $this->desde)
-                ->where('fecha_pago', '<=', $this->rangoHasta())
-                ->where('estado_verificacion', 'aprobado')
-                ->whereHas('cuentaPorCobrar')
-                ->get()
-                ->groupBy(function ($t) {
-                    $cp = $t->cuentaPorCobrar;
-                    if ($cp?->matricula_id || $t->linea_pago_modulo_id) return 'Cursos';
-                    if ($cp?->inscripcion_taller_id) return 'Talleres';
-                    if ($cp?->reserva_podcast_id) return 'Podcast';
-                    if ($cp?->reserva_aula_id) return 'Aulas';
-                    if ($cp?->reserva_radio_id) return 'Radio';
-                    if ($cp?->alquiler_equipo_id) return 'Equipos';
-                    if ($cp?->edicion_video_id) return 'Edición';
-                    return 'Otros';
-                })->map(function ($g, $k) use ($ingresosTotales) {
-                    $total = (float) $g->sum('monto');
-                    return [
-                        'name' => $k,
-                        'value' => $total,
-                        'porcentaje' => $ingresosTotales > 0 ? round($total / $ingresosTotales * 100, 1) : 0,
-                    ];
-                })->sortByDesc('value')->values()->toArray();
+            $ingresosTotales = (float) $txs->sum('monto');
+
+            return $txs->groupBy(function ($t) {
+                $cp = $t->cuentaPorCobrar;
+                $curso = $cp?->matricula?->cursoAbierto
+                    ?? $t->lineaPagoModulo?->matricula?->cursoAbierto;
+
+                if ($curso?->es_personalizado) return 'Cursos personalizados';
+                if ($t->linea_pago_modulo_id || $cp?->matricula_id) return 'Cursos';
+                if ($cp?->inscripcion_taller_id) return 'Talleres';
+                if ($cp?->reserva_podcast_id) return 'Podcast';
+                if ($cp?->reserva_aula_id) return 'Aulas';
+                if ($cp?->reserva_radio_id) return 'Radio';
+                if ($cp?->alquiler_equipo_id) return 'Equipos';
+                if ($cp?->edicion_video_id) return 'Edición';
+                return 'Otros';
+            })->map(function ($g, $k) use ($ingresosTotales) {
+                $total = (float) $g->sum('monto');
+                return [
+                    'name' => $k,
+                    'value' => round($total, 2),
+                    'porcentaje' => $ingresosTotales > 0 ? round($total / $ingresosTotales * 100, 1) : 0,
+                ];
+            })->sortByDesc('value')->values()->toArray();
         });
     }
 
@@ -255,8 +277,9 @@ class EstadisticasService
 
                     $cursoIds = $c->cursosAbiertos->pluck('id')->toArray();
                     $ingreso = !empty($cursoIds)
-                        ? (float) TransaccionIngreso::whereHas('cuentaPorCobrar', function ($q) use ($cursoIds) {
-                            $q->whereHas('matricula', fn($mq) => $mq->whereIn('curso_abierto_id', $cursoIds));
+                        ? (float) TransaccionIngreso::where(function ($q) use ($cursoIds) {
+                            $q->whereHas('cuentaPorCobrar', fn($cq) => $cq->whereHas('matricula', fn($mq) => $mq->whereIn('curso_abierto_id', $cursoIds)))
+                              ->orWhereHas('lineaPagoModulo.matricula', fn($mq) => $mq->whereIn('curso_abierto_id', $cursoIds));
                         })->where('fecha_pago', '>=', $this->desde)
                           ->where('fecha_pago', '<=', $this->rangoHasta())
                           ->where('estado_verificacion', 'aprobado')
@@ -302,8 +325,9 @@ class EstadisticasService
                         ->toArray();
 
                     $ingresos = !empty($cursoIds)
-                        ? (float) TransaccionIngreso::whereHas('cuentaPorCobrar', function ($q) use ($cursoIds) {
-                            $q->whereHas('matricula', fn($mq) => $mq->whereIn('curso_abierto_id', $cursoIds));
+                        ? (float) TransaccionIngreso::where(function ($q) use ($cursoIds) {
+                            $q->whereHas('cuentaPorCobrar', fn($cq) => $cq->whereHas('matricula', fn($mq) => $mq->whereIn('curso_abierto_id', $cursoIds)))
+                              ->orWhereHas('lineaPagoModulo.matricula', fn($mq) => $mq->whereIn('curso_abierto_id', $cursoIds));
                         })->where('fecha_pago', '>=', $this->desde)
                           ->where('fecha_pago', '<=', $this->rangoHasta())
                           ->where('estado_verificacion', 'aprobado')
@@ -401,17 +425,23 @@ class EstadisticasService
             $top = TransaccionIngreso::where('fecha_pago', '>=', $this->desde)
                 ->where('fecha_pago', '<=', $this->rangoHasta())
                 ->where('estado_verificacion', 'aprobado')
-                ->whereHas('cuentaPorCobrar')
+                ->where(function ($q) {
+                    $q->whereHas('cuentaPorCobrar')
+                      ->orWhereHas('lineaPagoModulo');
+                })
+                ->with(['cuentaPorCobrar.matricula', 'cuentaPorCobrar.solicitudInscripcion', 'lineaPagoModulo.matricula'])
                 ->get()
                 ->groupBy(function ($t) {
                     $cp = $t->cuentaPorCobrar;
+                    $lpm = $t->lineaPagoModulo;
                     return $cp?->matricula?->estudiante_id
+                        ?? $lpm?->matricula?->estudiante_id
                         ?? $cp?->solicitudInscripcion?->persona_id
                         ?? 'otro';
                 })
-                ->map(function ($g) {
+                ->map(function ($g, $key) {
                     return [
-                        'id' => $g->first()->cuentaPorCobrar?->matricula?->estudiante_id ?? '',
+                        'id' => $key !== 'otro' ? $key : '',
                         'total' => round((float) $g->sum('monto'), 2),
                     ];
                 })
@@ -617,8 +647,10 @@ class EstadisticasService
         $ofertas = [];
         foreach ($cursos as $curso) {
             $ingresoCurso = !empty($cursoIds)
-                ? (float) TransaccionIngreso::whereHas('cuentaPorCobrar', function ($q) use ($curso) {
-                    $q->whereHas('matricula', fn($mq) => $mq->where('curso_abierto_id', $curso->id));
+                ? (float) TransaccionIngreso::where(function ($query) use ($curso) {
+                    $query->whereHas('cuentaPorCobrar', function ($q) use ($curso) {
+                        $q->whereHas('matricula', fn($mq) => $mq->where('curso_abierto_id', $curso->id));
+                    })->orWhereHas('lineaPagoModulo.matricula', fn($mq) => $mq->where('curso_abierto_id', $curso->id));
                 })->where('fecha_pago', '>=', $this->desde)
                   ->where('fecha_pago', '<=', $this->rangoHasta())
                   ->where('estado_verificacion', 'aprobado')
@@ -681,8 +713,10 @@ class EstadisticasService
             $inicio = date('Y-m-01', strtotime("-{$i} months"));
             $fin = date('Y-m-t', strtotime("-{$i} months"));
 
-            $ingresos = (float) TransaccionIngreso::whereHas('cuentaPorCobrar', function ($q) use ($cursoIds) {
-                $q->whereHas('matricula', fn($mq) => $mq->whereIn('curso_abierto_id', $cursoIds));
+            $ingresos = (float) TransaccionIngreso::where(function ($query) use ($cursoIds) {
+                $query->whereHas('cuentaPorCobrar', function ($q) use ($cursoIds) {
+                    $q->whereHas('matricula', fn($mq) => $mq->whereIn('curso_abierto_id', $cursoIds));
+                })->orWhereHas('lineaPagoModulo.matricula', fn($mq) => $mq->whereIn('curso_abierto_id', $cursoIds));
             })->where('fecha_pago', '>=', $inicio)
               ->where('fecha_pago', '<=', $fin . ' 23:59:59')
               ->where('estado_verificacion', 'aprobado')
@@ -726,16 +760,22 @@ class EstadisticasService
         $persona = Persona::findOrFail($estudianteId);
 
         $historialCursos = Matricula::where('estudiante_id', $estudianteId)
-            ->with(['cursoAbierto.catalogo', 'cuentaPorCobrar.transacciones'])
+            ->with(['cursoAbierto.catalogo', 'cuentaPorCobrar.transacciones', 'lineasPago.transacciones'])
             ->whereBetween('fecha_inscripcion', [$this->desde, $this->rangoHasta()])
             ->get()
             ->map(function ($m) {
-                $montoTotal = $m->cuentaPorCobrar?->monto_total ?? $m->precio_total_legacy ?? 0;
-                $montoPagado = $m->cuentaPorCobrar
+                $montoTotal = $m->cuentaPorCobrar?->monto_total ?? $m->precio_total ?? $m->precio_total_legacy ?? 0;
+                $montoPagadoCp = $m->cuentaPorCobrar
                     ? (float) $m->cuentaPorCobrar->transacciones
                         ->where('estado_verificacion', 'aprobado')
                         ->sum('monto')
                     : 0;
+                $montoPagadoLpm = $m->lineasPago
+                    ? (float) $m->lineasPago->flatMap->transacciones
+                        ->where('estado_verificacion', 'aprobado')
+                        ->sum('monto')
+                    : 0;
+                $montoPagado = $montoPagadoCp + $montoPagadoLpm;
 
                 return [
                     'id' => $m->id,
@@ -747,8 +787,10 @@ class EstadisticasService
                 ];
             })->values()->toArray();
 
-        $historialPagos = TransaccionIngreso::whereHas('cuentaPorCobrar', function ($q) use ($estudianteId) {
-            $q->whereHas('matricula', fn($mq) => $mq->where('estudiante_id', $estudianteId));
+        $historialPagos = TransaccionIngreso::where(function ($query) use ($estudianteId) {
+            $query->whereHas('cuentaPorCobrar', function ($q) use ($estudianteId) {
+                $q->whereHas('matricula', fn($mq) => $mq->where('estudiante_id', $estudianteId));
+            })->orWhereHas('lineaPagoModulo.matricula', fn($mq) => $mq->where('estudiante_id', $estudianteId));
         })->where('fecha_pago', '>=', $this->desde)
           ->where('fecha_pago', '<=', $this->rangoHasta())
           ->where('estado_verificacion', 'aprobado')

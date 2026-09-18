@@ -1,7 +1,7 @@
 <div class="pdf-header">
     <div class="pdf-header-main">
         <h1>{{ $titulo }}</h1>
-        <p class="pdf-subtitle">del {{ $fechaInicio }} al {{ $fechaFin }}</p>
+        <p class="pdf-subtitle">Agenda del {{ $fechaInicio }} al {{ $fechaFin }}</p>
     </div>
     <div class="pdf-legend">
         @foreach ($leyenda as $tipo => $info)
