@@ -90,11 +90,12 @@ class RegistrationStateService
         string $metodoPago = 'efectivo',
         ?float $precioInscripcion = null,
         float $inscripcionCubierta = 0,
-        ?string $motivoAjuste = null
+        ?string $motivoAjuste = null,
+        bool $sinRegistroFinanciero = false
     ): array
     {
         try {
-            return DB::transaction(function () use ($solicitud, $validadorId, $observaciones, $pagos, $metodoPago, $precioInscripcion, $inscripcionCubierta, $motivoAjuste) {
+            return DB::transaction(function () use ($solicitud, $validadorId, $observaciones, $pagos, $metodoPago, $precioInscripcion, $inscripcionCubierta, $motivoAjuste, $sinRegistroFinanciero) {
                 // Bloquear la solicitud para evitar aprobaciones concurrentes simultáneas
                 $solicitudLocked = SolicitudInscripcion::where('id', $solicitud->id)->lockForUpdate()->first();
                 if (!$solicitudLocked || $solicitudLocked->estado !== SolicitudInscripcion::ESTADO_PENDIENTE_VALIDACION) {
@@ -214,7 +215,7 @@ class RegistrationStateService
                 // Los cursos personalizados se liquidan únicamente mediante la
                 // línea global de inscripción; los cursos normales conservan sus
                 // líneas financieras por módulo.
-                $lineasPago = $esCursoPersonalizado
+                $lineasPago = ($sinRegistroFinanciero && ! $esCursoPersonalizado) || $esCursoPersonalizado
                     ? []
                     : $this->crearLineasPagoModulo($solicitud, $matricula);
                 $lineasPagoIds = collect($lineasPago)->pluck('id')->toArray();
@@ -245,12 +246,14 @@ class RegistrationStateService
                     $todosLineasPago->push($inscripcionLinea);
                 }
                 $montoTotal = $todosLineasPago->sum('monto_ajustado');
-                $cuentaCobrar = CuentaPorCobrar::create([
-                    'matricula_id' => $matricula->id,
-                    'monto_total' => $montoTotal,
-                    'monto_abonado' => 0,
-                    'estado' => $montoTotal > 0 ? CuentaPorCobrar::ESTADO_PENDIENTE : CuentaPorCobrar::ESTADO_PAGADO,
-                ]);
+                $cuentaCobrar = $montoTotal > 0
+                    ? CuentaPorCobrar::create([
+                        'matricula_id' => $matricula->id,
+                        'monto_total' => $montoTotal,
+                        'monto_abonado' => 0,
+                        'estado' => CuentaPorCobrar::ESTADO_PENDIENTE,
+                    ])
+                    : null;
 
                 $solicitud->estado = SolicitudInscripcion::ESTADO_MATRICULA_CREADA;
                 $solicitud->save();
@@ -321,15 +324,17 @@ class RegistrationStateService
 
                 $montosActuales = $todosLineasPago->map(fn($l) => $l->refresh());
                 $montoTotalFinal = $montosActuales->sum('monto_ajustado');
-                $cuentaCobrar->update([
+                $cuentaCobrar?->update([
                     'monto_total' => $montoTotalFinal,
                 ]);
 
                 return [
                     'exito' => true,
-                    'mensaje' => 'Solicitud aprobada y pago registrado correctamente',
+                    'mensaje' => $cuentaCobrar
+                        ? 'Solicitud aprobada y pago registrado correctamente'
+                        : 'Matrícula creada sin registros financieros',
                     'matricula_id' => $matricula->id,
-                    'cuenta_cobrar_id' => $cuentaCobrar->id,
+                    'cuenta_cobrar_id' => $cuentaCobrar?->id,
                     'lineas_pago_ids' => $lineasPagoIds,
                     'requiere_pago_inicial' => count($lineasPago) > 0,
                 ];
@@ -524,6 +529,11 @@ class RegistrationStateService
         $modulos = $solicitud->cursoAbierto->modulos()->orderBy('numero_orden')->get();
 
         if ($modulos->isEmpty()) {
+            return [];
+        }
+
+        // Cursos sin valor económico no generan filas financieras vacías.
+        if ($modulos->sum(fn ($modulo) => (float) ($modulo->precio_base ?? 0)) <= 0) {
             return [];
         }
 

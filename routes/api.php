@@ -100,7 +100,7 @@ use Illuminate\Support\Facades\Route;
         ->name('public.catalogo-cursos.index');
 
     // Cursos abiertos (público, solo lectura para matrícula)
-    Route::get('cursos-abiertos', [CursoAbiertoController::class, 'index'])
+    Route::get('cursos-abiertos', [CursoAbiertoController::class, 'disponibles'])
         ->name('public.cursos-abiertos.index');
 
     // Talleres (público, solo lectura para matrícula)

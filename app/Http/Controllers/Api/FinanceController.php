@@ -854,6 +854,12 @@ class FinanceController extends Controller
     {
         $response = DB::transaction(function () use ($request) {
             $resultados = [];
+            // Un pago único puede cubrir varias líneas (módulos/matrícula).
+            // La referencia común permite agrupar sus asignaciones sin perder
+            // el desglose contable por cada línea.
+            $referenciaPago = $request->boolean('pago_unificado')
+                ? 'pago-' . (string) \Illuminate\Support\Str::uuid()
+                : null;
 
             foreach ($request->pagos as $pago) {
                 $linea = LineaPagoModulo::whereKey($pago['linea_pago_modulo_id'])->lockForUpdate()->firstOrFail();
@@ -878,6 +884,7 @@ class FinanceController extends Controller
                     'fecha_pago' => $pago['fecha_pago'] ?? now(),
                     'comprobante_url' => $pago['comprobante_url'] ?? null,
                     'registrado_por' => auth()->user()->persona_id ?? auth()->id(),
+                    'referencia_pago' => $referenciaPago,
                     'estado_verificacion' => TransaccionIngreso::VERIFICACION_APROBADO,
                 ]);
 

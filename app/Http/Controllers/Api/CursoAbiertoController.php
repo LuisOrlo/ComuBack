@@ -19,6 +19,17 @@ use Illuminate\Support\Facades\DB;
 
 class CursoAbiertoController extends Controller
 {
+    /**
+     * Lista para matrícula pública: cursos futuros de cualquier fecha y cursos
+     * que iniciaron dentro de los últimos siete días.
+     */
+    public function disponibles(Request $request)
+    {
+        $request->merge(['dias_desde_inicio' => 7]);
+
+        return $this->index($request);
+    }
+
     public function index(Request $request)
     {
         $query = CursoAbierto::with([
@@ -60,9 +71,13 @@ class CursoAbiertoController extends Controller
 
         if ($request->filled('dias_desde_inicio') && is_numeric($request->dias_desde_inicio)) {
             $dias = max(0, (int) $request->dias_desde_inicio);
-            $query->where('fecha_inicio', '>', now()->subDays($dias));
+            $query->whereDate('fecha_inicio', '>=', now()->subDays($dias)->toDateString());
         } elseif ($request->filled('no_iniciados') && $request->no_iniciados == 'true') {
             $query->where('fecha_inicio', '>', now());
+        }
+
+        if ($request->boolean('historicos')) {
+            $query->whereDate('fecha_inicio', '<', now()->subDays(7)->toDateString());
         }
 
         if ($request->filled('modalidad')) {
@@ -466,7 +481,7 @@ class CursoAbiertoController extends Controller
         $curso = CursoAbierto::findOrFail($id);
         $buscar = trim((string) request('buscar', ''));
         $matriculas = $curso->matriculas()
-            ->with(['estudiante.perfilEstudiante', 'solicitudInscripcion.estudiante.perfilEstudiante', 'solicitudInscripcion.participanteExterno', 'notas'])
+            ->with(['estudiante.perfilEstudiante', 'solicitudInscripcion.estudiante.perfilEstudiante', 'solicitudInscripcion.participanteExterno', 'notas.modulo'])
             ->when($buscar !== '', function ($query) use ($buscar) {
                 $like = "%{$buscar}%";
                 $query->where(function ($q) use ($like) {

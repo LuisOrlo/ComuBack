@@ -84,9 +84,10 @@ class MatriculaController extends Controller
             // Cargar el curso abierto y sus módulos para estructurar las cuentas y líneas financieras
             $curso = CursoAbierto::with('modulos')->findOrFail($matricula->curso_abierto_id);
             $modulos = $curso->modulos()->orderBy('numero_orden')->get();
+            $totalConfigurado = $modulos->sum(fn ($modulo) => (float) ($modulo->precio_base ?? 0));
 
             $lineas = [];
-            foreach ($modulos as $i => $modulo) {
+            foreach ($totalConfigurado > 0 ? $modulos : [] as $i => $modulo) {
                 $precioBase = (float) ($modulo->precio_base ?? 0);
                 $lineas[] = LineaPagoModulo::create([
                     'matricula_id' => $matricula->id,
@@ -104,13 +105,13 @@ class MatriculaController extends Controller
                 $montoTotal = (float) $curso->precio_base;
             }
 
-            $cuenta = CuentaPorCobrar::create([
+            $cuenta = $montoTotal > 0 ? CuentaPorCobrar::create([
                 'matricula_id' => $matricula->id,
                 'monto_total' => $montoTotal,
                 'monto_abonado' => 0,
-                'estado' => $montoTotal > 0 ? CuentaPorCobrar::ESTADO_PENDIENTE : CuentaPorCobrar::ESTADO_PAGADO,
+                'estado' => CuentaPorCobrar::ESTADO_PENDIENTE,
                 'es_legacy' => false,
-            ]);
+            ]) : null;
 
             $curso->increment('estudiantes_inscritos');
 
@@ -118,7 +119,7 @@ class MatriculaController extends Controller
 
             Log::channel('audit')->info('matricula.creada', [
                 'matricula_id' => $matricula->id,
-                'cuenta_cobrar_id' => $cuenta->id,
+                'cuenta_cobrar_id' => $cuenta?->id,
                 'usuario_id' => auth()->id(),
                 'ip' => $request->ip(),
             ]);
@@ -216,7 +217,8 @@ class MatriculaController extends Controller
             'curso_abierto_id' => 'required|uuid|exists:pgsql.academic.cursos_abiertos,id',
             'pagos' => 'nullable|array',
             'pago_inicial' => 'nullable|numeric|min:0',
-            'metodo_pago' => 'required|string|in:efectivo,transferencia,deposito,tarjeta,otro',
+            'metodo_pago' => 'nullable|string|in:efectivo,transferencia,deposito,tarjeta,otro',
+            'sin_registro_financiero' => 'sometimes|boolean',
             'archivo_comprobante_url' => 'nullable|string|max:500',
             'archivo_cedula_url' => 'nullable|string|max:500',
         ]);
@@ -224,6 +226,7 @@ class MatriculaController extends Controller
         $curso = CursoAbierto::findOrFail($request->curso_abierto_id);
 
         if ($curso->es_personalizado) {
+            $request->validate(['metodo_pago' => 'required|string|in:efectivo,transferencia,deposito,tarjeta,otro']);
             $pagoInicial = (float) $request->input('pago_inicial', 0);
             $precio = (float) ($curso->precio_base ?? 0);
 
@@ -298,15 +301,24 @@ class MatriculaController extends Controller
             ], Response::HTTP_CREATED);
         }
 
+        $sinRegistroFinanciero = $request->boolean('sin_registro_financiero');
         $request->validate([
-            'pagos' => 'required|array|min:1',
+            'pagos' => $sinRegistroFinanciero ? 'nullable|array|size:0' : 'required|array|min:1',
             'pagos.*.modulo_id' => 'required|uuid|exists:pgsql.academic.modulos,id',
             'pagos.*.monto' => 'required|numeric|min:0.01',
             'pagos.*.monto_ajustado' => 'nullable|numeric|min:0',
             'pagos.*.motivo_ajuste' => 'nullable|string|max:255',
         ]);
+        if (! $sinRegistroFinanciero) {
+            $request->validate(['metodo_pago' => 'required|string|in:efectivo,transferencia,deposito,tarjeta,otro']);
+            if ($curso->modulos()->sum('precio_base') <= 0) {
+                return response()->json([
+                    'mensaje' => 'Este curso no tiene importes financieros configurados. Registra la matrícula sin movimientos financieros.',
+                ], Response::HTTP_UNPROCESSABLE_ENTITY);
+            }
+        }
 
-        $solicitud = DB::transaction(function () use ($request, $curso) {
+        $solicitud = DB::transaction(function () use ($request, $curso, $sinRegistroFinanciero) {
             // El estudiante debe bloquearse antes de insertar la solicitud y
             // antes de bloquear la oferta para mantener un orden consistente.
             Persona::whereKey($request->estudiante_id)->lockForUpdate()->firstOrFail();
@@ -314,8 +326,8 @@ class MatriculaController extends Controller
             $solicitud = SolicitudInscripcion::create([
                 'persona_id' => $request->estudiante_id,
                 'curso_abierto_id' => $request->curso_abierto_id,
-                'monto_solicitado' => collect($request->pagos)->sum('monto'),
-                'tipo_pago' => count($request->pagos) > 1 || $request->pagos[0]['monto'] < ($curso->precio_base ?? 0) ? 'abono' : 'completo',
+                'monto_solicitado' => collect($request->input('pagos', []))->sum('monto'),
+                'tipo_pago' => ! $sinRegistroFinanciero && (collect($request->input('pagos', []))->count() > 1 || collect($request->input('pagos', []))->sum('monto') < ($curso->precio_base ?? 0)) ? 'abono' : 'completo',
                 'estado' => 'pendiente_validacion',
                 'es_participante_externo' => false,
                 'archivo_comprobante_url' => $request->archivo_comprobante_url,
@@ -327,8 +339,12 @@ class MatriculaController extends Controller
                 $solicitud,
                 auth()->user()->persona_id ?? null,
                 null,
-                $request->pagos,
-                $request->metodo_pago
+                $request->input('pagos', []),
+                $request->input('metodo_pago', 'otro'),
+                null,
+                0,
+                null,
+                $sinRegistroFinanciero
             );
 
             if (!$resultado['exito']) {
