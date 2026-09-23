@@ -64,8 +64,6 @@ class InscripcionTallerController extends Controller
             'estado',
             'pago_verificado',
             'fecha_inscripcion',
-            'observaciones',
-            'created_at',
         ])->with([
             'taller:id,nombre,modalidad,ciudad_id',
             'taller.ciudad:id,nombre',

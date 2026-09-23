@@ -82,6 +82,50 @@ class EstudianteIndependienteTest extends TestCase
         $this->assertSame(1, Persona::where('cedula', '1712345678')->count());
     }
 
+    public function test_rechaza_una_cedula_con_formato_equivalente_sin_crear_otro_perfil(): void
+    {
+        $persona = Persona::create([
+            'tipo' => 'estudiante',
+            'cedula' => '176-546-5465',
+            'nombres' => 'Persona',
+            'apellidos' => 'Formateada',
+        ]);
+        PerfilEstudiante::create(['persona_id' => $persona->id]);
+
+        $response = $this->authenticatedPost('/api/personas/estudiantes', [
+            'nombres' => 'Otro',
+            'apellidos' => 'Registro',
+            'cedula' => '1765465465',
+        ]);
+
+        $response->assertConflict()
+            ->assertJsonPath('estudiante_id', $persona->id);
+        $this->assertSame(1, Persona::whereRaw("regexp_replace(cedula, '[[:space:]-]', '', 'g') = ?", ['1765465465'])->count());
+        $this->assertDatabaseCount('people.perfil_estudiante', 1);
+    }
+
+    public function test_deja_las_reglas_de_experiencia_del_formulario_al_frontend(): void
+    {
+        $response = $this->authenticatedPost('/api/personas/estudiantes', [
+            'nombres' => 'A1',
+            'apellidos' => 'B',
+            'cedula' => '1765465466',
+            'correo' => 'no-es-un-correo',
+            'celular' => '9',
+            'edad' => 999,
+            'nivel_educativo' => 'valor-no-listado',
+        ]);
+
+        $response->assertCreated();
+        $this->assertDatabaseHas('people.personas', [
+            'cedula' => '1765465466',
+            'nombres' => 'A1',
+            'apellidos' => 'B',
+            'correo' => 'no-es-un-correo',
+            'celular' => '9',
+        ]);
+    }
+
     public function test_reutiliza_persona_estudiante_sin_perfil(): void
     {
         $persona = Persona::create([

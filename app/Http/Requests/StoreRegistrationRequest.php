@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Models\Persona;
 use Illuminate\Foundation\Http\FormRequest;
 
 class StoreRegistrationRequest extends FormRequest
@@ -27,11 +28,12 @@ class StoreRegistrationRequest extends FormRequest
             'persona_id' => 'nullable|uuid|exists:personas,id',
             
             // Solicitante: datos de participante externo (si no tiene persona_id)
-            'nombres' => 'required_without:persona_id|string|max:100|min:2',
-            'apellidos' => 'required_without:persona_id|string|max:100|min:2',
-            'correo' => 'required_without:persona_id|email|max:150',
+            'nombres' => ['nullable', 'required_without:persona_id', 'string', 'max:100', 'min:2'],
+            'apellidos' => ['nullable', 'required_without:persona_id', 'string', 'max:100', 'min:2'],
+            'correo' => ['nullable', 'required_without:persona_id', 'email', 'max:150'],
             'tipo_id' => 'required_without:persona_id|in:cedula,dni',
             'cedula' => [
+                'nullable',
                 'required_without:persona_id',
                 'string',
                 'max:20',
@@ -47,7 +49,7 @@ class StoreRegistrationRequest extends FormRequest
                     }
                 },
             ],
-            'celular' => 'required_without:persona_id|string|max:20',
+            'celular' => ['nullable', 'required_without:persona_id', 'string', 'max:20'],
             'ocupacion' => 'nullable|string|max:100',
             'direccion' => 'nullable|string|max:1000',
             'ciudad' => 'nullable|string|max:100',
@@ -144,13 +146,26 @@ class StoreRegistrationRequest extends FormRequest
         // Si es estudiante registrado, limpiar campos de datos personales
         // (solo los que identificarían/crearían un ClienteExterno duplicado)
         if ($this->has('persona_id') && !empty($this->persona_id)) {
-            $this->merge([
+            $datosPersona = Persona::query()
+                ->whereKey($this->persona_id)
+                ->first(['cedula_photo_url']);
+
+            $datos = [
                 'correo' => null,
                 'nombres' => null,
                 'apellidos' => null,
                 'cedula' => null,
                 'celular' => null,
-            ]);
+            ];
+
+            // El documento ya fue almacenado en Persona por el primer paso
+            // administrativo. Reutilizar la referencia existente evita exigir
+            // o duplicar la carga en POST /api/registrations.
+            if ($datosPersona?->cedula_photo_url) {
+                $datos['archivo_cedula_url'] = $datosPersona->cedula_photo_url;
+            }
+
+            $this->merge($datos);
         }
     }
 }

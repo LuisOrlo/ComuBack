@@ -132,7 +132,21 @@ class CertificadoController extends Controller
             ->whereNull('deleted_at')
             ->first();
 
-        if (!$matricula || !$matricula->solicitud_inscripcion_id) {
+        if (!$matricula) {
+            return null;
+        }
+
+        if ($matricula->estudiante_id) {
+            $persona = Persona::find($matricula->estudiante_id);
+            if ($persona) {
+                return [
+                    'persona_id' => $persona->id,
+                    'curso_abierto_id' => $matricula->curso_abierto_id,
+                ];
+            }
+        }
+
+        if (!$matricula->solicitud_inscripcion_id) {
             return null;
         }
 
@@ -310,10 +324,16 @@ class CertificadoController extends Controller
                 $join->on('academic.matriculas.solicitud_inscripcion_id', '=', 'academic.solicitudes_inscripcion.id')
                      ->whereNull('academic.solicitudes_inscripcion.deleted_at');
             })
-            ->leftJoin('people.personas', 'academic.solicitudes_inscripcion.persona_id', '=', 'people.personas.id')
+            ->leftJoin('people.personas', function ($join) {
+                $join->on(
+                    'people.personas.id',
+                    '=',
+                    DB::raw('COALESCE(academic.matriculas.estudiante_id, academic.solicitudes_inscripcion.persona_id)')
+                );
+            })
             ->leftJoin('people.clientes_externos', 'academic.solicitudes_inscripcion.participante_externo_id', '=', 'people.clientes_externos.id')
             ->leftJoin('academic.certificados', function ($join) {
-                $join->on('academic.certificados.estudiante_id', '=', 'people.personas.id')
+                $join->on('academic.certificados.estudiante_id', '=', DB::raw('COALESCE(people.personas.id, people.clientes_externos.id)'))
                      ->on('academic.certificados.curso_abierto_id', '=', 'academic.matriculas.curso_abierto_id')
                      ->whereNull('academic.certificados.deleted_at');
             })

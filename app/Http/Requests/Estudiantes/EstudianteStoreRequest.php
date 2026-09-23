@@ -14,36 +14,40 @@ class EstudianteStoreRequest extends FormRequest
     public function rules(): array
     {
         return [
-            // La cédula se valida contra Persona dentro de la transacción del
-            // controlador para poder reutilizar una Persona estudiante sin perfil.
-            'cedula' => ['nullable', 'string', 'regex:/^\d{10}$/'],
-            'nombres' => ['required', 'string', 'max:100', 'regex:/^[\pL]+(?:[ \'-][\pL]+)*$/u'],
-            'apellidos' => ['required', 'string', 'max:100', 'regex:/^[\pL]+(?:[ \'-][\pL]+)*$/u'],
-            'correo' => ['nullable', 'email', 'max:150'],
-            'celular' => ['nullable', 'string', 'regex:/^\d{10}$/'],
-            'ciudad_id' => ['nullable', 'exists:pgsql.core.ciudades,id'],
-            'ciudad' => ['nullable', 'string', 'max:100'],
+            // La cédula se normaliza y se compara contra Persona dentro de la
+            // transacción del controlador. El frontend es responsable de las
+            // reglas de formato y experiencia del formulario.
+            'cedula' => ['nullable', 'string'],
+            'nombres' => ['nullable'],
+            'apellidos' => ['nullable'],
+            'correo' => ['nullable'],
+            'celular' => ['nullable'],
+            'ciudad_id' => ['nullable'],
+            'ciudad' => ['nullable'],
             'archivo_cedula' => ['nullable', 'file', 'image', 'mimes:jpeg,png,jpg,webp', 'max:5120'],
-            'notas_internas' => ['nullable', 'string'],
-            'ocupacion' => ['nullable', 'string', 'max:100'],
-            'direccion' => ['nullable', 'string', 'max:1000'],
-            'estado_civil' => ['nullable', 'string', 'max:20'],
-            'edad' => ['nullable', 'integer', 'min:0', 'max:150'],
-            'nivel_educativo' => ['nullable', 'string', 'in:educacion inicial,general basica,bachillerato,tecnico/tecnologico,superior,otro'],
+            'notas_internas' => ['nullable'],
+            'ocupacion' => ['nullable'],
+            'direccion' => ['nullable'],
+            'estado_civil' => ['nullable'],
+            'edad' => ['nullable'],
+            'nivel_educativo' => ['nullable'],
         ];
     }
 
     public function messages(): array
     {
         return [
-            'nombres.required' => 'Los nombres son obligatorios.',
-            'apellidos.required' => 'Los apellidos son obligatorios.',
-            'correo.email' => 'El correo debe ser una dirección válida.',
-            'cedula.regex' => 'La cédula debe contener exactamente 10 dígitos.',
-            'celular.regex' => 'El celular debe contener exactamente 10 dígitos.',
-            'nombres.regex' => 'Los nombres solo pueden contener letras, espacios, guiones o apóstrofes.',
-            'apellidos.regex' => 'Los apellidos solo pueden contener letras, espacios, guiones o apóstrofes.',
-            'ciudad_id.exists' => 'La ciudad seleccionada no existe.',
+            'cedula.string' => 'La cédula debe recibirse como texto.',
         ];
+    }
+
+    protected function prepareForValidation(): void
+    {
+        if ($this->has('cedula') && is_string($this->input('cedula'))) {
+            $cedula = trim($this->input('cedula'));
+            $cedula = preg_replace('/[\s-]+/u', '', $cedula) ?? $cedula;
+
+            $this->merge(['cedula' => $cedula !== '' ? $cedula : null]);
+        }
     }
 }

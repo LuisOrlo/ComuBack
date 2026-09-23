@@ -758,7 +758,7 @@ class EstudianteController extends Controller
 
                 if (!empty($datos['cedula'])) {
                     $persona = Persona::withTrashed()
-                        ->where('cedula', $datos['cedula'])
+                        ->whereRaw("regexp_replace(cedula, '[[:space:]-]', '', 'g') = ?", [$datos['cedula']])
                         ->lockForUpdate()
                         ->first();
 
@@ -823,7 +823,7 @@ class EstudianteController extends Controller
                 $estudianteExistente = !empty($datos['cedula'])
                     ? Persona::query()
                         ->estudiantes()
-                        ->where('cedula', $datos['cedula'])
+                        ->whereRaw("regexp_replace(cedula, '[[:space:]-]', '', 'g') = ?", [$datos['cedula']])
                         ->whereHas('perfilEstudiante')
                         ->value('id')
                     : null;

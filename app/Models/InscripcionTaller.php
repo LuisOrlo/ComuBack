@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class InscripcionTaller extends Model
 {
@@ -55,6 +56,15 @@ class InscripcionTaller extends Model
     public function taller(): BelongsTo
     {
         return $this->belongsTo(Taller::class, 'taller_id');
+    }
+
+    /**
+     * Cuenta financiera asociada a esta inscripción.
+     * La FK real está en finance.cuentas_por_cobrar.inscripcion_taller_id.
+     */
+    public function cuentaPorCobrar(): HasOne
+    {
+        return $this->hasOne(CuentaPorCobrar::class, 'inscripcion_taller_id', 'id');
     }
 
     public function scopeActivos($query)

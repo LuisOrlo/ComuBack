@@ -53,6 +53,7 @@ use App\Http\Controllers\Api\SecretariaFinanceController;
 use App\Http\Controllers\Api\AgendaController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\TareaStaffController;
+use App\Http\Controllers\Imports\StudentImportController;
 use Illuminate\Support\Facades\Route;
 
 
@@ -183,6 +184,13 @@ use Illuminate\Support\Facades\Route;
         Route::put('{estudiante}', [EstudianteController::class, 'update'])->name('estudiantes.update');
         Route::delete('{estudiante}', [EstudianteController::class, 'destroy'])->name('estudiantes.destroy');
     });
+
+    Route::middleware(['auth:sanctum', 'role:Administrador|Secretaria'])
+        ->prefix('imports/students')
+        ->group(function () {
+            Route::post('preview', [StudentImportController::class, 'preview'])->name('imports.students.preview');
+            Route::post('execute', [StudentImportController::class, 'execute'])->name('imports.students.execute');
+        });
 
     // ========================================================================
     // ACADEMIC MODULE - CURSOS REGULARES (FASE 3)
@@ -348,6 +356,7 @@ use Illuminate\Support\Facades\Route;
         Route::prefix('servicios/reservas-aulas')->group(function () {
             Route::get('/', [ReservaAulaController::class, 'index'])->name('reservas-aulas.index');
             Route::post('/', [ReservaAulaController::class, 'store'])->name('reservas-aulas.store');
+            Route::post('lote', [ReservaAulaController::class, 'storeBatch'])->name('reservas-aulas.store-batch');
             Route::get('{id}', [ReservaAulaController::class, 'show'])->name('reservas-aulas.show');
             Route::put('{id}', [ReservaAulaController::class, 'update'])->name('reservas-aulas.update');
             Route::delete('{id}', [ReservaAulaController::class, 'destroy'])->name('reservas-aulas.destroy');
@@ -402,6 +411,7 @@ use Illuminate\Support\Facades\Route;
         Route::prefix('servicios/reservas-podcast')->group(function () {
             Route::get('/', [ReservaPodcastController::class, 'index'])->name('reservas-podcast.index');
             Route::post('/', [ReservaPodcastController::class, 'store'])->name('reservas-podcast.store');
+            Route::post('lote', [ReservaPodcastController::class, 'storeBatch'])->name('reservas-podcast.store-batch');
             Route::get('{id}', [ReservaPodcastController::class, 'show'])->name('reservas-podcast.show');
             Route::put('{id}', [ReservaPodcastController::class, 'update'])->name('reservas-podcast.update');
             Route::delete('{id}', [ReservaPodcastController::class, 'destroy'])->name('reservas-podcast.destroy');
@@ -432,6 +442,7 @@ use Illuminate\Support\Facades\Route;
         Route::prefix('servicios/reservas-radio')->group(function () {
             Route::get('/', [ReservaRadioController::class, 'index'])->name('reservas-radio.index');
             Route::post('/', [ReservaRadioController::class, 'store'])->name('reservas-radio.store');
+            Route::post('lote', [ReservaRadioController::class, 'storeBatch'])->name('reservas-radio.store-batch');
             Route::get('disponibles', [ReservaRadioController::class, 'disponibles'])->name('reservas-radio.disponibles');
             Route::get('historial', [ReservaRadioController::class, 'historial'])->name('reservas-radio.historial');
             Route::get('{id}', [ReservaRadioController::class, 'show'])->name('reservas-radio.show');

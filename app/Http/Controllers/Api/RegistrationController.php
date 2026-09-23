@@ -95,7 +95,7 @@ class RegistrationController extends Controller
         $validacionRegistro = $this->registrationValidator->validar(
             $validated['curso_abierto_id'],
             $personaId,
-            $participanteExternoId ?? $identificadorValidacion,
+            $personaId ? null : ($participanteExternoId ?? $identificadorValidacion),
             $validated['monto_solicitado'],
             $validated['tipo_pago']
         );

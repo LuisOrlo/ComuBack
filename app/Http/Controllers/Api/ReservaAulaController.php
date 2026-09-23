@@ -133,6 +133,114 @@ class ReservaAulaController extends Controller
         ], Response::HTTP_CREATED);
     }
 
+    public function storeBatch(Request $request)
+    {
+        $validated = $request->validate([
+            'persona_id' => 'nullable|uuid|exists:personas,id',
+            'cliente_externo_id' => 'nullable|uuid|exists:clientes_externos,id',
+            'reservas' => 'required|array|min:1',
+            'reservas.*.aula_id' => 'required|uuid|exists:aulas,id',
+            'reservas.*.fecha_reserva' => 'required|date',
+            'reservas.*.hora_inicio' => 'required|date_format:H:i',
+            'reservas.*.hora_fin' => 'required|date_format:H:i|after:reservas.*.hora_inicio',
+            'reservas.*.precio_total' => 'required|numeric|min:0',
+            'reservas.*.precio_original' => 'nullable|numeric|min:0',
+            'reservas.*.monto_descuento' => 'nullable|numeric|min:0',
+            'reservas.*.motivo_descuento' => 'nullable|string|max:255',
+            'reservas.*.estado' => 'nullable|string|in:reservado,confirmado,en_progreso,completado,cancelado',
+        ]);
+
+        $this->validateBatchResponsible($validated);
+        $this->validateAulaBatchConflicts($validated['reservas']);
+
+        $created = DB::transaction(function () use ($validated) {
+            $aulaIds = collect($validated['reservas'])
+                ->pluck('aula_id')->unique()->sort()->values();
+
+            foreach ($aulaIds as $aulaId) {
+                Aula::whereKey($aulaId)->lockForUpdate()->firstOrFail();
+            }
+
+            foreach ($validated['reservas'] as $index => $item) {
+                $conflicto = ReservaAula::where('aula_id', $item['aula_id'])
+                    ->where('fecha_reserva', $item['fecha_reserva'])
+                    ->where('estado', '!=', 'cancelado')
+                    ->where('hora_inicio', '<', $item['hora_fin'])
+                    ->where('hora_fin', '>', $item['hora_inicio'])
+                    ->lockForUpdate()->exists();
+
+                if ($conflicto) {
+                    throw \Illuminate\Validation\ValidationException::withMessages([
+                        "reservas.$index.hora_inicio" => 'El aula ya está reservada en el horario seleccionado.',
+                    ]);
+                }
+            }
+
+            $result = [];
+            foreach ($validated['reservas'] as $item) {
+                $data = [
+                    'aula_id' => $item['aula_id'],
+                    'persona_id' => $validated['persona_id'] ?? null,
+                    'cliente_externo_id' => $validated['cliente_externo_id'] ?? null,
+                    'fecha_reserva' => $item['fecha_reserva'],
+                    'hora_inicio' => $item['hora_inicio'],
+                    'hora_fin' => $item['hora_fin'],
+                    'precio_total' => $item['precio_total'],
+                    'precio_original' => $item['precio_original'] ?? null,
+                    'monto_descuento' => $item['monto_descuento'] ?? 0,
+                    'motivo_descuento' => $item['motivo_descuento'] ?? null,
+                    'estado' => $item['estado'] ?? 'reservado',
+                ];
+
+                $reserva = ReservaAula::create($data);
+                CuentaPorCobrar::create([
+                    'reserva_aula_id' => $reserva->id,
+                    'monto_total' => $data['precio_total'],
+                    'monto_abonado' => 0,
+                    'estado' => CuentaPorCobrar::ESTADO_PENDIENTE,
+                    'es_legacy' => false,
+                ]);
+                $result[] = $reserva->load(['aula', 'persona', 'clienteExterno', 'cuentaPorCobrar']);
+            }
+
+            return $result;
+        });
+
+        return response()->json([
+            'message' => 'Reservas creadas exitosamente.',
+            'data' => $created,
+        ], Response::HTTP_CREATED);
+    }
+
+    private function validateBatchResponsible(array $validated): void
+    {
+        $persona = !empty($validated['persona_id']);
+        $externo = !empty($validated['cliente_externo_id']);
+
+        if ($persona === $externo) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'cliente' => [$persona ? 'Solo puede especificar un tipo de responsable, no ambos.' : 'Debe especificar un responsable (persona o cliente externo).'],
+            ]);
+        }
+    }
+
+    private function validateAulaBatchConflicts(array $reservas): void
+    {
+        foreach ($reservas as $i => $actual) {
+            foreach ($reservas as $j => $otra) {
+                if ($i >= $j || $actual['aula_id'] !== $otra['aula_id'] || $actual['fecha_reserva'] !== $otra['fecha_reserva']) {
+                    continue;
+                }
+
+                if ($actual['hora_inicio'] < $otra['hora_fin'] && $actual['hora_fin'] > $otra['hora_inicio']) {
+                    throw \Illuminate\Validation\ValidationException::withMessages([
+                        "reservas.$j.hora_inicio" => "El horario entra en conflicto con la reserva ".($i + 1)." del mismo lote.",
+                    ]);
+                }
+            }
+        }
+    }
+
     public function show($id)
     {
         $reserva = ReservaAula::with(['aula', 'persona', 'clienteExterno', 'cuentaPorCobrar'])->findOrFail($id);

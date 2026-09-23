@@ -314,9 +314,18 @@ class InstructorPortalController extends Controller
             ->orderBy('fecha_clase', 'asc')
             ->get();
 
-        // Podríamos agregar lógica para marcar si ya tienen asistencia
-        $clasesConEstado = $clases->map(function ($clase) {
-            $clase->asistencia_registrada = Asistencia::where('clase_id', $clase->id)->exists();
+        $claseIds = $clases->pluck('id')->all();
+        $asistenciasStats = Asistencia::whereIn('clase_id', $claseIds)
+            ->selectRaw('clase_id, COUNT(*) as total, SUM(CASE WHEN asistio = true THEN 1 ELSE 0 END) as presentes')
+            ->groupBy('clase_id')
+            ->get()
+            ->keyBy('clase_id');
+
+        $clasesConEstado = $clases->map(function ($clase) use ($asistenciasStats) {
+            $stat = $asistenciasStats->get($clase->id);
+            $clase->asistencia_registrada = !is_null($stat) && $stat->total > 0;
+            $clase->asistencias_presentes = $stat ? (int) $stat->presentes : 0;
+            $clase->asistencias_total = $stat ? (int) $stat->total : 0;
             return $clase;
         });
 
@@ -519,6 +528,21 @@ class InstructorPortalController extends Controller
         $diasSemana = $curso->horario?->diasSemana?->pluck('dia_semana')->toArray() ?? [];
 
         $modulos = $curso->modulos->sortBy('numero_orden')->values()->map(function ($modulo) use ($diasSemana) {
+            $clasesModulo = Clase::where('modulo_id', $modulo->id)
+                ->orderBy('fecha_clase')
+                ->orderBy('hora_inicio')
+                ->get();
+
+            if ($clasesModulo->isNotEmpty()) {
+                $fechas = $clasesModulo->map(fn($c) => $c->fecha_clase->format('Y-m-d'))->unique()->values()->all();
+                return [
+                    'nombre' => $modulo->nombre_modulo,
+                    'fechas' => $fechas,
+                    'clases' => $clasesModulo,
+                ];
+            }
+
+            // Fallback teórico solo si el módulo aún no tiene ninguna clase creada
             $fechas = [];
             if ($modulo->fecha_inicio && $modulo->fecha_fin && $diasSemana) {
                 $inicio = \Carbon\Carbon::parse($modulo->fecha_inicio);
@@ -531,38 +555,24 @@ class InstructorPortalController extends Controller
                     $fecha->addDay();
                 }
             }
-            $claseDates = Clase::where('modulo_id', $modulo->id)
-                ->orderBy('fecha_clase')
-                ->get()
-                ->pluck('fecha_clase')
-                ->map(fn($d) => $d->format('Y-m-d'));
-            foreach ($claseDates as $d) {
-                $fechas[$d] = true;
-            }
             ksort($fechas);
             return [
                 'nombre' => $modulo->nombre_modulo,
                 'fechas' => array_keys($fechas),
+                'clases' => collect(),
             ];
         });
 
-        $allDates = $modulos->flatMap(fn($m) => $m['fechas'])->unique()->sort()->values();
+        $todasLasClases = $modulos->flatMap(fn($m) => $m['clases']);
+        $claseIds = $todasLasClases->pluck('id')->filter()->all();
 
-        $allClasesByDate = collect();
-        if ($allDates->isNotEmpty()) {
-            $allClasesByDate = Clase::whereIn('fecha_clase', $allDates)
-                ->get()
-                ->keyBy(fn($c) => $c->fecha_clase->format('Y-m-d'));
-        }
-
-        $participantes = $curso->matriculas->map(function ($matricula) use ($allDates, $allClasesByDate) {
+        $participantes = $curso->matriculas->map(function ($matricula) use ($modulos, $claseIds) {
             $persona = $matricula->estudiante;
             $sol = $matricula->solicitudInscripcion;
             $externo = $sol?->participanteExterno;
 
-            $claseIds = $allClasesByDate->pluck('id');
             $asistencias = collect();
-            if ($claseIds->isNotEmpty()) {
+            if (!empty($claseIds)) {
                 $asistencias = Asistencia::where('matricula_id', $matricula->id)
                     ->whereIn('clase_id', $claseIds)
                     ->get()
@@ -573,17 +583,20 @@ class InstructorPortalController extends Controller
             $conteoC = 0;
             $conteoF = 0;
 
-            foreach ($allDates as $fechaStr) {
-                $clase = $allClasesByDate->get($fechaStr);
-                $a = $clase ? $asistencias->get($clase->id) : null;
-                if ($a && $a->asistio) {
-                    $asistenciasMap[] = 'X';
-                    $conteoC++;
-                } elseif ($a && !$a->asistio) {
-                    $asistenciasMap[] = 'F';
-                    $conteoF++;
-                } else {
-                    $asistenciasMap[] = null;
+            foreach ($modulos as $mod) {
+                $clasesPorFecha = $mod['clases']->keyBy(fn($c) => $c->fecha_clase->format('Y-m-d'));
+                foreach ($mod['fechas'] as $fechaStr) {
+                    $clase = $clasesPorFecha->get($fechaStr);
+                    $a = $clase ? $asistencias->get($clase->id) : null;
+                    if ($a && $a->asistio) {
+                        $asistenciasMap[] = 'X';
+                        $conteoC++;
+                    } elseif ($a && !$a->asistio) {
+                        $asistenciasMap[] = 'F';
+                        $conteoF++;
+                    } else {
+                        $asistenciasMap[] = null;
+                    }
                 }
             }
 
@@ -601,8 +614,24 @@ class InstructorPortalController extends Controller
             ];
         });
 
+        $modulosPayload = $modulos->map(fn($m) => [
+            'nombre' => $m['nombre'],
+            'fechas' => $m['fechas'],
+        ]);
+
         $horario = '';
-        if ($curso->horario) {
+        if ($todasLasClases->isNotEmpty()) {
+            $diasClases = $todasLasClases->map(fn($c) => (int)$c->fecha_clase->format('N'))
+                ->unique()
+                ->sort()
+                ->map(fn($d) => [1=>'Lun',2=>'Mar',3=>'Mié',4=>'Jue',5=>'Vie',6=>'Sáb',7=>'Dom'][$d] ?? '')
+                ->filter()
+                ->implode(', ');
+            $primeraClase = $todasLasClases->first();
+            $hIni = $primeraClase->hora_inicio ? substr($primeraClase->hora_inicio, 0, 5) : ($curso->horario?->hora_inicio ? substr($curso->horario->hora_inicio, 0, 5) : '');
+            $hFin = $primeraClase->hora_fin ? substr($primeraClase->hora_fin, 0, 5) : ($curso->horario?->hora_fin ? substr($curso->horario->hora_fin, 0, 5) : '');
+            $horario = $diasClases ? "{$diasClases} {$hIni}-{$hFin}" : '';
+        } elseif ($curso->horario) {
             $dias = $curso->horario->diasSemana
                 ->sortBy('dia_semana')
                 ->map(fn($d) => [1=>'Lun',2=>'Mar',3=>'Mié',4=>'Jue',5=>'Vie',6=>'Sáb',7=>'Dom'][(int)$d->dia_semana] ?? '')
@@ -621,7 +650,7 @@ class InstructorPortalController extends Controller
                 'fecha_inicio' => $curso->fecha_inicio?->format('Y-m-d'),
                 'fecha_fin' => $curso->fecha_fin?->format('Y-m-d'),
             ],
-            'modulos' => $modulos,
+            'modulos' => $modulosPayload,
             'participantes' => $participantes,
         ]);
     }

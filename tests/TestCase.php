@@ -16,6 +16,20 @@ abstract class TestCase extends BaseTestCase
 
     protected $connectionsToTransact = ['pgsql'];
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        if (!app()->environment('testing')) {
+            throw new \RuntimeException('La suite de pruebas requiere APP_ENV=testing.');
+        }
+
+        $database = strtolower((string) config('database.connections.pgsql.database'));
+        if ($database === 'db1' && getenv('ALLOW_DB1_TESTS') !== '1') {
+            throw new \RuntimeException('Pruebas abortadas: DB1 está protegida y no puede usarse como base de testing.');
+        }
+    }
+
     /**
      * Crear un usuario autenticado para tests
      */

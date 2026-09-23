@@ -159,6 +159,129 @@ class ReservaPodcastController extends Controller
         });
     }
 
+    public function storeBatch(Request $request)
+    {
+        $validated = $request->validate([
+            'persona_id' => 'nullable|uuid|exists:personas,id',
+            'cliente_externo_id' => 'nullable|uuid|exists:clientes_externos,id',
+            'reservas' => 'required|array|min:1',
+            'reservas.*.paquete_id' => 'required|integer|exists:paquetes_podcast,id',
+            'reservas.*.fecha_reserva' => 'required|date',
+            'reservas.*.hora_inicio' => 'required|date_format:H:i',
+            'reservas.*.hora_fin' => 'required|date_format:H:i|after:reservas.*.hora_inicio',
+            'reservas.*.precio_total' => 'required|numeric|min:0',
+            'reservas.*.precio_original' => 'nullable|numeric|min:0',
+            'reservas.*.monto_descuento' => 'nullable|numeric|min:0',
+            'reservas.*.motivo_descuento' => 'nullable|string|max:255',
+            'reservas.*.notas' => 'nullable|string',
+            'reservas.*.titulo' => 'nullable|string|max:255',
+            'reservas.*.estado' => 'nullable|string|in:pendiente,reservado,confirmado,en_progreso,completado,cancelado',
+            'reservas.*.asignaciones' => 'nullable|array',
+            'reservas.*.asignaciones.*.persona_id' => 'required|uuid|exists:personas,id',
+            'reservas.*.asignaciones.*.rol' => 'nullable|string|max:100',
+        ]);
+
+        $this->validateBatchResponsible($validated);
+        $this->validatePodcastBatchConflicts($validated['reservas']);
+
+        $created = DB::transaction(function () use ($validated) {
+            // Serializa las operaciones de reservas del único estudio de podcast
+            // sin introducir tablas ni afectar otros módulos.
+            DB::statement("SELECT pg_advisory_xact_lock(hashtext('services.reservas_podcast'))");
+
+            foreach ($validated['reservas'] as $index => $item) {
+                $conflicto = ReservaPodcast::where('fecha_reserva', $item['fecha_reserva'])
+                    ->where('estado', '!=', 'cancelado')
+                    ->where('hora_inicio', '<', $item['hora_fin'])
+                    ->where('hora_fin', '>', $item['hora_inicio'])
+                    ->lockForUpdate()->exists();
+
+                if ($conflicto) {
+                    throw \Illuminate\Validation\ValidationException::withMessages([
+                        "reservas.$index.hora_inicio" => 'El estudio ya está reservado en el horario seleccionado.',
+                    ]);
+                }
+            }
+
+            $result = [];
+            foreach ($validated['reservas'] as $item) {
+                $data = [
+                    'paquete_id' => (int) $item['paquete_id'],
+                    'persona_id' => $validated['persona_id'] ?? null,
+                    'cliente_externo_id' => $validated['cliente_externo_id'] ?? null,
+                    'fecha_reserva' => $item['fecha_reserva'],
+                    'hora_inicio' => $item['hora_inicio'],
+                    'hora_fin' => $item['hora_fin'],
+                    'precio_total' => $item['precio_total'],
+                    'precio_original' => $item['precio_original'] ?? null,
+                    'monto_descuento' => $item['monto_descuento'] ?? 0,
+                    'motivo_descuento' => $item['motivo_descuento'] ?? null,
+                    'observaciones' => $item['notas'] ?? null,
+                    'titulo' => $item['titulo'] ?? null,
+                    'estado' => ($item['estado'] ?? 'reservado') === 'pendiente' ? 'reservado' : ($item['estado'] ?? 'reservado'),
+                ];
+
+                $reserva = ReservaPodcast::create($data);
+                CuentaPorCobrar::create([
+                    'reserva_podcast_id' => $reserva->id,
+                    'monto_total' => $data['precio_total'],
+                    'monto_abonado' => 0,
+                    'estado' => 'pendiente',
+                    'es_legacy' => false,
+                ]);
+
+                foreach ($item['asignaciones'] ?? [] as $asignacion) {
+                    $reserva->asignacionesPersonal()->create([
+                        'persona_id' => $asignacion['persona_id'],
+                        'rol_en_servicio' => $asignacion['rol'] ?? null,
+                    ]);
+                }
+
+                $result[] = $reserva->fresh()->load([
+                    'paquete.items', 'persona', 'clienteExterno',
+                    'asignacionesPersonal.persona', 'cuentaPorCobrar',
+                ]);
+            }
+
+            Cache::forget('finance.resumen');
+            return $result;
+        });
+
+        return response()->json([
+            'message' => 'Reservas creadas exitosamente.',
+            'data' => collect($created)->map(fn ($r) => $this->formatReserva($r))->values(),
+        ], Response::HTTP_CREATED);
+    }
+
+    private function validateBatchResponsible(array $validated): void
+    {
+        $persona = !empty($validated['persona_id']);
+        $externo = !empty($validated['cliente_externo_id']);
+
+        if ($persona === $externo) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'cliente' => [$persona ? 'Solo puede especificar un tipo de responsable, no ambos.' : 'Debe especificar un responsable (persona o cliente externo).'],
+            ]);
+        }
+    }
+
+    private function validatePodcastBatchConflicts(array $reservas): void
+    {
+        foreach ($reservas as $i => $actual) {
+            foreach ($reservas as $j => $otra) {
+                if ($i >= $j || $actual['fecha_reserva'] !== $otra['fecha_reserva']) {
+                    continue;
+                }
+
+                if ($actual['hora_inicio'] < $otra['hora_fin'] && $actual['hora_fin'] > $otra['hora_inicio']) {
+                    throw \Illuminate\Validation\ValidationException::withMessages([
+                        "reservas.$j.hora_inicio" => "El horario entra en conflicto con la reserva ".($i + 1)." del mismo lote.",
+                    ]);
+                }
+            }
+        }
+    }
+
     public function show($id)
     {
         $reserva = ReservaPodcast::with([

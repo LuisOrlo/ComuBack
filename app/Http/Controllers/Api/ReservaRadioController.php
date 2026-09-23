@@ -176,6 +176,161 @@ class ReservaRadioController extends Controller
         ], Response::HTTP_CREATED);
     }
 
+    public function storeBatch(Request $request)
+    {
+        $validated = $request->validate([
+            'persona_id' => 'nullable|uuid|exists:personas,id',
+            'cliente_externo_id' => 'nullable|uuid|exists:clientes_externos,id',
+            'reservas' => 'required|array|min:1',
+            'reservas.*.tarifa_id' => 'required|integer|exists:tarifas_radio,id',
+            'reservas.*.fecha_reserva' => 'required|date',
+            'reservas.*.hora_inicio' => 'required|date_format:H:i',
+            'reservas.*.hora_fin' => 'required|date_format:H:i|after:reservas.*.hora_inicio',
+            'reservas.*.incluye_operador' => 'sometimes|boolean',
+            'reservas.*.operador_id' => 'nullable|uuid|exists:personas,id',
+            'reservas.*.observaciones' => 'nullable|string',
+            'reservas.*.precio_original' => 'nullable|numeric|min:0',
+            'reservas.*.monto_descuento' => 'nullable|numeric|min:0',
+            'reservas.*.motivo_descuento' => 'nullable|string|max:255',
+            'reservas.*.estado' => 'nullable|string|in:reservado,confirmado,en_progreso,completado,cancelado',
+        ]);
+
+        $this->validateBatchResponsible($validated);
+        $this->validateRadioBatchConflicts($validated['reservas']);
+
+        $created = DB::transaction(function () use ($validated) {
+            // Radio tiene un único espacio global. El lock evita que dos lotes
+            // concurrentes pasen simultáneamente la comprobación sin filas previas.
+            DB::statement("SELECT pg_advisory_xact_lock(hashtext('services.reservas_radio'))");
+
+            foreach ($validated['reservas'] as $index => $item) {
+                $espacioValido = $this->conflictValidator->validarDisponibilidadEspacio(
+                    $item['fecha_reserva'], $item['hora_inicio'], $item['hora_fin']
+                );
+
+                if (!$espacioValido['valido']) {
+                    throw \Illuminate\Validation\ValidationException::withMessages([
+                        "reservas.$index.hora_inicio" => 'El espacio de radio ya está reservado en el horario seleccionado.',
+                    ]);
+                }
+
+                $incluyeOperador = (bool) ($item['incluye_operador'] ?? false);
+                if ($incluyeOperador && empty($item['operador_id'])) {
+                    throw \Illuminate\Validation\ValidationException::withMessages([
+                        "reservas.$index.operador_id" => 'Debe seleccionar un operador cuando incluye operador.',
+                    ]);
+                }
+
+                if ($incluyeOperador) {
+                    $operadorValido = $this->conflictValidator->validarDisponibilidadOperador(
+                        $item['operador_id'], $item['fecha_reserva'], $item['hora_inicio'], $item['hora_fin']
+                    );
+
+                    if (!$operadorValido['valido']) {
+                        throw \Illuminate\Validation\ValidationException::withMessages([
+                            "reservas.$index.operador_id" => 'El operador seleccionado ya tiene una reserva en ese horario.',
+                        ]);
+                    }
+                }
+            }
+
+            $result = [];
+            foreach ($validated['reservas'] as $item) {
+                $incluyeOperador = (bool) ($item['incluye_operador'] ?? false);
+                $precioTotal = $this->conflictValidator->calcularPrecioTotal(
+                    (int) $item['tarifa_id'], $item['hora_inicio'], $item['hora_fin']
+                );
+                $precioOriginal = (float) ($item['precio_original'] ?? $precioTotal);
+                $montoDescuento = min(
+                    max(0, (float) ($item['monto_descuento'] ?? 0)),
+                    $precioOriginal,
+                );
+                $precioTotal = max(0, $precioOriginal - $montoDescuento);
+
+                $reserva = ReservaRadio::create([
+                    'tarifa_id' => (int) $item['tarifa_id'],
+                    'persona_id' => $validated['persona_id'] ?? null,
+                    'cliente_externo_id' => $validated['cliente_externo_id'] ?? null,
+                    'fecha_reserva' => $item['fecha_reserva'],
+                    'hora_inicio' => $item['hora_inicio'],
+                    'hora_fin' => $item['hora_fin'],
+                    'incluye_operador' => $incluyeOperador,
+                    'operador_id' => $incluyeOperador ? ($item['operador_id'] ?? null) : null,
+                    'precio_total' => $precioTotal,
+                    'precio_original' => $montoDescuento > 0 ? $precioOriginal : null,
+                    'monto_descuento' => $montoDescuento,
+                    'motivo_descuento' => $montoDescuento > 0 ? ($item['motivo_descuento'] ?? null) : null,
+                    'observaciones' => $item['observaciones'] ?? null,
+                    'estado' => $item['estado'] ?? 'reservado',
+                ]);
+
+                CuentaPorCobrar::create([
+                    'reserva_radio_id' => $reserva->id,
+                    'monto_total' => $precioTotal,
+                    'monto_abonado' => 0,
+                    'estado' => 'pendiente',
+                    'es_legacy' => false,
+                ]);
+
+                $result[] = $reserva->fresh()->load([
+                    'tarifa', 'persona', 'clienteExterno', 'operador', 'cuentaPorCobrar',
+                ]);
+            }
+
+            Cache::forget('finance.resumen');
+            return $result;
+        });
+
+        return response()->json([
+            'message' => 'Reservas creadas exitosamente.',
+            'data' => collect($created)->map(fn ($r) => $this->formatReserva($r))->values(),
+        ], Response::HTTP_CREATED);
+    }
+
+    private function validateBatchResponsible(array $validated): void
+    {
+        $persona = !empty($validated['persona_id']);
+        $externo = !empty($validated['cliente_externo_id']);
+
+        if ($persona === $externo) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'cliente' => [$persona ? 'Solo puede especificar un tipo de responsable, no ambos.' : 'Debe especificar un responsable (persona o cliente externo).'],
+            ]);
+        }
+    }
+
+    private function validateRadioBatchConflicts(array $reservas): void
+    {
+        foreach ($reservas as $i => $actual) {
+            foreach ($reservas as $j => $otra) {
+                if ($i >= $j || $actual['fecha_reserva'] !== $otra['fecha_reserva']) {
+                    continue;
+                }
+
+                $seCruzan = $actual['hora_inicio'] < $otra['hora_fin']
+                    && $actual['hora_fin'] > $otra['hora_inicio'];
+
+                if ($seCruzan) {
+                    throw \Illuminate\Validation\ValidationException::withMessages([
+                        "reservas.$j.hora_inicio" => "El horario entra en conflicto con la reserva ".($i + 1)." del mismo lote.",
+                    ]);
+                }
+
+                $mismoOperador = !empty($actual['operador_id'])
+                    && !empty($otra['operador_id'])
+                    && $actual['operador_id'] === $otra['operador_id']
+                    && !empty($actual['incluye_operador'])
+                    && !empty($otra['incluye_operador']);
+
+                if ($mismoOperador && $seCruzan) {
+                    throw \Illuminate\Validation\ValidationException::withMessages([
+                        "reservas.$j.operador_id" => "El operador entra en conflicto con la reserva ".($i + 1)." del mismo lote.",
+                    ]);
+                }
+            }
+        }
+    }
+
     public function show($id)
     {
         $reserva = ReservaRadio::with([

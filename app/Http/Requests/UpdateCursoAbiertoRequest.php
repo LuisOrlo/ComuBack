@@ -29,6 +29,9 @@ class UpdateCursoAbiertoRequest extends FormRequest
             'hora_fin' => 'nullable|date_format:H:i|after:hora_inicio',
             'dias_semana' => 'nullable|array|min:1|max:7',
             'dias_semana.*' => 'integer|min:1|max:7',
+            'modulos' => 'sometimes|array',
+            'modulos.*.fecha_inicio' => 'nullable|date',
+            'modulos.*.fecha_fin' => 'nullable|date',
         ];
     }
 

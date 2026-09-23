@@ -16,6 +16,8 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
+use Carbon\Carbon;
 
 class CursoAbiertoController extends Controller
 {
@@ -161,6 +163,11 @@ class CursoAbiertoController extends Controller
     public function store(StoreCursoAbiertoRequest $request, InstructorConflictValidator $conflictValidator)
     {
         $data = $request->validated();
+        $this->validateModuleDateCoherence(
+            $data['fecha_inicio'] ?? null,
+            $data['fecha_fin'] ?? null,
+            $request->input('modulos', [])
+        );
 
         // Validar conflicto de instructor si hay datos de programación completos
         if (!empty($data['docente_id']) && !empty($data['fecha_inicio']) && !empty($data['fecha_fin'])
@@ -283,6 +290,8 @@ class CursoAbiertoController extends Controller
         $docenteId = $data['docente_id'] ?? $curso->docente_id;
         $fechaInicio = $data['fecha_inicio'] ?? ($curso->fecha_inicio ? $curso->fecha_inicio->toDateString() : null);
         $fechaFin = $data['fecha_fin'] ?? ($curso->fecha_fin ? $curso->fecha_fin->toDateString() : null);
+        $modulosRecibidos = $request->input('modulos');
+        $this->validateModuleDateCoherence($fechaInicio, $fechaFin, $modulosRecibidos ?? $curso->modulos()->get());
         $diasSemana = $request->input('dias_semana', []);
         $horaInicio = $data['hora_inicio'] ?? ($request->input('hora_inicio'));
         $horaFin = $data['hora_fin'] ?? ($request->input('hora_fin'));
@@ -581,8 +590,23 @@ class CursoAbiertoController extends Controller
 
         $diasSemana = $curso->horario?->diasSemana?->pluck('dia_semana')->toArray() ?? [];
 
-        // Generar fechas esperadas por módulo (cronograma + Clase existentes)
+        // Generar fechas por módulo basadas en las clases reales de academic.clases
         $modulos = $curso->modulos->sortBy('numero_orden')->values()->map(function ($modulo) use ($diasSemana) {
+            $clasesModulo = Clase::where('modulo_id', $modulo->id)
+                ->orderBy('fecha_clase')
+                ->orderBy('hora_inicio')
+                ->get();
+
+            if ($clasesModulo->isNotEmpty()) {
+                $fechas = $clasesModulo->map(fn($c) => $c->fecha_clase->format('Y-m-d'))->unique()->values()->all();
+                return [
+                    'nombre' => $modulo->nombre_modulo,
+                    'fechas' => $fechas,
+                    'clases' => $clasesModulo,
+                ];
+            }
+
+            // Fallback teórico solo si el módulo aún no tiene ninguna clase creada
             $fechas = [];
             if ($modulo->fecha_inicio && $modulo->fecha_fin && $diasSemana) {
                 $inicio = \Carbon\Carbon::parse($modulo->fecha_inicio);
@@ -595,41 +619,25 @@ class CursoAbiertoController extends Controller
                     $fecha->addDay();
                 }
             }
-            $claseDates = Clase::where('modulo_id', $modulo->id)
-                ->orderBy('fecha_clase')
-                ->get()
-                ->pluck('fecha_clase')
-                ->map(fn($d) => $d->format('Y-m-d'));
-            foreach ($claseDates as $d) {
-                $fechas[$d] = true;
-            }
             ksort($fechas);
             return [
                 'nombre' => $modulo->nombre_modulo,
                 'fechas' => array_keys($fechas),
+                'clases' => collect(),
             ];
         });
 
-        // Todas las fechas únicas del curso
-        $allDates = $modulos->flatMap(fn($m) => $m['fechas'])->unique()->sort()->values();
-
-        // Clases del curso keyed por fecha (para lookup de asistencia)
-        $allClasesByDate = collect();
-        if ($allDates->isNotEmpty()) {
-            $allClasesByDate = Clase::whereIn('fecha_clase', $allDates)
-                ->get()
-                ->keyBy(fn($c) => $c->fecha_clase->format('Y-m-d'));
-        }
+        $todasLasClases = $modulos->flatMap(fn($m) => $m['clases']);
+        $claseIds = $todasLasClases->pluck('id')->filter()->all();
 
         // Participantes con asistencia
-        $participantes = $curso->matriculas->map(function ($matricula) use ($allDates, $allClasesByDate) {
+        $participantes = $curso->matriculas->map(function ($matricula) use ($modulos, $claseIds) {
             $persona = $matricula->estudiante;
             $sol = $matricula->solicitudInscripcion;
             $externo = $sol?->participanteExterno;
 
-            $claseIds = $allClasesByDate->pluck('id');
             $asistencias = collect();
-            if ($claseIds->isNotEmpty()) {
+            if (!empty($claseIds)) {
                 $asistencias = Asistencia::where('matricula_id', $matricula->id)
                     ->whereIn('clase_id', $claseIds)
                     ->get()
@@ -640,17 +648,20 @@ class CursoAbiertoController extends Controller
             $conteoC = 0;
             $conteoF = 0;
 
-            foreach ($allDates as $fechaStr) {
-                $clase = $allClasesByDate->get($fechaStr);
-                $a = $clase ? $asistencias->get($clase->id) : null;
-                if ($a && $a->asistio) {
-                    $asistenciasMap[] = 'X';
-                    $conteoC++;
-                } elseif ($a && !$a->asistio) {
-                    $asistenciasMap[] = 'F';
-                    $conteoF++;
-                } else {
-                    $asistenciasMap[] = null;
+            foreach ($modulos as $mod) {
+                $clasesPorFecha = $mod['clases']->keyBy(fn($c) => $c->fecha_clase->format('Y-m-d'));
+                foreach ($mod['fechas'] as $fechaStr) {
+                    $clase = $clasesPorFecha->get($fechaStr);
+                    $a = $clase ? $asistencias->get($clase->id) : null;
+                    if ($a && $a->asistio) {
+                        $asistenciasMap[] = 'X';
+                        $conteoC++;
+                    } elseif ($a && !$a->asistio) {
+                        $asistenciasMap[] = 'F';
+                        $conteoF++;
+                    } else {
+                        $asistenciasMap[] = null;
+                    }
                 }
             }
 
@@ -668,8 +679,24 @@ class CursoAbiertoController extends Controller
             ];
         });
 
+        $modulosPayload = $modulos->map(fn($m) => [
+            'nombre' => $m['nombre'],
+            'fechas' => $m['fechas'],
+        ]);
+
         $horario = '';
-        if ($curso->horario) {
+        if ($todasLasClases->isNotEmpty()) {
+            $diasClases = $todasLasClases->map(fn($c) => (int)$c->fecha_clase->format('N'))
+                ->unique()
+                ->sort()
+                ->map(fn($d) => [1=>'Lun',2=>'Mar',3=>'Mié',4=>'Jue',5=>'Vie',6=>'Sáb',7=>'Dom'][$d] ?? '')
+                ->filter()
+                ->implode(', ');
+            $primeraClase = $todasLasClases->first();
+            $hIni = $primeraClase->hora_inicio ? substr($primeraClase->hora_inicio, 0, 5) : ($curso->horario?->hora_inicio ? substr($curso->horario->hora_inicio, 0, 5) : '');
+            $hFin = $primeraClase->hora_fin ? substr($primeraClase->hora_fin, 0, 5) : ($curso->horario?->hora_fin ? substr($curso->horario->hora_fin, 0, 5) : '');
+            $horario = $diasClases ? "{$diasClases} {$hIni}-{$hFin}" : '';
+        } elseif ($curso->horario) {
             $dias = $curso->horario->diasSemana
                 ->sortBy('dia_semana')
                 ->map(fn($d) => [1=>'Lun',2=>'Mar',3=>'Mié',4=>'Jue',5=>'Vie',6=>'Sáb',7=>'Dom'][(int)$d->dia_semana] ?? '')
@@ -688,7 +715,7 @@ class CursoAbiertoController extends Controller
                 'fecha_inicio' => $curso->fecha_inicio?->format('Y-m-d'),
                 'fecha_fin' => $curso->fecha_fin?->format('Y-m-d'),
             ],
-            'modulos' => $modulos,
+            'modulos' => $modulosPayload,
             'participantes' => $participantes,
         ]);
     }
@@ -708,5 +735,52 @@ class CursoAbiertoController extends Controller
                 'esta_vigente' => $curso->estaVigente(),
             ]
         ]);
+    }
+
+    /**
+     * Verifica que las fechas de los módulos estén contenidas en el período
+     * declarado por el CursoAbierto. Los módulos sin fechas siguen siendo
+     * válidos porque el esquema actual permite fechas nulas.
+     */
+    private function validateModuleDateCoherence(?string $courseStart, ?string $courseEnd, iterable $modules): void
+    {
+        $courseStartDate = $courseStart ? Carbon::parse($courseStart)->startOfDay() : null;
+        $courseEndDate = $courseEnd ? Carbon::parse($courseEnd)->endOfDay() : null;
+
+        foreach ($modules as $index => $module) {
+            $moduleStart = is_array($module)
+                ? ($module['fecha_inicio'] ?? null)
+                : ($module->fecha_inicio ?? null);
+            $moduleEnd = is_array($module)
+                ? ($module['fecha_fin'] ?? null)
+                : ($module->fecha_fin ?? null);
+
+            if (!$moduleStart && !$moduleEnd) {
+                continue;
+            }
+
+            if ($moduleStart && $moduleEnd) {
+                $moduleStartDate = Carbon::parse($moduleStart)->startOfDay();
+                $moduleEndDate = Carbon::parse($moduleEnd)->endOfDay();
+
+                if ($moduleStartDate->gt($moduleEndDate)) {
+                    throw ValidationException::withMessages([
+                        "modulos.{$index}.fecha_fin" => 'La fecha de inicio del módulo no puede ser posterior a su fecha de fin.',
+                    ]);
+                }
+
+                if ($courseStartDate && $moduleStartDate->lt($courseStartDate)) {
+                    throw ValidationException::withMessages([
+                        "modulos.{$index}.fecha_inicio" => 'Las fechas del módulo deben estar dentro del rango del curso.',
+                    ]);
+                }
+
+                if ($courseEndDate && $moduleEndDate->gt($courseEndDate)) {
+                    throw ValidationException::withMessages([
+                        "modulos.{$index}.fecha_fin" => 'La fecha de fin del curso no puede ser anterior a la fecha de fin de sus módulos.',
+                    ]);
+                }
+            }
+        }
     }
 }

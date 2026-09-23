@@ -1061,9 +1061,9 @@ class FinanceController extends Controller
 
         // ── UNION paginado (solo id + tipo + fecha, liviano) ────────────────
         $ingresoIdsQuery = DB::table('finance.transacciones_ingreso')
-            ->select('id', DB::raw("'ingreso' as tipo_movimiento"), 'fecha_pago');
+            ->select('id', DB::raw("'ingreso' as tipo_movimiento"), 'fecha_pago', DB::raw('fecha_verificacion as orden_registro'));
         $egresoIdsQuery = DB::table('finance.transacciones_egreso')
-            ->select('id', DB::raw("'egreso' as tipo_movimiento"), 'fecha_pago');
+            ->select('id', DB::raw("'egreso' as tipo_movimiento"), 'fecha_pago', DB::raw('fecha_pago as orden_registro'));
 
         // ── Filtros compartidos ──────────────────────────────────────────────
         if ($fechaDesde = $request->get('fecha_desde')) {
@@ -1105,14 +1105,13 @@ class FinanceController extends Controller
             if ($tipo === 'egreso') $ingresoIdsQuery->whereRaw('1 = 0');
         }
 
-        $total = $ingresoIdsQuery->count() + $egresoIdsQuery->count();
-
-        // ── UNION con LIMIT/OFFSET a nivel BD ──
+        // Se cargan todos los movimientos candidatos antes de agruparlos. La
+        // paginación debe aplicarse sobre operaciones de pago, no sobre las
+        // transacciones internas que componen cada operación.
         $unionIds = $ingresoIdsQuery->unionAll($egresoIdsQuery)
+            ->orderBy('orden_registro', 'desc')
             ->orderBy('fecha_pago', 'desc')
             ->orderBy('id', 'desc')
-            ->offset(($currentPage - 1) * $perPage)
-            ->limit($perPage)
             ->get();
 
         // ── Cargar modelos completos solo para IDs de esta página ────────────
@@ -1163,197 +1162,169 @@ class FinanceController extends Controller
         $ek = $egresos;
         $ik = $ingresos;
 
-        // ── Agrupar pagos de módulos por referencia (una aprobación = un pago) ──
-        $grupoRefs = $ik->filter(fn($m) => $m->referencia_pago && $m->linea_pago_modulo_id)
-            ->map(fn($m) => preg_replace('/-insc$/', '', $m->referencia_pago))
-            ->unique()
-            ->values();
-
-        $grupos = collect();
-        if ($grupoRefs->isNotEmpty()) {
-            $grupos = TransaccionIngreso::with([
-                'lineaPagoModulo.modulo',
-                'lineaPagoModulo.matricula.estudiante',
-                'lineaPagoModulo.matricula.solicitudInscripcion.estudiante',
-                'lineaPagoModulo.matricula.solicitudInscripcion.participanteExterno',
-                'lineaPagoModulo.matricula.cursoAbierto.catalogo',
-            ])
-                ->whereNotNull('referencia_pago')
-                ->whereNotNull('linea_pago_modulo_id')
-                ->where(function ($q) use ($grupoRefs) {
-                    foreach ($grupoRefs as $ref) {
-                        $q->orWhere('referencia_pago', $ref)
-                          ->orWhere('referencia_pago', $ref . '-insc');
-                    }
-                })
-                ->orderBy('fecha_pago', 'desc')
-                ->get()
-                ->groupBy(fn($m) => preg_replace('/-insc$/', '', $m->referencia_pago));
+        // Formar grupos antes de paginar. Una referencia de importación incluye
+        // el módulo, por lo que su clave lógica es el prefijo de la fila.
+        $candidateGroups = [];
+        foreach ($ik as $transaction) {
+            $candidate = $this->paymentGroupCandidate($transaction);
+            $candidateGroups[$candidate][] = $transaction;
         }
 
-        $pageKeys = $unionIds->map(fn($item) => $item->tipo_movimiento === 'ingreso' ? "i_{$item->id}" : "e_{$item->id}");
+        $logicalGroups = collect();
+        foreach ($candidateGroups as $candidate => $members) {
+            $members = collect($members);
+            if ($members->count() > 1 && $this->paymentGroupCompatible($members)) {
+                $logicalGroups->push(['key' => $candidate, 'items' => $members]);
+                continue;
+            }
 
-        // ── Map items → response shape ────────────────────────────────────────
-        $data = $pageKeys->map(function ($key) use ($ek, $ik, $grupos) {
-            $m = str_starts_with($key, 'e_') ? ($ek[$key] ?? null) : ($ik[$key] ?? null);
-            if (!$m) return null;
+            foreach ($members as $member) {
+                $logicalGroups->push(['key' => "transaction-{$member->id}", 'items' => collect([$member])]);
+            }
+        }
 
-            if (str_starts_with($key, 'e_')) {
+        foreach ($ek as $expense) {
+            $logicalGroups->push(['key' => "transaction-{$expense->id}", 'items' => collect([$expense]), 'expense' => true]);
+        }
+
+        $data = $logicalGroups->map(function (array $group) {
+            $items = $group['items'];
+            $rep = $items->sort(function ($a, $b) {
+                $aDate = $a->fecha_verificacion?->timestamp ?? 0;
+                $bDate = $b->fecha_verificacion?->timestamp ?? 0;
+                return [$bDate, (string) $b->id] <=> [$aDate, (string) $a->id];
+            })->first();
+
+            if (!empty($group['expense'])) {
                 return [
-                    'id' => $m->id,
+                    'id' => $rep->id,
+                    'group_key' => $group['key'],
                     'tipo_movimiento' => 'egreso',
                     'tipo' => 'individual',
                     'referencia_pago' => null,
-                    'monto' => (float) $m->monto,
-                    'monto_total' => (float) $m->monto,
-                    'metodo_pago' => $m->metodo_pago,
-                    'fecha_pago' => $m->fecha_pago?->toISOString(),
+                    'monto' => (float) $rep->monto,
+                    'monto_total' => (float) $rep->monto,
+                    'fecha_pago' => $rep->fecha_pago?->toISOString(),
+                    'created_at' => $rep->fecha_pago?->toISOString(),
                     'estado_verificacion' => 'aprobado',
-                    'comprobante_url' => $m->comprobante_url,
-                    'observaciones' => $m->notas,
-                    'estudiante_nombre' => $m->proveedor_beneficiario,
+                    'comprobante_url' => $rep->comprobante_url,
+                    'observaciones' => $rep->notas,
+                    'estudiante_nombre' => $rep->proveedor_beneficiario,
                     'estudiante_cedula' => null,
-                    'curso_nombre' => $m->descripcion,
-                    'categoria_nombre' => $m->categoria,
+                    'curso_nombre' => $rep->descripcion,
+                    'categoria_nombre' => $rep->categoria,
                     'modulo_nombre' => null,
                     'modulos_count' => 0,
                     'modulos_detalle' => [],
+                    'ids' => [$rep->id],
+                    'count' => 1,
                     'cuenta_por_cobrar' => null,
                 ];
             }
 
-            // ── Pago agrupado (una aprobación de módulos = un pago) ──────────
-            $grupoKey = ($m->referencia_pago && $m->linea_pago_modulo_id)
-                ? preg_replace('/-insc$/', '', $m->referencia_pago)
-                : null;
-
-            if ($grupoKey && $grupos->has($grupoKey)) {
-                $grupo = $grupos->get($grupoKey);
-                $rep = $grupo->sortBy(fn($x) => [$x->created_at?->format('Y-m-d H:i:s.u') ?? '', $x->id])
-                    ->first();
-
-                if (! $rep || $rep->id !== $m->id) {
-                    return null; // solo se muestra en la página que contiene al representante
-                }
-
-                $mat = $rep->lineaPagoModulo?->matricula;
-                $estudiante = $mat?->estudiante
-                    ?? $mat?->solicitudInscripcion?->estudiante
-                    ?? $mat?->solicitudInscripcion?->participanteExterno;
-                $curso = $mat?->cursoAbierto;
-                $esPersonalizado = (bool) ($curso?->es_personalizado ?? false);
-                $cursoNombre = $esPersonalizado
-                    ? ($curso?->nombre_instancia ?: $curso?->catalogo?->nombre)
-                    : ($curso?->catalogo?->nombre ?: $curso?->nombre_instancia);
-                $montoTotal = round((float) $grupo->sum('monto'), 2);
-                $detalle = $grupo->filter(fn($x) => $x->lineaPagoModulo?->modulo?->nombre_modulo)
-                    ->map(fn($x) => [
-                        'id' => $x->id,
-                        'modulo_nombre' => $x->lineaPagoModulo->modulo->nombre_modulo,
-                        'monto' => (float) $x->monto,
-                    ])
-                    ->values();
+            $mat = $rep->lineaPagoModulo?->matricula;
+            $cp = $rep->cuentaPorCobrar;
+            $estudiante = $mat?->estudiante
+                ?? $mat?->solicitudInscripcion?->estudiante
+                ?? $mat?->solicitudInscripcion?->participanteExterno
+                ?? $cp?->matricula?->estudiante
+                ?? $cp?->inscripcionTaller
+                ?? $cp?->reservaPodcast?->persona
+                ?? $cp?->reservaPodcast?->clienteExterno
+                ?? $cp?->reservaAula?->persona
+                ?? $cp?->reservaAula?->clienteExterno
+                ?? $cp?->alquilerEquipo?->persona
+                ?? $cp?->alquilerEquipo?->clienteExterno
+                ?? $cp?->reservaRadio?->persona
+                ?? $cp?->reservaRadio?->clienteExterno;
+            $curso = $mat?->cursoAbierto ?? $cp?->matricula?->cursoAbierto;
+            $esPersonalizado = (bool) ($curso?->es_personalizado ?? false);
+            $cursoNombre = $esPersonalizado
+                ? ($curso?->nombre_instancia ?: $curso?->catalogo?->nombre)
+                : ($curso?->catalogo?->nombre ?: $curso?->nombre_instancia);
+            $cursoNombre ??= $cp?->inscripcionTaller?->taller?->nombre
+                ?? $cp?->reservaPodcast?->titulo
+                ?? $cp?->reservaPodcast?->paquete?->nombre
+                ?? $cp?->reservaAula?->aula?->nombre
+                ?? $cp?->alquilerEquipo?->equipo?->nombre;
+            $moduleName = $rep->lineaPagoModulo?->modulo?->nombre_modulo;
+            $amount = round((float) $items->sum('monto'), 2);
+            $conceptDetails = $items->sortBy(
+                fn($item) => $item->lineaPagoModulo?->modulo?->numero_orden ?? PHP_INT_MAX
+            )->map(function ($item) {
+                $linea = $item->lineaPagoModulo;
+                $esInscripcion = $linea?->tipo === 'inscripcion';
 
                 return [
-                    'id' => $rep->id,
-                    'tipo_movimiento' => 'ingreso',
-                    'tipo' => 'agrupado',
-                    'referencia_pago' => $grupoKey,
-                    'monto' => $montoTotal,
-                    'monto_total' => $montoTotal,
-                    'metodo_pago' => $rep->metodo_pago,
-                    'fecha_pago' => $rep->fecha_pago?->toISOString(),
-                    'estado_verificacion' => $rep->estado_verificacion,
-                    'comprobante_url' => $rep->comprobante_url,
-                    'observaciones' => $rep->observaciones,
-                    'estudiante_nombre' => $estudiante ? trim(($estudiante->nombres ?? '') . ' ' . ($estudiante->apellidos ?? '')) : null,
-                    'estudiante_cedula' => $estudiante?->cedula ?? null,
-                    'curso_nombre' => $cursoNombre,
-                    'categoria_nombre' => $esPersonalizado ? 'Cursos personalizados' : 'Cursos',
-                    'es_personalizado' => $esPersonalizado,
-                    'modulo_nombre' => null,
-                    'modulos_count' => $detalle->count(),
-                    'modulos_detalle' => $detalle,
-                    'cuenta_por_cobrar' => null,
+                    'id' => $item->id,
+                    'tipo' => $esInscripcion ? 'inscripcion' : 'modulo',
+                    'nombre' => $esInscripcion
+                        ? 'Inscripción / Matrícula'
+                        : ($linea?->modulo?->nombre_modulo ?? 'Concepto financiero'),
+                    'linea_id' => $linea?->id,
+                    'modulo_id' => $linea?->modulo_id,
+                    'monto' => (float) $item->monto,
                 ];
-            }
+            })->values()->all();
+            $details = collect($conceptDetails)
+                ->where('tipo', 'modulo')
+                ->map(fn($detail) => [
+                    'id' => $detail['id'],
+                    'modulo_nombre' => $detail['nombre'],
+                    'monto' => $detail['monto'],
+                ])->values()->all();
 
-            // ── Ingreso (existing mapping) ─────────────────────────────────
-            $estudiante = null;
-            $cursoNombre = null;
-            $moduloNombre = null;
-            $esPersonalizado = false;
-            $cp = $m->cuentaPorCobrar;
-
-            if ($m->lineaPagoModulo) {
-                $mat = $m->lineaPagoModulo->matricula;
-                $estudiante = $mat?->estudiante
-                    ?? $mat?->solicitudInscripcion?->estudiante
-                    ?? $mat?->solicitudInscripcion?->participanteExterno;
-                $curso = $mat?->cursoAbierto;
-                $esPersonalizado = (bool) ($curso?->es_personalizado ?? false);
-                $cursoNombre = $esPersonalizado
-                    ? ($curso?->nombre_instancia ?: $curso?->catalogo?->nombre)
-                    : ($curso?->catalogo?->nombre ?: $curso?->nombre_instancia);
-                $moduloNombre = $m->lineaPagoModulo->modulo?->nombre_modulo;
-            } elseif ($m->cuentaPorCobrar) {
-                $estudiante = $cp->matricula?->estudiante
-                    ?? $cp->inscripcionTaller
-                    ?? $cp->reservaPodcast?->persona
-                    ?? $cp->reservaPodcast?->clienteExterno
-                    ?? $cp->reservaAula?->persona
-                    ?? $cp->reservaAula?->clienteExterno
-                    ?? $cp->alquilerEquipo?->persona
-                    ?? $cp->alquilerEquipo?->clienteExterno
-                    ?? $cp->reservaRadio?->persona
-                    ?? $cp->reservaRadio?->clienteExterno;
-
-                $curso = $cp->matricula?->cursoAbierto;
-                $esPersonalizado = (bool) ($curso?->es_personalizado ?? false);
-                $cursoNombre = $esPersonalizado
-                    ? ($curso?->nombre_instancia ?: $curso?->catalogo?->nombre)
-                    : ($curso?->catalogo?->nombre ?: $curso?->nombre_instancia)
-                    ?? $cp->inscripcionTaller?->taller?->nombre
-                    ?? $cp->reservaPodcast?->titulo
-                    ?? $cp->reservaPodcast?->paquete?->nombre
-                    ?? $cp->reservaAula?->aula?->nombre
-                    ?? $cp->alquilerEquipo?->equipo?->nombre;
-            }
-
-            $base = [
-                'id' => $m->id,
+            return [
+                'id' => $rep->id,
+                'group_key' => $group['key'],
                 'tipo_movimiento' => 'ingreso',
-                'referencia_pago' => $m->referencia_pago,
-                'monto' => (float) $m->monto,
-                'metodo_pago' => $m->metodo_pago,
-                'fecha_pago' => $m->fecha_pago?->toISOString(),
-                'estado_verificacion' => $m->estado_verificacion,
-                'comprobante_url' => $m->comprobante_url,
-                'observaciones' => $m->observaciones,
+                'tipo' => count($conceptDetails) > 1 ? 'agrupado' : 'individual',
+                'referencia_pago' => count($items) > 1 ? $group['key'] : $rep->referencia_pago,
+                'monto' => $amount,
+                'monto_total' => $amount,
+                'metodo_pago' => $rep->metodo_pago,
+                'fecha_pago' => $rep->fecha_pago?->toISOString(),
+                'created_at' => $rep->fecha_verificacion?->toISOString(),
+                'estado_verificacion' => $rep->estado_verificacion,
+                'comprobante_url' => $rep->comprobante_url,
+                'observaciones' => $rep->observaciones,
                 'estudiante_nombre' => $estudiante ? trim(($estudiante->nombres ?? '') . ' ' . ($estudiante->apellidos ?? '')) : null,
                 'estudiante_cedula' => $estudiante?->cedula ?? null,
                 'curso_nombre' => $cursoNombre,
                 'categoria_nombre' => $esPersonalizado ? 'Cursos personalizados' : ($cp?->inscripcion_taller_id ? 'Talleres' : 'Cursos'),
                 'es_personalizado' => $esPersonalizado,
-                'modulo_nombre' => $moduloNombre,
-                'cuenta_por_cobrar' => $m->cuentaPorCobrar,
+                'modulo_nombre' => count($conceptDetails) > 1 ? null : $moduleName,
+                'modulos_count' => count($details),
+                'modulos_detalle' => $details,
+                'detalle_conceptos' => $conceptDetails,
+                'ids' => $items->pluck('id')->values()->all(),
+                'count' => $items->count(),
+                'cuenta_por_cobrar' => $rep->cuentaPorCobrar,
             ];
+        })->sort(function ($a, $b) {
+            $aCreated = $a['created_at'] ?? '';
+            $bCreated = $b['created_at'] ?? '';
+            if ($aCreated !== $bCreated) {
+                return $bCreated <=> $aCreated;
+            }
 
-            return array_merge($base, [
-                'tipo' => $base['modulo_nombre'] ? 'individual' : 'individual',
-                'monto_total' => $base['monto'],
-                'modulos_count' => $base['modulo_nombre'] ? 1 : 0,
-                'modulos_detalle' => $base['modulo_nombre']
-                    ? [['id' => $base['id'], 'modulo_nombre' => $base['modulo_nombre'], 'monto' => $base['monto']]]
-                    : [],
-            ]);
-        })->filter()->values();
+            $aDate = $a['fecha_pago'] ?? '';
+            $bDate = $b['fecha_pago'] ?? '';
+            if ($aDate !== $bDate) {
+                return $bDate <=> $aDate;
+            }
 
-        $purgados = \App\Models\ArchivoEliminado::where(function ($q) use ($pageKeys, $ek, $ik) {
-            $egresoIds = $pageKeys->filter(fn($k) => str_starts_with($k, 'e_'))
-                ->map(fn($k) => $ek[$k]->id ?? null)->filter();
-            $ingresoIds = $pageKeys->filter(fn($k) => str_starts_with($k, 'i_'))
-                ->map(fn($k) => $ik[$k]->id ?? null)->filter();
+            return (string) $b['id'] <=> (string) $a['id'];
+        })->values();
+
+        $total = $data->count();
+        $data = $data->slice(($currentPage - 1) * $perPage, $perPage)->values();
+        $pageIncomeIds = $data->where('tipo_movimiento', 'ingreso')->pluck('id');
+        $pageExpenseIds = $data->where('tipo_movimiento', 'egreso')->pluck('id');
+
+        $purgados = \App\Models\ArchivoEliminado::where(function ($q) use ($pageExpenseIds, $pageIncomeIds) {
+            $egresoIds = $pageExpenseIds->values();
+            $ingresoIds = $pageIncomeIds->values();
 
             if ($egresoIds->isNotEmpty()) {
                 $q->orWhere(function ($sq) use ($egresoIds) {
@@ -1374,7 +1345,6 @@ class FinanceController extends Controller
 
         $data = $data->map(function ($item) use ($purgados) {
             if (!empty($item['id']) && !empty($item['comprobante_url'])) {
-                $isEgreso = ($item['tipo_movimiento'] ?? '') === 'egreso';
                 $key = $item['id'] . '|comprobante_url';
                 $entries = $purgados[$key] ?? collect();
 
@@ -1400,6 +1370,42 @@ class FinanceController extends Controller
             'total' => $total,
             'last_page' => (int) ceil($total / $perPage),
         ]);
+    }
+
+    private function paymentGroupCandidate(TransaccionIngreso $transaction): string
+    {
+        $reference = $transaction->referencia_pago;
+        if (!$reference || !$transaction->linea_pago_modulo_id) {
+            return "transaction-{$transaction->id}";
+        }
+
+        if (preg_match('/^(IMPORT-.+-ROW-\d+)-MODULE-.+$/', $reference, $matches)) {
+            return $matches[1];
+        }
+
+        return preg_replace('/-insc$/', '', $reference) ?: $reference;
+    }
+
+    private function paymentGroupCompatible($transactions): bool
+    {
+        $first = $transactions->first();
+        if (!$first) return false;
+
+        $firstMethod = (string) $first->metodo_pago;
+        $firstState = (string) $first->estado_verificacion;
+        $firstMatricula = $first->lineaPagoModulo?->matricula_id;
+        $firstAccount = $first->cuenta_cobrar_id;
+
+        foreach ($transactions->skip(1) as $transaction) {
+            if ((string) $transaction->metodo_pago !== $firstMethod
+                || (string) $transaction->estado_verificacion !== $firstState
+                || $transaction->lineaPagoModulo?->matricula_id !== $firstMatricula
+                || $transaction->cuenta_cobrar_id !== $firstAccount) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     public function getTransaccionDetalle($id): JsonResponse
@@ -1432,55 +1438,61 @@ class FinanceController extends Controller
             'verificador',
         ])->findOrFail($id);
 
-        // Buscar transacciones hermanas con la misma referencia de pago (múltiples módulos)
+        // Buscar transacciones hermanas usando la misma clave lógica del
+        // historial. Las referencias IMPORT incluyen el módulo, por lo que se
+        // buscan por el prefijo de fila.
         $hermanas = collect([]);
         $montoTotal = (float) $t->monto;
         $tieneMultiplesModulos = false;
         $modulosDetalle = [];
+        $groupKey = $this->paymentGroupCandidate($t);
 
-        if ($t->referencia_pago) {
-            $hermanas = TransaccionIngreso::with('lineaPagoModulo.modulo')
-                ->where('referencia_pago', $t->referencia_pago)
-                ->where('id', '!=', $t->id)
-                ->whereNotNull('linea_pago_modulo_id')
-                ->get();
+        if ($t->referencia_pago && $t->linea_pago_modulo_id) {
+            $groupKey = $this->paymentGroupCandidate($t);
+            $query = TransaccionIngreso::with('lineaPagoModulo.modulo')
+                ->whereNotNull('linea_pago_modulo_id');
+
+            if (str_starts_with($groupKey, 'IMPORT-')) {
+                $query->where('referencia_pago', 'like', $groupKey . '-MODULE-%');
+            } else {
+                $query->whereIn('referencia_pago', array_values(array_unique([
+                    $groupKey,
+                    $groupKey . '-insc',
+                ])));
+            }
+
+            $candidates = $query->get()->filter(
+                fn(TransaccionIngreso $candidate): bool => $this->paymentGroupCandidate($candidate) === $groupKey
+            );
+            $hermanas = $candidates->count() > 1 && $this->paymentGroupCompatible($candidates)
+                ? $candidates->where('id', '!=', $t->id)->values()
+                : collect([]);
 
             if ($hermanas->isNotEmpty()) {
                 $tieneMultiplesModulos = true;
                 // Incluir la transacción actual en el total
                 $montoTotal = $hermanas->sum('monto') + (float) $t->monto;
 
-                // Agregar el módulo de la transacción actual
-                if ($t->lineaPagoModulo?->modulo) {
+                // Ordenar el desglose según el orden académico del módulo,
+                // no según cuál UUID abrió el usuario desde el historial.
+                foreach (collect([$t])->concat($hermanas)->sortBy(
+                    fn($transaction) => $transaction->lineaPagoModulo?->modulo?->numero_orden ?? PHP_INT_MAX
+                ) as $moduleTransaction) {
+                    $linea = $moduleTransaction->lineaPagoModulo;
+                    $esInscripcion = $linea?->tipo === 'inscripcion';
                     $modulosDetalle[] = [
-                        'modulo_nombre' => $t->lineaPagoModulo->modulo->nombre_modulo,
-                        'monto' => (float) $t->monto,
-                    ];
-                }
-
-                // Agregar módulos de las hermanas
-                foreach ($hermanas as $h) {
-                    if ($h->lineaPagoModulo?->modulo) {
-                        $modulosDetalle[] = [
-                            'modulo_nombre' => $h->lineaPagoModulo->modulo->nombre_modulo,
-                            'monto' => (float) $h->monto,
-                        ];
-                    }
-                }
-            }
-
-            // Buscar transacción de inscripción asociada (referencia con sufijo -insc)
-            if ($t->referencia_pago && !str_ends_with($t->referencia_pago, '-insc')) {
-                $transInscripcion = TransaccionIngreso::where('referencia_pago', $t->referencia_pago . '-insc')->first();
-                if ($transInscripcion) {
-                    $tieneMultiplesModulos = true;
-                    $montoTotal += (float) $transInscripcion->monto;
-                    $modulosDetalle[] = [
-                        'modulo_nombre' => 'Inscripción / Matrícula',
-                        'monto' => (float) $transInscripcion->monto,
+                        'tipo' => $esInscripcion ? 'inscripcion' : 'modulo',
+                        'nombre' => $esInscripcion
+                            ? 'Inscripción / Matrícula'
+                            : ($linea?->modulo?->nombre_modulo ?? 'Concepto financiero'),
+                        'modulo_nombre' => $esInscripcion ? null : $linea?->modulo?->nombre_modulo,
+                        'linea_id' => $linea?->id,
+                        'modulo_id' => $linea?->modulo_id,
+                        'monto' => (float) $moduleTransaction->monto,
                     ];
                 }
             }
+
         }
 
         $estudiante = null;
@@ -1564,6 +1576,9 @@ class FinanceController extends Controller
         return response()->json([
             'datos' => [
                 'id' => $t->id,
+                'group_key' => $groupKey,
+                'count' => $tieneMultiplesModulos ? $hermanas->count() + 1 : 1,
+                'ids' => collect([$t->id])->merge($hermanas->pluck('id'))->values(),
                 'monto' => $montoTotal,
                 'metodo_pago' => $t->metodo_pago,
                 'fecha_pago' => $t->fecha_pago?->format('Y-m-d H:i'),
@@ -1579,6 +1594,7 @@ class FinanceController extends Controller
                 'taller_nombre' => $tallerNombre,
                 'tiene_multiples_modulos' => $tieneMultiplesModulos,
                 'modulos' => $modulosDetalle,
+                'detalle_conceptos' => $modulosDetalle,
                 'cuenta_por_cobrar' => $t->cuentaPorCobrar,
                 'linea_pago_modulo' => $lineaData,
                 'registrado_por' => $t->registrador ? trim(($t->registrador->nombres ?? '') . ' ' . ($t->registrador->apellidos ?? '')) : null,
@@ -2173,7 +2189,7 @@ class FinanceController extends Controller
 
         // ── Paginación real: UNION liviano de ids + LIMIT/OFFSET en BD ────────
         $ingresoIdsQuery = TransaccionIngreso::query()
-            ->selectRaw("id, 'ingreso' as tipo_movimiento, fecha_pago");
+            ->selectRaw("id, 'ingreso' as tipo_movimiento, fecha_pago, fecha_verificacion as orden_registro");
 
         if ($desde) {
             $ingresoIdsQuery->where('fecha_pago', '>=', $desde);
@@ -2237,6 +2253,7 @@ class FinanceController extends Controller
         $totalAll = $ingresoIdsQuery->count();
 
         $unionIds = $ingresoIdsQuery
+            ->orderBy('orden_registro', 'desc')
             ->orderBy('fecha_pago', 'desc')
             ->orderBy('id', 'desc')
             ->offset(($page - 1) * $perPage)
@@ -2317,7 +2334,7 @@ class FinanceController extends Controller
 
             if ($grupoKey && $grupos->has($grupoKey)) {
                 $grupo = $grupos->get($grupoKey);
-                $rep = $grupo->sortBy(fn($x) => [$x->created_at?->format('Y-m-d H:i:s.u') ?? '', $x->id])
+                $rep = $grupo->sortByDesc(fn($x) => [$x->created_at?->format('Y-m-d H:i:s.u') ?? '', $x->id])
                     ->first() ?? $t;
                 $monto = round((float) $grupo->sum('monto'), 2);
                 $modulosDetalle = $grupo->filter(fn($x) => $x->lineaPagoModulo?->modulo?->nombre_modulo)
@@ -2390,6 +2407,7 @@ class FinanceController extends Controller
                 'id' => $rep->id,
                 'tipo_movimiento' => 'ingreso',
                 'fecha_pago' => $rep->fecha_pago?->format('Y-m-d'),
+                'created_at' => $rep->fecha_verificacion?->toISOString(),
                 'concepto' => $concepto,
                 'es_personalizado' => (bool) ($curso?->es_personalizado ?? false),
                 'estudiante_nombre' => $estudiante ? trim(($estudiante->nombres ?? '') . ' ' . ($estudiante->apellidos ?? '')) : null,
@@ -2419,7 +2437,7 @@ class FinanceController extends Controller
                 : null;
             if ($grupoKey && $grupos->has($grupoKey)) {
                 $rep = $grupos->get($grupoKey)
-                    ->sortBy(fn($x) => [$x->created_at?->format('Y-m-d H:i:s.u') ?? '', $x->id])
+                    ->sortByDesc(fn($x) => [$x->created_at?->format('Y-m-d H:i:s.u') ?? '', $x->id])
                     ->first();
                 if (! $rep || $rep->id !== $m->id) {
                     return null;
