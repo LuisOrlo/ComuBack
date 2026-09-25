@@ -11,6 +11,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class TrabajoEdicionController extends Controller
 {
@@ -198,9 +199,38 @@ class TrabajoEdicionController extends Controller
 
     public function destroy($id)
     {
-        $trabajo = TrabajoEdicion::findOrFail($id);
-        CuentaPorCobrar::where('edicion_video_id', $id)->delete();
-        $trabajo->delete();
+        $bloqueadoPorPago = false;
+
+        DB::transaction(function () use ($id, &$bloqueadoPorPago) {
+            $trabajo = TrabajoEdicion::whereKey($id)->lockForUpdate()->firstOrFail();
+            $cuenta = CuentaPorCobrar::where('edicion_video_id', $trabajo->id)
+                ->lockForUpdate()
+                ->first();
+
+            if ($cuenta && $cuenta->transacciones()->exists()) {
+                $bloqueadoPorPago = true;
+                return;
+            }
+
+            // Las asignaciones no pueden quedar sin un origen válido.
+            DB::table('services.asignaciones_personal')
+                ->where('edicion_video_id', $trabajo->id)
+                ->delete();
+            $cuenta?->delete();
+            $trabajo->delete();
+        });
+
+        if ($bloqueadoPorPago) {
+            return response()->json([
+                'message' => 'No se puede eliminar este registro porque tiene pagos registrados.',
+            ], 409);
+        }
+
+        Log::channel('audit')->info('trabajo_edicion.eliminado', [
+            'trabajo_id' => $id,
+            'usuario_id' => auth()->id(),
+            'ip' => request()->ip(),
+        ]);
 
         Cache::forget('finance.resumen');
 

@@ -204,9 +204,10 @@ class InscripcionTallerController extends Controller
                 'estado_civil' => $validated['estado_civil'] ?? null,
                 'edad' => $validated['edad'] ?? null,
                 'nivel_educativo' => $validated['nivel_educativo'] ?? null,
+                'tipo_cliente' => 'persona',
             ];
 
-            $participanteExterno = ClienteExterno::where('correo', $validated['correo'])->first();
+            $participanteExterno = ClienteExterno::personas()->where('correo', $validated['correo'])->first();
 
             if (!$participanteExterno) {
                 $participanteExterno = ClienteExterno::create($datosExterno);
@@ -556,12 +557,29 @@ class InscripcionTallerController extends Controller
 
         $query = InscripcionTaller::query();
 
-        if ($request->filled('estado')) {
-            $query->where('estado', $request->estado);
-        }
+        if ($request->filled('status')) {
+            $status = $request->status;
+            if ($status === 'pendientes') {
+                $query->where('estado', 'activo')->where('pago_verificado', false);
+            } elseif ($status === 'aprobados') {
+                $query->where('pago_verificado', true);
+            } elseif ($status === 'rechazados') {
+                $query->where('estado', 'retirado');
+            }
+            // Si status === 'todos', no se filtra por estado ni pago_verificado
+        } else {
+            if ($request->filled('estado') && $request->estado !== 'todos') {
+                $query->where('estado', $request->estado);
+            }
 
-        if ($request->filled('pago_verificado')) {
-            $query->where('pago_verificado', $request->pago_verificado === 'true');
+            if ($request->filled('pago_verificado')) {
+                $query->where('pago_verificado', $request->pago_verificado === 'true');
+            }
+
+            // Si no se envió ni status ni estado ni pago_verificado, por defecto solo pendientes
+            if (!$request->filled('estado') && !$request->filled('pago_verificado')) {
+                $query->where('estado', 'activo')->where('pago_verificado', false);
+            }
         }
 
         if ($request->filled('search')) {

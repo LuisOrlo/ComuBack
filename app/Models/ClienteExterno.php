@@ -19,7 +19,9 @@ class ClienteExterno extends Model
     public $timestamps = false;
 
     protected $fillable = [
+        'tipo_cliente',
         'nombres',
+        'nombre_empresa',
         'apellidos',
         'cedula',
         'correo',
@@ -36,10 +38,13 @@ class ClienteExterno extends Model
     ];
 
     protected $casts = [
+        'tipo_cliente' => 'string',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
         'deleted_at' => 'datetime',
     ];
+
+    protected $appends = ['nombre_mostrado'];
 
     // ========================================================================
     // RELACIONES
@@ -51,6 +56,23 @@ class ClienteExterno extends Model
     public function solicitudesInscripcion(): HasMany
     {
         return $this->hasMany(SolicitudInscripcion::class, 'participante_externo_id');
+    }
+
+    public function contactos(): HasMany
+    {
+        return $this->hasMany(ClienteExternoContacto::class, 'cliente_externo_id');
+    }
+
+    public function contactosActivos(): HasMany
+    {
+        return $this->contactos()->where('activo', true);
+    }
+
+    public function scopePersonas($query)
+    {
+        return $query->where(function ($q) {
+            $q->where('tipo_cliente', 'persona')->orWhereNull('tipo_cliente');
+        });
     }
 
     /**
@@ -130,7 +152,28 @@ class ClienteExterno extends Model
      */
     public function getNombreCompletoAttribute(): string
     {
-        return trim("{$this->nombres} {$this->apellidos}");
+        return $this->nombre_mostrado;
+    }
+
+    public function getNombreMostradoAttribute(): string
+    {
+        if ($this->tipo_cliente === 'empresa') {
+            return trim((string) $this->nombre_empresa);
+        }
+
+        return trim(($this->nombres ?? '') . ' ' . ($this->apellidos ?? ''));
+    }
+
+    /** Compatibility for existing consumers that render nombres + apellidos. */
+    public function getNombresAttribute($value): ?string
+    {
+        if ($value !== null && $value !== '') {
+            return $value;
+        }
+        if (($this->attributes['tipo_cliente'] ?? null) === 'empresa') {
+            return $this->attributes['nombre_empresa'] ?? null;
+        }
+        return $value;
     }
 
     /**

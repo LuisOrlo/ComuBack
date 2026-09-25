@@ -71,9 +71,10 @@ class RegistrationController extends Controller
                 'estado_civil' => $validated['estado_civil'] ?? null,
                 'edad' => $validated['edad'] ?? null,
                 'nivel_educativo' => $validated['nivel_educativo'] ?? null,
+                'tipo_cliente' => 'persona',
             ];
 
-            $participanteExterno = ClienteExterno::where('correo', $validated['correo'])->first();
+            $participanteExterno = ClienteExterno::personas()->where('correo', $validated['correo'])->first();
             $participanteExternoId = $participanteExterno?->id;
             $esParticipanteExterno = true;
         }
@@ -170,6 +171,7 @@ class RegistrationController extends Controller
                 'estado_civil' => $validated['estado_civil'] ?? null,
                 'edad' => $validated['edad'] ?? null,
                 'nivel_educativo' => $validated['nivel_educativo'] ?? null,
+                'tipo_cliente' => 'persona',
                 'monto_declarado' => $validated['monto_declarado'] ?? $validated['monto_solicitado'] ?? null,
                 'referencia_declarada' => $validated['referencia_declarada'] ?? $request->input('referencia_declarada'),
                 'fecha_pago_declarada' => $validated['fecha_pago_declarada'] ?? null,

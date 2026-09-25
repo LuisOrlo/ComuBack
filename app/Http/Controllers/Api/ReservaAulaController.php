@@ -367,9 +367,32 @@ class ReservaAulaController extends Controller
 
     public function destroy($id)
     {
-        $reserva = ReservaAula::findOrFail($id);
-        $reserva->delete();
-        Log::channel('audit')->info('reserva_aula.eliminada', ['reserva_id' => $reserva->id, 'usuario_id' => auth()->id(), 'ip' => request()->ip()]);
+        $bloqueadaPorPago = false;
+        $reservaId = null;
+
+        DB::transaction(function () use ($id, &$bloqueadaPorPago, &$reservaId) {
+            $reserva = ReservaAula::whereKey($id)->lockForUpdate()->firstOrFail();
+            $reservaId = $reserva->id;
+            $cuenta = CuentaPorCobrar::where('reserva_aula_id', $reserva->id)
+                ->lockForUpdate()
+                ->first();
+
+            if ($cuenta && $cuenta->transacciones()->exists()) {
+                $bloqueadaPorPago = true;
+                return;
+            }
+
+            $cuenta?->delete();
+            $reserva->delete();
+        });
+
+        if ($bloqueadaPorPago) {
+            return response()->json([
+                'message' => 'No se puede eliminar este registro porque tiene pagos registrados.',
+            ], 409);
+        }
+
+        Log::channel('audit')->info('reserva_aula.eliminada', ['reserva_id' => $reservaId, 'usuario_id' => auth()->id(), 'ip' => request()->ip()]);
 
         return response()->json([
             'message' => 'Reserva eliminada exitosamente.'

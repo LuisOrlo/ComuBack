@@ -287,10 +287,30 @@ class StaffRegistrationController extends Controller
 
         $query = SolicitudInscripcion::query();
 
-        if ($request->has('estado')) {
-            $query->where('estado', $request->estado);
+        if ($request->filled('status')) {
+            $status = $request->status;
+            if ($status === 'pendientes') {
+                $query->where('estado', 'pendiente_validacion');
+            } elseif ($status === 'aprobados') {
+                $query->whereIn('estado', ['matricula_creada', 'aprobado']);
+            } elseif ($status === 'rechazados') {
+                $query->where('estado', 'rechazado');
+            }
+            // Si status === 'todos', no se filtra por estado
+        } elseif ($request->filled('estado')) {
+            if ($request->estado !== 'todos') {
+                $query->where('estado', $request->estado);
+            }
         } else {
             $query->where('estado', 'pendiente_validacion');
+        }
+
+        if ($request->filled('categoria')) {
+            if ($request->categoria === 'personalizado') {
+                $query->whereHas('cursoAbierto', fn ($curso) => $curso->where('es_personalizado', true));
+            } elseif ($request->categoria === 'regular') {
+                $query->whereHas('cursoAbierto', fn ($curso) => $curso->where('es_personalizado', false));
+            }
         }
 
         if ($request->has('search')) {

@@ -11,6 +11,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class AlquilerEquipoController extends Controller
 {
@@ -283,13 +284,45 @@ class AlquilerEquipoController extends Controller
 
     public function destroy(string $id): JsonResponse
     {
-        $alquiler = AlquilerEquipo::findOrFail($id);
+        $bloqueadoPorPago = false;
 
-        if ($alquiler->estado === 'activo' || $alquiler->estado === 'vencido' || $alquiler->estado === 'entregado' || $alquiler->estado === 'pendiente') {
-            $alquiler->equipo()->update(['estado' => 'disponible']);
+        DB::transaction(function () use ($id, &$bloqueadoPorPago) {
+            $alquiler = AlquilerEquipo::whereKey($id)->lockForUpdate()->firstOrFail();
+            $cuenta = CuentaPorCobrar::where('alquiler_equipo_id', $alquiler->id)
+                ->lockForUpdate()
+                ->first();
+
+            if ($cuenta && $cuenta->transacciones()->exists()) {
+                $bloqueadoPorPago = true;
+                return;
+            }
+
+            $equipo = Equipo::whereKey($alquiler->equipo_id)->lockForUpdate()->first();
+            $cuenta?->delete();
+            $alquiler->delete();
+
+            if ($equipo && $equipo->estado !== 'mantenimiento') {
+                $tieneOtroAlquilerRelevante = AlquilerEquipo::where('equipo_id', $equipo->id)
+                    ->whereIn('estado', ['pendiente', 'activo', 'entregado', 'vencido'])
+                    ->exists();
+
+                $equipo->update([
+                    'estado' => $tieneOtroAlquilerRelevante ? 'alquilado' : 'disponible',
+                ]);
+            }
+        });
+
+        if ($bloqueadoPorPago) {
+            return response()->json([
+                'message' => 'No se puede eliminar este registro porque tiene pagos registrados.',
+            ], 409);
         }
 
-        $alquiler->delete();
+        Log::channel('audit')->info('alquiler_equipo.eliminado', [
+            'alquiler_id' => $id,
+            'usuario_id' => auth()->id(),
+            'ip' => request()->ip(),
+        ]);
 
         return response()->json(['message' => 'Alquiler eliminado correctamente']);
     }

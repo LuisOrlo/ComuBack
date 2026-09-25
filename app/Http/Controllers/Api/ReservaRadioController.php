@@ -13,6 +13,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class ReservaRadioController extends Controller
 {
@@ -441,10 +442,35 @@ class ReservaRadioController extends Controller
 
     public function destroy($id)
     {
-        $reserva = ReservaRadio::findOrFail($id);
-        $reserva->asignacionesPersonal()->delete();
-        CuentaPorCobrar::where('reserva_radio_id', $id)->delete();
-        $reserva->delete();
+        $bloqueadaPorPago = false;
+
+        DB::transaction(function () use ($id, &$bloqueadaPorPago) {
+            $reserva = ReservaRadio::whereKey($id)->lockForUpdate()->firstOrFail();
+            $cuenta = CuentaPorCobrar::where('reserva_radio_id', $reserva->id)
+                ->lockForUpdate()
+                ->first();
+
+            if ($cuenta && $cuenta->transacciones()->exists()) {
+                $bloqueadaPorPago = true;
+                return;
+            }
+
+            $reserva->asignacionesPersonal()->delete();
+            $cuenta?->delete();
+            $reserva->delete();
+        });
+
+        if ($bloqueadaPorPago) {
+            return response()->json([
+                'message' => 'No se puede eliminar este registro porque tiene pagos registrados.',
+            ], 409);
+        }
+
+        Log::channel('audit')->info('reserva_radio.eliminada', [
+            'reserva_id' => $id,
+            'usuario_id' => auth()->id(),
+            'ip' => request()->ip(),
+        ]);
 
         Cache::forget('finance.resumen');
 

@@ -7,10 +7,12 @@ use App\Models\CuentaPorCobrar;
 use App\Models\TransaccionIngreso;
 use App\Models\Services\AsignacionPersonal;
 use App\Models\Services\ReservaPodcast;
+use App\Models\Services\TrabajoEdicion;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class ReservaPodcastController extends Controller
 {
@@ -394,10 +396,38 @@ class ReservaPodcastController extends Controller
 
     public function destroy($id)
     {
-        $reserva = ReservaPodcast::findOrFail($id);
-        $reserva->asignacionesPersonal()->delete();
-        CuentaPorCobrar::where('reserva_podcast_id', $id)->delete();
-        $reserva->delete();
+        $bloqueadaPorPago = false;
+
+        DB::transaction(function () use ($id, &$bloqueadaPorPago) {
+            $reserva = ReservaPodcast::whereKey($id)->lockForUpdate()->firstOrFail();
+            $cuenta = CuentaPorCobrar::where('reserva_podcast_id', $reserva->id)
+                ->lockForUpdate()
+                ->first();
+
+            if ($cuenta && $cuenta->transacciones()->exists()) {
+                $bloqueadaPorPago = true;
+                return;
+            }
+
+            // El trabajo de edición es independiente y debe conservarse.
+            TrabajoEdicion::where('reserva_podcast_id', $reserva->id)
+                ->update(['reserva_podcast_id' => null]);
+            $reserva->asignacionesPersonal()->delete();
+            $cuenta?->delete();
+            $reserva->delete();
+        });
+
+        if ($bloqueadaPorPago) {
+            return response()->json([
+                'message' => 'No se puede eliminar este registro porque tiene pagos registrados.',
+            ], 409);
+        }
+
+        Log::channel('audit')->info('reserva_podcast.eliminada', [
+            'reserva_id' => $id,
+            'usuario_id' => auth()->id(),
+            'ip' => request()->ip(),
+        ]);
 
         Cache::forget('finance.resumen');
 

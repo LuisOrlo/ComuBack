@@ -212,7 +212,7 @@ class SolicitudInscripcion extends Model
               ->orWhere('apellidos', 'ilike', "%{$term}%")
               ->orWhere('correo', 'ilike', "%{$term}%");
         })->orWhereHas('participanteExterno', function ($q) use ($term) {
-            $q->where('nombres', 'ilike', "%{$term}%")
+            $q->personas()->where('nombres', 'ilike', "%{$term}%")
               ->orWhere('apellidos', 'ilike', "%{$term}%")
               ->orWhere('correo', 'ilike', "%{$term}%");
         });

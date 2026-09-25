@@ -1075,13 +1075,102 @@ class FinanceController extends Controller
             $egresoIdsQuery->where('fecha_pago', '<=', $fechaHasta . ' 23:59:59');
         }
 
-        if ($search = $request->get('search')) {
-            $ingresoIdsQuery->where(function ($q) use ($search) {
+        if ($search = trim((string) $request->get('search'))) {
+            $matchingPersonas = DB::table('people.personas')
+                ->where(function ($q) use ($search) {
+                    $q->where('nombres', 'ilike', "%{$search}%")
+                      ->orWhere('apellidos', 'ilike', "%{$search}%")
+                      ->orWhere(DB::raw("TRIM(CONCAT(COALESCE(nombres, ''), ' ', COALESCE(apellidos, '')))"), 'ilike', "%{$search}%")
+                      ->orWhere('cedula', 'ilike', "%{$search}%");
+                })->pluck('id');
+
+            $matchingInscripcionesTaller = DB::table('academic.inscripciones_taller')
+                ->where(function ($q) use ($search) {
+                    $q->where('nombres', 'ilike', "%{$search}%")
+                      ->orWhere('apellidos', 'ilike', "%{$search}%")
+                      ->orWhere(DB::raw("TRIM(CONCAT(COALESCE(nombres, ''), ' ', COALESCE(apellidos, '')))"), 'ilike', "%{$search}%")
+                      ->orWhere('cedula', 'ilike', "%{$search}%");
+                })->pluck('id');
+
+            $matchingCatalogoIds = DB::table('academic.catalogo_cursos')->where('nombre', 'ilike', "%{$search}%")->pluck('id');
+            $matchingTallerIds = DB::table('academic.talleres')->where('nombre', 'ilike', "%{$search}%")->pluck('id');
+            $matchingCursosAbiertos = DB::table('academic.cursos_abiertos')
+                ->whereIn('catalogo_id', $matchingCatalogoIds)
+                ->orWhere('nombre_instancia', 'ilike', "%{$search}%")
+                ->pluck('id');
+
+            $matchingMatriculas = DB::table('academic.matriculas')
+                ->where(function ($q) use ($matchingPersonas, $matchingCursosAbiertos) {
+                    if ($matchingPersonas->isNotEmpty()) $q->orWhereIn('estudiante_id', $matchingPersonas);
+                    if ($matchingCursosAbiertos->isNotEmpty()) $q->orWhereIn('curso_abierto_id', $matchingCursosAbiertos);
+                })->pluck('id');
+
+            if ($matchingTallerIds->isNotEmpty()) {
+                $matchingInscripcionesTaller = $matchingInscripcionesTaller->merge(
+                    DB::table('academic.inscripciones_taller')->whereIn('taller_id', $matchingTallerIds)->pluck('id')
+                )->unique();
+            }
+
+            $matchingCuentaIds = DB::table('finance.cuentas_por_cobrar')
+                ->where(function ($q) use ($matchingMatriculas, $matchingInscripcionesTaller, $matchingPersonas) {
+                    if ($matchingMatriculas->isNotEmpty()) $q->orWhereIn('matricula_id', $matchingMatriculas);
+                    if ($matchingInscripcionesTaller->isNotEmpty()) $q->orWhereIn('inscripcion_taller_id', $matchingInscripcionesTaller);
+                    if ($matchingPersonas->isNotEmpty()) {
+                        $q->orWhereExists(function ($sub) use ($matchingPersonas) {
+                            $sub->select(DB::raw(1))->from('services.reservas_aulas')
+                                ->whereColumn('services.reservas_aulas.id', 'finance.cuentas_por_cobrar.reserva_aula_id')
+                                ->where(function ($sq) use ($matchingPersonas) {
+                                    $sq->whereIn('persona_id', $matchingPersonas)->orWhereIn('cliente_externo_id', $matchingPersonas);
+                                });
+                        })->orWhereExists(function ($sub) use ($matchingPersonas) {
+                            $sub->select(DB::raw(1))->from('services.reservas_podcast')
+                                ->whereColumn('services.reservas_podcast.id', 'finance.cuentas_por_cobrar.reserva_podcast_id')
+                                ->where(function ($sq) use ($matchingPersonas) {
+                                    $sq->whereIn('persona_id', $matchingPersonas)->orWhereIn('cliente_externo_id', $matchingPersonas);
+                                });
+                        })->orWhereExists(function ($sub) use ($matchingPersonas) {
+                            $sub->select(DB::raw(1))->from('services.reservas_radio')
+                                ->whereColumn('services.reservas_radio.id', 'finance.cuentas_por_cobrar.reserva_radio_id')
+                                ->where(function ($sq) use ($matchingPersonas) {
+                                    $sq->whereIn('persona_id', $matchingPersonas)->orWhereIn('cliente_externo_id', $matchingPersonas);
+                                });
+                        })->orWhereExists(function ($sub) use ($matchingPersonas) {
+                            $sub->select(DB::raw(1))->from('services.alquiler_equipos')
+                                ->whereColumn('services.alquiler_equipos.id', 'finance.cuentas_por_cobrar.alquiler_equipo_id')
+                                ->where(function ($sq) use ($matchingPersonas) {
+                                    $sq->whereIn('persona_id', $matchingPersonas)->orWhereIn('cliente_externo_id', $matchingPersonas);
+                                });
+                        })->orWhereExists(function ($sub) use ($matchingPersonas) {
+                            $sub->select(DB::raw(1))->from('services.edicion_videos')
+                                ->whereColumn('services.edicion_videos.id', 'finance.cuentas_por_cobrar.edicion_video_id')
+                                ->where(function ($sq) use ($matchingPersonas) {
+                                    $sq->whereIn('persona_id', $matchingPersonas)->orWhereIn('cliente_externo_id', $matchingPersonas);
+                                });
+                        });
+                    }
+                })->pluck('id');
+
+            $matchingLineaIds = collect();
+            if ($matchingMatriculas->isNotEmpty()) {
+                $matchingLineaIds = DB::table('finance.lineas_pago_modulo')
+                    ->whereIn('matricula_id', $matchingMatriculas)
+                    ->pluck('id');
+            }
+
+            $ingresoIdsQuery->where(function ($q) use ($search, $matchingCuentaIds, $matchingLineaIds) {
                 $q->where('monto', 'ilike', "%{$search}%")
                   ->orWhere('metodo_pago', 'ilike', "%{$search}%")
                   ->orWhere('estado_verificacion', 'ilike', "%{$search}%")
                   ->orWhere('referencia_pago', 'ilike', "%{$search}%");
+
+                if ($matchingCuentaIds->isNotEmpty()) {
+                    $q->orWhereIn('cuenta_cobrar_id', $matchingCuentaIds);
+                }
+                if ($matchingLineaIds->isNotEmpty()) {
+                    $q->orWhereIn('linea_pago_modulo_id', $matchingLineaIds);
+                }
             });
+
             $egresoIdsQuery->where(function ($q) use ($search) {
                 $q->where('monto', 'ilike', "%{$search}%")
                   ->orWhere('metodo_pago', 'ilike', "%{$search}%")

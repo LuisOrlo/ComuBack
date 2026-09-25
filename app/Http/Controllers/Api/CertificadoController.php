@@ -430,6 +430,9 @@ class CertificadoController extends Controller
             ->get(['id', 'nombres', 'apellidos', 'cedula', 'tipo']);
 
         $externos = DB::table('people.clientes_externos')
+            ->where(function ($q) {
+                $q->where('tipo_cliente', 'persona')->orWhereNull('tipo_cliente');
+            })
             ->where(function ($q) use ($search) {
                 $q->where('nombres', 'ilike', "%{$search}%")
                   ->orWhere('apellidos', 'ilike', "%{$search}%")
