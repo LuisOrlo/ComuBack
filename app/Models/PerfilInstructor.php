@@ -18,6 +18,16 @@ class PerfilInstructor extends Model
         'persona_id',
         'especialidad',
         'bio',
+        'hoja_vida_path',
+        'hoja_vida_nombre_original',
+        'hoja_vida_mime',
+        'hoja_vida_size',
+        'hoja_vida_updated_at',
+    ];
+
+    protected $casts = [
+        'hoja_vida_size' => 'integer',
+        'hoja_vida_updated_at' => 'datetime',
     ];
 
     public function persona(): BelongsTo

@@ -96,4 +96,13 @@ class Persona extends Model
               ->orWhere('correo', 'ilike', "%{$termino}%");
         });
     }
+
+    public function toArray()
+    {
+        $array = parent::toArray();
+        if (empty($array['ciudad']) && !empty($this->attributes['ciudad'])) {
+            $array['ciudad'] = $this->attributes['ciudad'];
+        }
+        return $array;
+    }
 }

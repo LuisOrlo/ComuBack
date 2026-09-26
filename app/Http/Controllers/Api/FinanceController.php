@@ -1916,9 +1916,19 @@ class FinanceController extends Controller
 
         $taller = \App\Models\Taller::findOrFail($tallerId);
         $cuenta = CuentaPorCobrar::where('inscripcion_taller_id', $participanteId)->first();
-        $montoTotal = $cuenta?->monto_total ?? $taller->precio ?? 0;
-        $montoAbonado = $cuenta?->monto_abonado ?? ($inscripcion->monto_pagado ?? 0);
-        $saldo = (float) ($cuenta?->saldo_pendiente ?? max(0, $montoTotal - $montoAbonado));
+        if (! $cuenta) {
+            $montoOriginal = (float) ($taller->precio ?? 0);
+            $abonoInicial = (float) ($inscripcion->monto_pagado ?? 0);
+            $cuenta = CuentaPorCobrar::create([
+                'inscripcion_taller_id' => $participanteId,
+                'monto_total' => $montoOriginal,
+                'monto_abonado' => $abonoInicial,
+                'estado' => $abonoInicial >= $montoOriginal ? CuentaPorCobrar::ESTADO_PAGADO : ($abonoInicial > 0 ? CuentaPorCobrar::ESTADO_ABONADO : CuentaPorCobrar::ESTADO_PENDIENTE),
+            ]);
+        }
+        $montoTotal = (float) ($cuenta->monto_total ?? $taller->precio ?? 0);
+        $montoAbonado = (float) ($cuenta->monto_abonado ?? ($inscripcion->monto_pagado ?? 0));
+        $saldo = (float) ($cuenta->saldo_pendiente ?? max(0, $montoTotal - $montoAbonado));
 
         $transacciones = TransaccionIngreso::whereHas('cuentaPorCobrar', fn($q) => $q->where('inscripcion_taller_id', $participanteId))
             ->with(['cuentaPorCobrar', 'registrador'])
@@ -1940,10 +1950,23 @@ class FinanceController extends Controller
                     'id' => $inscripcion->id,
                     'nombres' => $inscripcion->nombres,
                     'apellidos' => $inscripcion->apellidos,
+                    'cedula' => $inscripcion->cedula,
+                    'correo' => $inscripcion->correo,
+                    'telefono' => $inscripcion->telefono,
+                    'ciudad' => $inscripcion->ciudad,
                 ],
                 'nombre_participante' => trim(($inscripcion->nombres ?? '') . ' ' . ($inscripcion->apellidos ?? '')),
+                'cedula' => $inscripcion->cedula,
+                'correo' => $inscripcion->correo,
+                'telefono' => $inscripcion->telefono,
+                'ciudad' => $inscripcion->ciudad,
                 'taller_nombre' => $taller->nombre,
-                'taller' => ['nombre' => $taller->nombre],
+                'taller' => [
+                    'id' => $taller->id,
+                    'nombre' => $taller->nombre,
+                    'codigo' => $taller->codigo ?? null,
+                    'modalidad' => $taller->modalidad ?? null,
+                ],
                 'precio_taller' => (float) ($taller->precio ?? 0),
                 'monto_total' => $montoTotal,
                 'monto_abonado' => $montoAbonado,

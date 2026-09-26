@@ -228,12 +228,18 @@ use Illuminate\Support\Facades\Route;
 
         // INSTRUCTORES
         Route::prefix('instructores')->group(function () {
-            Route::get('/', [InstructorController::class, 'index'])->name('instructores.index');
+            Route::get('/', [InstructorController::class, 'index'])->middleware('permission:gestionar_personal')->name('instructores.index');
             Route::get('disponibles', [InstructorController::class, 'disponibles'])->name('instructores.disponibles');
-            Route::get('{id}', [InstructorController::class, 'show'])->name('instructores.show');
-            Route::post('{id}/perfil', [InstructorController::class, 'updatePerfil'])->name('instructores.update-perfil');
-            Route::get('{id}/cursos', [InstructorController::class, 'cursos'])->name('instructores.cursos');
-            Route::get('{id}/horas', [InstructorController::class, 'horas'])->name('instructores.horas');
+            Route::get('{id}', [InstructorController::class, 'show'])->middleware('permission:gestionar_personal')->name('instructores.show');
+            Route::get('{id}/detalle', [InstructorController::class, 'detalle'])->middleware('permission:gestionar_personal')->name('instructores.detalle');
+            Route::post('{id}/perfil', [InstructorController::class, 'updatePerfil'])->middleware('permission:gestionar_personal')->name('instructores.update-perfil');
+            Route::patch('{id}/estado', [InstructorController::class, 'setActivo'])->middleware('permission:gestionar_personal')->name('instructores.estado');
+            Route::get('{id}/cursos', [InstructorController::class, 'cursos'])->middleware('permission:gestionar_personal')->name('instructores.cursos');
+            Route::get('{id}/talleres', [InstructorController::class, 'talleres'])->middleware('permission:gestionar_personal')->name('instructores.talleres');
+            Route::get('{id}/horas', [InstructorController::class, 'horas'])->middleware('permission:gestionar_personal')->name('instructores.horas');
+            Route::post('{id}/hoja-vida', [InstructorController::class, 'subirHojaVida'])->middleware('permission:gestionar_personal')->name('instructores.hoja-vida.subir');
+            Route::get('{id}/hoja-vida', [InstructorController::class, 'verHojaVida'])->middleware('permission:gestionar_personal')->name('instructores.hoja-vida.ver');
+            Route::delete('{id}/hoja-vida', [InstructorController::class, 'eliminarHojaVida'])->middleware('permission:gestionar_personal')->name('instructores.hoja-vida.eliminar');
          });
 
         // SOLICITUDES DE INSCRIPCIÓN (aprobación)
