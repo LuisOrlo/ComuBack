@@ -98,7 +98,7 @@ class TareaStaffController extends Controller
 
     public function staffDisponible(): JsonResponse
     {
-        $staff = Persona::whereIn('tipo', ['staff', 'secretaria', 'admin'])
+        $staff = Persona::whereIn('tipo', ['staff', 'instructor'])
             ->where('es_activo', true)
             ->select('id', 'nombres', 'apellidos', 'tipo')
             ->orderBy('nombres')

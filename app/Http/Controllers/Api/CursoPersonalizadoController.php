@@ -28,7 +28,7 @@ class CursoPersonalizadoController extends Controller
     {
         $query = CursoPersonalizado::query();
 
-        if ($request->boolean('publico')) {
+        if ($request->boolean('publico') || $request->route('publico')) {
             $query->where('es_activo', true)
                 ->whereDate('fecha_fin', '>=', now()->toDateString());
         }
@@ -121,7 +121,7 @@ class CursoPersonalizadoController extends Controller
         return response()->json([
             'data' => $this->toApi($curso),
             'estudiantes' => $matriculas->map(fn (Matricula $matricula) => $this->mapMatricula($matricula, (float) $curso->precio_base))->values(),
-            'finanzas' => $this->resumenFinanciero($matriculas, (float) $curso->precio_base),
+            'finanzas' => $this->resumenFinanciero($matriculas, (float) $curso->precio_base, (int) $curso->capacidad_maxima),
         ]);
     }
 
@@ -333,14 +333,18 @@ class CursoPersonalizadoController extends Controller
         ];
     }
 
-    private function resumenFinanciero($matriculas, float $precioCurso): array
+    private function resumenFinanciero($matriculas, float $precioCurso, int $capacidad = 0): array
     {
         $filas = $matriculas->map(fn (Matricula $matricula) => $this->mapMatricula($matricula, $precioCurso));
+        $totalAbonado = (float) $filas->sum('monto_pagado');
+        $totalEsperado = $capacidad > 0 ? (float) ($capacidad * $precioCurso) : (float) $filas->sum('precio');
+        $saldoPendiente = max(0, $totalEsperado - $totalAbonado);
+
         return [
             'precio_por_estudiante' => $precioCurso,
-            'total_esperado' => (float) $filas->sum('precio'),
-            'total_abonado' => (float) $filas->sum('monto_pagado'),
-            'saldo_pendiente' => (float) $filas->sum('saldo_pendiente'),
+            'total_esperado' => $totalEsperado,
+            'total_abonado' => $totalAbonado,
+            'saldo_pendiente' => $saldoPendiente,
             'cuentas_pagadas' => $filas->where('estado_financiero', 'pagado')->count(),
             'cuentas_abonadas' => $filas->where('estado_financiero', 'abonado')->count(),
             'cuentas_pendientes' => $filas->where('estado_financiero', 'pendiente')->count(),
@@ -376,7 +380,7 @@ class CursoPersonalizadoController extends Controller
             ->get();
 
         return response()->json([
-            'data' => array_merge($this->toApi($curso), ['finanzas' => $this->resumenFinanciero($matriculas, (float) $curso->precio_base)]),
+            'data' => array_merge($this->toApi($curso), ['finanzas' => $this->resumenFinanciero($matriculas, (float) $curso->precio_base, (int) $curso->capacidad_maxima)]),
         ]);
     }
 

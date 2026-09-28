@@ -22,12 +22,32 @@ class InstructorController extends Controller
         $hoy = Carbon::today()->toDateString();
         $query = Persona::with(['perfilInstructor', 'ciudad', 'cuentaSistema'])
             ->instructores()->select('people.personas.*')
-            ->selectSub(CursoAbierto::query()->selectRaw('count(*)')->whereColumn('docente_id', 'people.personas.id')
+            ->selectSub(CursoAbierto::query()->selectRaw('count(*)')
+                ->whereColumn('docente_id', 'people.personas.id')
                 ->where('es_activo', true)
-                ->whereDate('fecha_inicio', '<=', $hoy)->where(fn ($q) => $q->whereNull('fecha_fin')->orWhereDate('fecha_fin', '>=', $hoy)), 'cursos_actuales_count')
-            ->selectSub(Taller::query()->selectRaw('count(*)')->whereColumn('instructor_id', 'people.personas.id')
-                ->whereIn('estado', ['pendiente', 'confirmado'])->whereDate('fecha', '<=', $hoy)
-                ->where(fn ($q) => $q->whereNull('fecha_fin')->orWhereDate('fecha_fin', '>=', $hoy)), 'talleres_actuales_count');
+                ->where('estado', '!=', 'cancelado')
+                ->where(function ($q) use ($hoy) {
+                    $q->where('estado', 'en_progreso')
+                      ->orWhere(function ($q2) use ($hoy) {
+                          $q2->whereDate('fecha_inicio', '<=', $hoy)
+                             ->where(fn ($q3) => $q3->whereNull('fecha_fin')->orWhereDate('fecha_fin', '>=', $hoy));
+                      });
+                }), 'cursos_actuales_count')
+            ->selectSub(CursoAbierto::query()->selectRaw('count(*)')
+                ->whereColumn('docente_id', 'people.personas.id')
+                ->where('es_activo', true)
+                ->where('estado', '!=', 'cancelado')
+                ->where('estado', '!=', 'en_progreso')
+                ->whereDate('fecha_inicio', '>', $hoy), 'cursos_proximos_count')
+            ->selectSub(Taller::query()->selectRaw('count(*)')
+                ->whereColumn('instructor_id', 'people.personas.id')
+                ->whereIn('estado', ['confirmado', 'en_progreso'])
+                ->whereDate('fecha', '<=', $hoy)
+                ->where(fn ($q) => $q->whereNull('fecha_fin')->orWhereDate('fecha_fin', '>=', $hoy)), 'talleres_actuales_count')
+            ->selectSub(Taller::query()->selectRaw('count(*)')
+                ->whereColumn('instructor_id', 'people.personas.id')
+                ->whereIn('estado', ['pendiente', 'confirmado'])
+                ->whereDate('fecha', '>', $hoy), 'talleres_proximos_count');
 
         if ($request->filled('buscar')) $query->buscar($request->buscar);
         if ($request->filled('ciudad_id')) $query->where('ciudad_id', $request->ciudad_id);

@@ -1670,6 +1670,7 @@ class FinanceController extends Controller
                 'ids' => collect([$t->id])->merge($hermanas->pluck('id'))->values(),
                 'monto' => $montoTotal,
                 'metodo_pago' => $t->metodo_pago,
+                'referencia_pago' => $t->referencia_pago,
                 'fecha_pago' => $t->fecha_pago?->format('Y-m-d H:i'),
                 'estado_verificacion' => $t->estado_verificacion,
                 'comprobante_url' => $t->comprobante_url,
