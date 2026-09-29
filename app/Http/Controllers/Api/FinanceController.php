@@ -1523,6 +1523,8 @@ class FinanceController extends Controller
             'cuentaPorCobrar.alquilerEquipo.equipo',
             'cuentaPorCobrar.reservaRadio.persona',
             'cuentaPorCobrar.reservaRadio.clienteExterno',
+            'cuentaPorCobrar.edicionVideo.cliente',
+            'cuentaPorCobrar.edicionVideo.clienteExterno',
             'registrador',
             'verificador',
         ])->findOrFail($id);
@@ -1607,13 +1609,17 @@ class FinanceController extends Controller
                 ?? $cp->alquilerEquipo?->persona
                 ?? $cp->alquilerEquipo?->clienteExterno
                 ?? $cp->reservaRadio?->persona
-                ?? $cp->reservaRadio?->clienteExterno;
+                ?? $cp->reservaRadio?->clienteExterno
+                ?? $cp->edicionVideo?->cliente
+                ?? $cp->edicionVideo?->clienteExterno;
             $cursoNombre = $cp->matricula?->cursoAbierto?->catalogo?->nombre
                 ?? $cp->inscripcionTaller?->taller?->nombre
                 ?? $cp->reservaPodcast?->titulo
                 ?? $cp->reservaPodcast?->paquete?->nombre
                 ?? $cp->reservaAula?->aula?->nombre
-                ?? $cp->alquilerEquipo?->equipo?->nombre;
+                ?? $cp->alquilerEquipo?->equipo?->nombre
+                ?? $cp->edicionVideo?->titulo
+                ?? ($cp->edicion_video_id ? 'Edición de Video' : null);
             $tallerNombre = $cp->inscripcionTaller?->taller?->nombre;
         }
 
@@ -1678,7 +1684,7 @@ class FinanceController extends Controller
                 'observaciones' => $t->observaciones,
                 'motivo_rechazo' => $t->motivo_rechazo,
                 'fecha_verificacion' => $t->fecha_verificacion?->format('Y-m-d H:i'),
-                'estudiante_nombre' => $estudiante ? trim(($estudiante->nombres ?? '') . ' ' . ($estudiante->apellidos ?? '')) : null,
+                'estudiante_nombre' => $estudiante ? ($estudiante->nombre_mostrado ?? trim(($estudiante->nombres ?? '') . ' ' . ($estudiante->apellidos ?? ''))) : null,
                 'curso_nombre' => $cursoNombre,
                 'modulo_nombre' => $moduloNombre,
                 'taller_nombre' => $tallerNombre,

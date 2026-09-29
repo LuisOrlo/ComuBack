@@ -72,6 +72,8 @@ class AlquilerEquipoController extends Controller
             'precio_original' => 'nullable|numeric|min:0',
             'monto_descuento' => 'nullable|numeric|min:0',
             'motivo_descuento' => 'nullable|string|max:255',
+            'monto_recargo' => 'nullable|numeric|min:0',
+            'motivo_recargo' => 'nullable|string|max:255',
         ]);
 
         if (empty($validated['persona_id']) && empty($validated['cliente_externo_id'])) {
@@ -106,6 +108,16 @@ class AlquilerEquipoController extends Controller
 
         if (isset($validated['motivo_descuento']) && ($validated['motivo_descuento'] === '' || $validated['motivo_descuento'] === 'null')) {
             $validated['motivo_descuento'] = null;
+        }
+
+        if (!isset($validated['monto_recargo']) || $validated['monto_recargo'] === '' || $validated['monto_recargo'] === null) {
+            $validated['monto_recargo'] = 0;
+        } else {
+            $validated['monto_recargo'] = (float) $validated['monto_recargo'];
+        }
+
+        if (isset($validated['motivo_recargo']) && ($validated['motivo_recargo'] === '' || $validated['motivo_recargo'] === 'null')) {
+            $validated['motivo_recargo'] = null;
         }
 
         $validated['estado'] = 'pendiente';
@@ -153,6 +165,8 @@ class AlquilerEquipoController extends Controller
             'precio_original' => 'nullable|numeric|min:0',
             'monto_descuento' => 'nullable|numeric|min:0',
             'motivo_descuento' => 'nullable|string|max:255',
+            'monto_recargo' => 'nullable|numeric|min:0',
+            'motivo_recargo' => 'nullable|string|max:255',
         ]);
 
         if (empty($validated['persona_id']) && empty($validated['cliente_externo_id'])) {
@@ -196,6 +210,16 @@ class AlquilerEquipoController extends Controller
 
         if (isset($validated['motivo_descuento']) && ($validated['motivo_descuento'] === '' || $validated['motivo_descuento'] === 'null')) {
             $validated['motivo_descuento'] = null;
+        }
+
+        if (!isset($validated['monto_recargo']) || $validated['monto_recargo'] === '' || $validated['monto_recargo'] === null) {
+            $validated['monto_recargo'] = 0;
+        } else {
+            $validated['monto_recargo'] = (float) $validated['monto_recargo'];
+        }
+
+        if (isset($validated['motivo_recargo']) && ($validated['motivo_recargo'] === '' || $validated['motivo_recargo'] === 'null')) {
+            $validated['motivo_recargo'] = null;
         }
 
         DB::transaction(function () use ($alquiler, $validated, $cuenta) {

@@ -38,8 +38,20 @@ class ReservaAula extends Model
         'precio_original',
         'monto_descuento',
         'motivo_descuento',
+        'monto_recargo',
+        'motivo_recargo',
         'estado'
     ];
+
+    protected function casts(): array
+    {
+        return [
+            'precio_total' => 'decimal:2',
+            'precio_original' => 'decimal:2',
+            'monto_descuento' => 'decimal:2',
+            'monto_recargo' => 'decimal:2',
+        ];
+    }
 
     public function aula(): BelongsTo
     {

@@ -83,6 +83,8 @@ class ReservaPodcastController extends Controller
             'precio_original' => 'nullable|numeric|min:0',
             'monto_descuento' => 'nullable|numeric|min:0',
             'motivo_descuento' => 'nullable|string|max:255',
+            'monto_recargo' => 'nullable|numeric|min:0',
+            'motivo_recargo' => 'nullable|string|max:255',
             'notas' => 'nullable|string',
             'titulo' => 'nullable|string|max:255',
             'estado' => 'nullable|string|in:pendiente,reservado,confirmado,en_progreso,completado,cancelado',
@@ -102,6 +104,8 @@ class ReservaPodcastController extends Controller
             'precio_original' => $validated['precio_original'] ?? null,
             'monto_descuento' => $validated['monto_descuento'] ?? 0,
             'motivo_descuento' => $validated['motivo_descuento'] ?? null,
+            'monto_recargo' => $validated['monto_recargo'] ?? 0,
+            'motivo_recargo' => $validated['motivo_recargo'] ?? null,
             'observaciones' => $validated['notas'] ?? null,
             'titulo' => $validated['titulo'] ?? null,
             'estado' => $validated['estado'] ?? 'reservado',
@@ -175,6 +179,8 @@ class ReservaPodcastController extends Controller
             'reservas.*.precio_original' => 'nullable|numeric|min:0',
             'reservas.*.monto_descuento' => 'nullable|numeric|min:0',
             'reservas.*.motivo_descuento' => 'nullable|string|max:255',
+            'reservas.*.monto_recargo' => 'nullable|numeric|min:0',
+            'reservas.*.motivo_recargo' => 'nullable|string|max:255',
             'reservas.*.notas' => 'nullable|string',
             'reservas.*.titulo' => 'nullable|string|max:255',
             'reservas.*.estado' => 'nullable|string|in:pendiente,reservado,confirmado,en_progreso,completado,cancelado',
@@ -218,6 +224,8 @@ class ReservaPodcastController extends Controller
                     'precio_original' => $item['precio_original'] ?? null,
                     'monto_descuento' => $item['monto_descuento'] ?? 0,
                     'motivo_descuento' => $item['motivo_descuento'] ?? null,
+                    'monto_recargo' => $item['monto_recargo'] ?? 0,
+                    'motivo_recargo' => $item['motivo_recargo'] ?? null,
                     'observaciones' => $item['notas'] ?? null,
                     'titulo' => $item['titulo'] ?? null,
                     'estado' => ($item['estado'] ?? 'reservado') === 'pendiente' ? 'reservado' : ($item['estado'] ?? 'reservado'),
@@ -311,6 +319,8 @@ class ReservaPodcastController extends Controller
             'precio_original' => 'nullable|numeric|min:0',
             'monto_descuento' => 'nullable|numeric|min:0',
             'motivo_descuento' => 'nullable|string|max:255',
+            'monto_recargo' => 'nullable|numeric|min:0',
+            'motivo_recargo' => 'nullable|string|max:255',
             'notas' => 'nullable|string',
             'titulo' => 'nullable|string|max:255',
             'estado' => 'sometimes|string|in:pendiente,reservado,confirmado,en_progreso,completado,cancelado',
@@ -330,6 +340,8 @@ class ReservaPodcastController extends Controller
         if (array_key_exists('precio_original', $validated)) $data['precio_original'] = $validated['precio_original'];
         if (array_key_exists('monto_descuento', $validated)) $data['monto_descuento'] = $validated['monto_descuento'];
         if (array_key_exists('motivo_descuento', $validated)) $data['motivo_descuento'] = $validated['motivo_descuento'];
+        if (array_key_exists('monto_recargo', $validated)) $data['monto_recargo'] = $validated['monto_recargo'];
+        if (array_key_exists('motivo_recargo', $validated)) $data['motivo_recargo'] = $validated['motivo_recargo'];
         if (array_key_exists('notas', $validated)) $data['observaciones'] = $validated['notas'];
         if (array_key_exists('titulo', $validated)) $data['titulo'] = $validated['titulo'];
         if (isset($validated['estado'])) $data['estado'] = $validated['estado'] === 'pendiente' ? 'reservado' : $validated['estado'];
@@ -597,6 +609,11 @@ class ReservaPodcastController extends Controller
             'hora_inicio' => $r->hora_inicio,
             'hora_fin' => $r->hora_fin,
             'precio_total' => (float) $r->precio_total,
+            'precio_original' => $r->precio_original ? (float) $r->precio_original : null,
+            'monto_descuento' => (float) ($r->monto_descuento ?? 0),
+            'motivo_descuento' => $r->motivo_descuento,
+            'monto_recargo' => (float) ($r->monto_recargo ?? 0),
+            'motivo_recargo' => $r->motivo_recargo,
             'pago_registrado' => $pagoRegistrado,
             'pago_abonado' => $cuenta ? ($cuenta->monto_abonado > 0) : false,
             'estado' => $r->estado === 'reservado' ? 'pendiente' : $r->estado,

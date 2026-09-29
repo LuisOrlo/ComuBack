@@ -89,6 +89,11 @@ class ReservaRadioController extends Controller
             'operador_id' => 'nullable|uuid|exists:personas,id',
             'observaciones' => 'nullable|string',
             'estado' => 'nullable|string|in:reservado,confirmado,en_progreso,completado,cancelado',
+            'precio_original' => 'nullable|numeric|min:0',
+            'monto_descuento' => 'nullable|numeric|min:0',
+            'motivo_descuento' => 'nullable|string|max:255',
+            'monto_recargo' => 'nullable|numeric|min:0',
+            'motivo_recargo' => 'nullable|string|max:255',
         ]);
 
         if (empty($validated['persona_id']) && empty($validated['cliente_externo_id'])) {
@@ -137,11 +142,16 @@ class ReservaRadioController extends Controller
         }
 
         // Calcular precio automáticamente
-        $precioTotal = $this->conflictValidator->calcularPrecioTotal(
+        $precioCalculado = $this->conflictValidator->calcularPrecioTotal(
             (int) $validated['tarifa_id'],
             $validated['hora_inicio'],
             $validated['hora_fin'],
         );
+
+        $precioOriginal = (float) ($validated['precio_original'] ?? $precioCalculado);
+        $montoDescuento = (float) ($validated['monto_descuento'] ?? 0);
+        $montoRecargo = (float) ($validated['monto_recargo'] ?? 0);
+        $precioTotal = max(0, $precioOriginal - $montoDescuento + $montoRecargo);
 
         $data = [
             'tarifa_id' => (int) $validated['tarifa_id'],
@@ -153,6 +163,11 @@ class ReservaRadioController extends Controller
             'incluye_operador' => $incluyeOperador,
             'operador_id' => $validated['operador_id'] ?? null,
             'precio_total' => $precioTotal,
+            'precio_original' => ($montoDescuento > 0 || $montoRecargo > 0) ? $precioOriginal : null,
+            'monto_descuento' => $montoDescuento,
+            'motivo_descuento' => $validated['motivo_descuento'] ?? null,
+            'monto_recargo' => $montoRecargo,
+            'motivo_recargo' => $validated['motivo_recargo'] ?? null,
             'observaciones' => $validated['observaciones'] ?? null,
             'estado' => $validated['estado'] ?? 'reservado',
         ];
@@ -193,6 +208,8 @@ class ReservaRadioController extends Controller
             'reservas.*.precio_original' => 'nullable|numeric|min:0',
             'reservas.*.monto_descuento' => 'nullable|numeric|min:0',
             'reservas.*.motivo_descuento' => 'nullable|string|max:255',
+            'reservas.*.monto_recargo' => 'nullable|numeric|min:0',
+            'reservas.*.motivo_recargo' => 'nullable|string|max:255',
             'reservas.*.estado' => 'nullable|string|in:reservado,confirmado,en_progreso,completado,cancelado',
         ]);
 
@@ -242,11 +259,9 @@ class ReservaRadioController extends Controller
                     (int) $item['tarifa_id'], $item['hora_inicio'], $item['hora_fin']
                 );
                 $precioOriginal = (float) ($item['precio_original'] ?? $precioTotal);
-                $montoDescuento = min(
-                    max(0, (float) ($item['monto_descuento'] ?? 0)),
-                    $precioOriginal,
-                );
-                $precioTotal = max(0, $precioOriginal - $montoDescuento);
+                $montoDescuento = (float) ($item['monto_descuento'] ?? 0);
+                $montoRecargo = (float) ($item['monto_recargo'] ?? 0);
+                $precioTotal = max(0, $precioOriginal - $montoDescuento + $montoRecargo);
 
                 $reserva = ReservaRadio::create([
                     'tarifa_id' => (int) $item['tarifa_id'],
@@ -258,9 +273,11 @@ class ReservaRadioController extends Controller
                     'incluye_operador' => $incluyeOperador,
                     'operador_id' => $incluyeOperador ? ($item['operador_id'] ?? null) : null,
                     'precio_total' => $precioTotal,
-                    'precio_original' => $montoDescuento > 0 ? $precioOriginal : null,
+                    'precio_original' => ($montoDescuento > 0 || $montoRecargo > 0) ? $precioOriginal : null,
                     'monto_descuento' => $montoDescuento,
                     'motivo_descuento' => $montoDescuento > 0 ? ($item['motivo_descuento'] ?? null) : null,
+                    'monto_recargo' => $montoRecargo,
+                    'motivo_recargo' => $montoRecargo > 0 ? ($item['motivo_recargo'] ?? null) : null,
                     'observaciones' => $item['observaciones'] ?? null,
                     'estado' => $item['estado'] ?? 'reservado',
                 ]);
@@ -359,6 +376,11 @@ class ReservaRadioController extends Controller
                 'operador_id' => 'nullable|uuid|exists:personas,id',
                 'observaciones' => 'nullable|string',
                 'estado' => 'sometimes|string|in:reservado,confirmado,en_progreso,completado,cancelado',
+                'precio_original' => 'nullable|numeric|min:0',
+                'monto_descuento' => 'nullable|numeric|min:0',
+                'motivo_descuento' => 'nullable|string|max:255',
+                'monto_recargo' => 'nullable|numeric|min:0',
+                'motivo_recargo' => 'nullable|string|max:255',
             ]);
         } catch (\Illuminate\Validation\ValidationException $e) {
             \Illuminate\Support\Facades\Log::debug('reservas-radio.update validation failed', ['id' => $id, 'errors' => $e->errors(), 'input' => $request->all()]);
@@ -376,6 +398,11 @@ class ReservaRadioController extends Controller
         if (array_key_exists('operador_id', $validated)) $data['operador_id'] = $validated['operador_id'];
         if (array_key_exists('observaciones', $validated)) $data['observaciones'] = $validated['observaciones'];
         if (isset($validated['estado'])) $data['estado'] = $validated['estado'];
+        if (array_key_exists('precio_original', $validated)) $data['precio_original'] = $validated['precio_original'];
+        if (array_key_exists('monto_descuento', $validated)) $data['monto_descuento'] = $validated['monto_descuento'];
+        if (array_key_exists('motivo_descuento', $validated)) $data['motivo_descuento'] = $validated['motivo_descuento'];
+        if (array_key_exists('monto_recargo', $validated)) $data['monto_recargo'] = $validated['monto_recargo'];
+        if (array_key_exists('motivo_recargo', $validated)) $data['motivo_recargo'] = $validated['motivo_recargo'];
 
         $fecha = $data['fecha_reserva'] ?? $reserva->fecha_reserva->format('Y-m-d');
         $horaInicio = $data['hora_inicio'] ?? $reserva->hora_inicio;
@@ -414,12 +441,20 @@ class ReservaRadioController extends Controller
             }
         }
 
-        // Recalcular precio si cambió tarifa u horario
+        // Recalcular precio si cambió tarifa u horario o descuentos/recargos
         $tarifaId = $data['tarifa_id'] ?? $reserva->tarifa_id;
-        if (isset($data['tarifa_id']) || isset($data['hora_inicio']) || isset($data['hora_fin'])) {
-            $data['precio_total'] = $this->conflictValidator->calcularPrecioTotal(
+        $recalcularPrecio = isset($data['tarifa_id']) || isset($data['hora_inicio']) || isset($data['hora_fin']) ||
+            array_key_exists('monto_descuento', $data) || array_key_exists('monto_recargo', $data) || array_key_exists('precio_original', $data);
+
+        if ($recalcularPrecio) {
+            $baseCalculada = $this->conflictValidator->calcularPrecioTotal(
                 (int) $tarifaId, $horaInicio, $horaFin
             );
+            $precioOriginal = array_key_exists('precio_original', $data) ? (float) $data['precio_original'] : ($reserva->precio_original ?? $baseCalculada);
+            $montoDescuento = array_key_exists('monto_descuento', $data) ? (float) $data['monto_descuento'] : (float) ($reserva->monto_descuento ?? 0);
+            $montoRecargo = array_key_exists('monto_recargo', $data) ? (float) $data['monto_recargo'] : (float) ($reserva->monto_recargo ?? 0);
+            $data['precio_original'] = ($montoDescuento > 0 || $montoRecargo > 0) ? $precioOriginal : null;
+            $data['precio_total'] = max(0, $precioOriginal - $montoDescuento + $montoRecargo);
         }
 
         $reserva->update($data);
@@ -713,6 +748,11 @@ class ReservaRadioController extends Controller
             'incluye_operador' => $r->incluye_operador,
             'operador_id' => $r->operador_id,
             'precio_total' => (float) $r->precio_total,
+            'precio_original' => $r->precio_original ? (float) $r->precio_original : null,
+            'monto_descuento' => (float) ($r->monto_descuento ?? 0),
+            'motivo_descuento' => $r->motivo_descuento,
+            'monto_recargo' => (float) ($r->monto_recargo ?? 0),
+            'motivo_recargo' => $r->motivo_recargo,
             'pago_registrado' => $pagoRegistrado,
             'pago_abonado' => $cuenta ? ($cuenta->monto_abonado > 0) : false,
             'estado' => $r->estado,

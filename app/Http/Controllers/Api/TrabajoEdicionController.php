@@ -71,6 +71,11 @@ class TrabajoEdicionController extends Controller
                         : null,
                     'reserva_podcast_id' => $t->reserva_podcast_id,
                     'precio_cobrado' => $t->precio_cobrado,
+                    'precio_original' => $t->precio_original ? (float) $t->precio_original : null,
+                    'monto_descuento' => (float) ($t->monto_descuento ?? 0),
+                    'motivo_descuento' => $t->motivo_descuento,
+                    'monto_recargo' => (float) ($t->monto_recargo ?? 0),
+                    'motivo_recargo' => $t->motivo_recargo,
                     'cobro_registrado' => $t->cobro_registrado,
                     'notas' => $t->notas,
                     'created_at' => $t->created_at?->toISOString(),
@@ -108,6 +113,11 @@ class TrabajoEdicionController extends Controller
             'cliente_externo_id' => 'nullable|uuid|exists:clientes_externos,id',
             'reserva_podcast_id' => 'nullable|uuid|exists:reservas_podcast,id',
             'precio_cobrado' => 'nullable|numeric|min:0',
+            'precio_original' => 'nullable|numeric|min:0',
+            'monto_descuento' => 'nullable|numeric|min:0',
+            'motivo_descuento' => 'nullable|string|max:255',
+            'monto_recargo' => 'nullable|numeric|min:0',
+            'motivo_recargo' => 'nullable|string|max:255',
             'cobro_registrado' => 'boolean',
             'notas' => 'nullable|string',
         ]);
@@ -128,11 +138,23 @@ class TrabajoEdicionController extends Controller
             $validated['editor_ids'] = [];
         }
 
+        $precioOriginal = isset($validated['precio_original']) ? (float) $validated['precio_original'] : (isset($validated['precio_cobrado']) ? (float) $validated['precio_cobrado'] : 0);
+        $montoDescuento = (float) ($validated['monto_descuento'] ?? 0);
+        $montoRecargo = (float) ($validated['monto_recargo'] ?? 0);
+        $precioFinal = max(0, $precioOriginal - $montoDescuento + $montoRecargo);
+
+        $validated['precio_original'] = ($montoDescuento > 0 || $montoRecargo > 0) ? $precioOriginal : null;
+        $validated['monto_descuento'] = $montoDescuento;
+        $validated['motivo_descuento'] = $validated['motivo_descuento'] ?? null;
+        $validated['monto_recargo'] = $montoRecargo;
+        $validated['motivo_recargo'] = $validated['motivo_recargo'] ?? null;
+        $validated['precio_cobrado'] = $precioFinal;
+
         $trabajo = TrabajoEdicion::create($validated);
 
         CuentaPorCobrar::create([
             'edicion_video_id' => $trabajo->id,
-            'monto_total' => $validated['precio_cobrado'] ?? 0,
+            'monto_total' => $precioFinal,
             'monto_abonado' => 0,
             'estado' => 'pendiente',
             'es_legacy' => false,
@@ -167,6 +189,11 @@ class TrabajoEdicionController extends Controller
             'cliente_externo_id' => 'nullable|uuid|exists:clientes_externos,id',
             'reserva_podcast_id' => 'nullable|uuid|exists:reservas_podcast,id',
             'precio_cobrado' => 'nullable|numeric|min:0',
+            'precio_original' => 'nullable|numeric|min:0',
+            'monto_descuento' => 'nullable|numeric|min:0',
+            'motivo_descuento' => 'nullable|string|max:255',
+            'monto_recargo' => 'nullable|numeric|min:0',
+            'motivo_recargo' => 'nullable|string|max:255',
             'cobro_registrado' => 'boolean',
             'notas' => 'nullable|string',
         ]);
@@ -179,6 +206,16 @@ class TrabajoEdicionController extends Controller
             // Validate after_or_equal only when both are present
         } elseif (isset($validated['fecha_limite']) && !isset($validated['fecha_recibo'])) {
             $validated['fecha_recibo'] = $trabajo->fecha_recibo?->format('Y-m-d');
+        }
+
+        if (array_key_exists('precio_original', $validated) || array_key_exists('monto_descuento', $validated) || array_key_exists('monto_recargo', $validated)) {
+            $precioOriginal = array_key_exists('precio_original', $validated) ? (float) $validated['precio_original'] : (float) ($trabajo->precio_original ?? $trabajo->precio_cobrado ?? 0);
+            $montoDescuento = array_key_exists('monto_descuento', $validated) ? (float) $validated['monto_descuento'] : (float) ($trabajo->monto_descuento ?? 0);
+            $montoRecargo = array_key_exists('monto_recargo', $validated) ? (float) $validated['monto_recargo'] : (float) ($trabajo->monto_recargo ?? 0);
+            $validated['precio_original'] = ($montoDescuento > 0 || $montoRecargo > 0) ? $precioOriginal : null;
+            $validated['monto_descuento'] = $montoDescuento;
+            $validated['monto_recargo'] = $montoRecargo;
+            $validated['precio_cobrado'] = max(0, $precioOriginal - $montoDescuento + $montoRecargo);
         }
 
         $trabajo->update($validated);
@@ -398,6 +435,11 @@ class TrabajoEdicionController extends Controller
             'cliente_externo' => $clienteExterno,
             'reserva_podcast_id' => $t->reserva_podcast_id,
             'precio_cobrado' => $t->precio_cobrado,
+            'precio_original' => $t->precio_original ? (float) $t->precio_original : null,
+            'monto_descuento' => (float) ($t->monto_descuento ?? 0),
+            'motivo_descuento' => $t->motivo_descuento,
+            'monto_recargo' => (float) ($t->monto_recargo ?? 0),
+            'motivo_recargo' => $t->motivo_recargo,
             'cobro_registrado' => $t->cobro_registrado,
             'notas' => $t->notas,
             'created_at' => $t->created_at?->toISOString(),
