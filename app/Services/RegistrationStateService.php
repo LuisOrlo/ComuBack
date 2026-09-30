@@ -177,7 +177,7 @@ class RegistrationStateService
                 }
 
                 $esCursoPersonalizado = (bool) ($curso?->es_personalizado);
-                $precioOriginalInscripcion = $precioInscripcion;
+                $precioOriginalInscripcion = (float) ($curso?->precio_matricula > 0 ? $curso->precio_matricula : $precioInscripcion);
                 if ($esCursoPersonalizado) {
                     $precioOriginalPersonalizado = (float) ($curso->precio_base ?? 0);
                     $precioOriginalInscripcion = $precioOriginalPersonalizado;
@@ -224,6 +224,7 @@ class RegistrationStateService
 
                 if ($precioInscripcion && $precioInscripcion > 0) {
                     $inscripcionCubierta = max(0, $inscripcionCubierta);
+                    $esAjustado = $motivoAjuste || ((float) $precioInscripcion !== (float) $precioOriginalInscripcion);
                     $inscripcionLinea = LineaPagoModulo::create([
                         'matricula_id' => $matricula->id,
                         'modulo_id' => null,
@@ -231,7 +232,9 @@ class RegistrationStateService
                         'monto_original' => $precioOriginalInscripcion,
                         'monto_ajustado' => $precioInscripcion,
                         'monto_abonado' => 0,
-                        'motivo_ajuste' => $esCursoPersonalizado && $motivoAjuste ? $motivoAjuste : null,
+                        'motivo_ajuste' => $motivoAjuste ?: null,
+                        'ajustado_por' => $esAjustado ? ($validadorId ?? auth()->user()->persona_id ?? null) : null,
+                        'fecha_ajuste' => $esAjustado ? now() : null,
                         'estado' => 'pendiente',
                         'orden' => 999,
                     ]);

@@ -34,6 +34,7 @@ class ClienteExternoController extends Controller
                   ->orWhere('nombre_empresa', 'ilike', "%{$search}%")
                   ->orWhere('apellidos', 'ilike', "%{$search}%")
                   ->orWhere('cedula', 'ilike', "%{$search}%")
+                  ->orWhere('ruc', 'ilike', "%{$search}%")
                   ->orWhere('correo', 'ilike', "%{$search}%")
                   ->orWhere('celular', 'ilike', "%{$search}%")
                   ->orWhereHas('contactosActivos', function ($contacto) use ($search) {
@@ -84,6 +85,7 @@ class ClienteExternoController extends Controller
             'nombre_empresa' => [$tipo === 'empresa' ? 'required' : 'nullable', 'string', 'max:150'],
             'apellidos' => 'nullable|string|max:100',
             'cedula' => ['nullable', 'string', 'max:20'],
+            'ruc' => ['nullable', 'string', 'max:20'],
             'correo' => ['nullable', 'email', 'max:150'],
             'celular' => 'nullable|string|max:20',
             'ciudad_id' => 'nullable|integer|exists:ciudades,id',
@@ -111,6 +113,13 @@ class ClienteExternoController extends Controller
             } else {
                 $rules['cedula'][] = 'unique:pgsql.people.clientes_externos,cedula';
                 $rules['correo'][] = 'unique:pgsql.people.clientes_externos,correo';
+            }
+        } elseif ($tipo === 'empresa' && $request->filled('ruc')) {
+            if ($update) {
+                $clienteId = $request->route('id');
+                $rules['ruc'][] = Rule::unique('pgsql.people.clientes_externos', 'ruc')->ignore($clienteId);
+            } else {
+                $rules['ruc'][] = 'unique:pgsql.people.clientes_externos,ruc';
             }
         }
 
@@ -186,6 +195,7 @@ class ClienteExternoController extends Controller
         }
         if (! empty($datos['correo'])) $datos['correo'] = strtolower(trim($datos['correo']));
         if (! empty($datos['cedula'])) $datos['cedula'] = preg_replace('/\D+/', '', $datos['cedula']);
+        if (! empty($datos['ruc'])) $datos['ruc'] = preg_replace('/\D+/', '', $datos['ruc']);
         if (! empty($datos['celular'])) $datos['celular'] = preg_replace('/[^0-9+]/', '', $datos['celular']);
         return $datos;
     }

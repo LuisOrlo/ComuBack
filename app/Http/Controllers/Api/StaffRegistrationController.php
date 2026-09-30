@@ -46,7 +46,7 @@ class StaffRegistrationController extends Controller
         ])->with([
             'estudiante:id,nombres,apellidos,correo',
             'participanteExterno:id,nombres,apellidos,correo,ciudad',
-            'cursoAbierto:id,catalogo_curso_id,es_personalizado,nombre_instancia,precio_base,modalidad,ciudad_id',
+            'cursoAbierto:id,catalogo_curso_id,es_personalizado,nombre_instancia,precio_base,precio_matricula,modalidad,ciudad_id',
             'cursoAbierto.catalogo:id,nombre,categoria,color',
             'cursoAbierto.ciudad:id,nombre',
             'validador:id,nombres,apellidos',
@@ -139,7 +139,7 @@ class StaffRegistrationController extends Controller
         $solicitud = SolicitudInscripcion::with([
             'estudiante:id,nombres,apellidos,cedula,correo,celular',
             'participanteExterno:id,nombres,apellidos,correo,celular,cedula,ocupacion,direccion,ciudad,estado_civil,edad,nivel_educativo',
-            'cursoAbierto:id,catalogo_curso_id,es_personalizado,nombre_instancia,observaciones,precio_base,capacidad_maxima,estudiantes_inscritos,fecha_inicio,fecha_fin,modalidad,docente_id,ciudad_id,horario_id',
+            'cursoAbierto:id,catalogo_curso_id,es_personalizado,nombre_instancia,observaciones,precio_base,precio_matricula,capacidad_maxima,estudiantes_inscritos,fecha_inicio,fecha_fin,modalidad,docente_id,ciudad_id,horario_id',
             'cursoAbierto.catalogo:id,nombre,descripcion,categoria,color',
             'cursoAbierto.docente:id,nombres,apellidos',
             'cursoAbierto.ciudad:id,nombre',
@@ -440,6 +440,7 @@ class StaffRegistrationController extends Controller
                 'color' => $solicitud->cursoAbierto->catalogo?->color,
                 'modalidad' => $solicitud->cursoAbierto->modalidad,
                 'precio_base' => $solicitud->cursoAbierto->precio_base,
+                'precio_matricula' => $solicitud->cursoAbierto->precio_matricula,
                 'capacidad' => [
                     'maxima' => $solicitud->cursoAbierto->capacidad_maxima,
                     'inscritos' => $solicitud->cursoAbierto->es_personalizado

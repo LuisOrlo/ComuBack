@@ -308,10 +308,13 @@ class MatriculaController extends Controller
             'pagos.*.monto' => 'required|numeric|min:0.01',
             'pagos.*.monto_ajustado' => 'nullable|numeric|min:0',
             'pagos.*.motivo_ajuste' => 'nullable|string|max:255',
+            'precio_inscripcion' => 'nullable|numeric|min:0',
+            'inscripcion_cubierta' => 'nullable|numeric|min:0',
+            'motivo_ajuste' => 'nullable|string|max:255',
         ]);
         if (! $sinRegistroFinanciero) {
             $request->validate(['metodo_pago' => 'required|string|in:efectivo,transferencia,deposito,tarjeta,otro']);
-            if ($curso->modulos()->sum('precio_base') <= 0) {
+            if ($curso->modulos()->sum('precio_base') <= 0 && (float) ($request->precio_inscripcion ?? 0) <= 0) {
                 return response()->json([
                     'mensaje' => 'Este curso no tiene importes financieros configurados. Registra la matrícula sin movimientos financieros.',
                 ], Response::HTTP_UNPROCESSABLE_ENTITY);
@@ -326,7 +329,7 @@ class MatriculaController extends Controller
             $solicitud = SolicitudInscripcion::create([
                 'persona_id' => $request->estudiante_id,
                 'curso_abierto_id' => $request->curso_abierto_id,
-                'monto_solicitado' => collect($request->input('pagos', []))->sum('monto'),
+                'monto_solicitado' => collect($request->input('pagos', []))->sum('monto') + (float) ($request->input('inscripcion_cubierta', 0)),
                 'tipo_pago' => ! $sinRegistroFinanciero && (collect($request->input('pagos', []))->count() > 1 || collect($request->input('pagos', []))->sum('monto') < ($curso->precio_base ?? 0)) ? 'abono' : 'completo',
                 'estado' => 'pendiente_validacion',
                 'es_participante_externo' => false,
@@ -341,9 +344,9 @@ class MatriculaController extends Controller
                 null,
                 $request->input('pagos', []),
                 $request->input('metodo_pago', 'otro'),
-                null,
-                0,
-                null,
+                $request->has('precio_inscripcion') ? (float) $request->precio_inscripcion : null,
+                (float) ($request->input('inscripcion_cubierta', 0)),
+                $request->input('motivo_ajuste'),
                 $sinRegistroFinanciero
             );
 

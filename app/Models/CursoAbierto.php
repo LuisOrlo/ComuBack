@@ -32,12 +32,15 @@ class CursoAbierto extends Model
         'ciudad_id',
         'horario_id',
         'precio_base',
+        'precio_matricula',
     ];
 
     protected $casts = [
         'es_activo' => 'boolean',
         'es_personalizado' => 'boolean',
         'capacidad_maxima' => 'integer',
+        'precio_base' => 'decimal:2',
+        'precio_matricula' => 'decimal:2',
         'fecha_inicio' => 'datetime',
         'fecha_fin' => 'datetime',
         'created_at' => 'datetime',

@@ -224,6 +224,9 @@ class CursoAbiertoController extends Controller
             if (empty($data['precio_base'])) {
                 $data['precio_base'] = 0;
             }
+            if (empty($data['precio_matricula'])) {
+                $data['precio_matricula'] = 0;
+            }
 
             $curso = CursoAbierto::create($data);
 

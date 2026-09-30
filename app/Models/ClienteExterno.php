@@ -24,6 +24,7 @@ class ClienteExterno extends Model
         'nombre_empresa',
         'apellidos',
         'cedula',
+        'ruc',
         'correo',
         'celular',
         'ciudad_id',
