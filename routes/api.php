@@ -125,6 +125,14 @@ use Illuminate\Support\Facades\Route;
     // ========================================================================
 
     // ========================================================================
+    // PUBLIC ROUTES - AGENDA PÚBLICA (READ ONLY)
+    // ========================================================================
+    Route::prefix('agenda-publica')->group(function () {
+        Route::get('/', [AgendaController::class, 'index'])->name('public.agenda.index');
+        Route::get('{tipo_evento}/{referencia_id}', [AgendaController::class, 'show'])->name('public.agenda.show');
+    });
+
+    // ========================================================================
     // PUBLIC ROUTES - CIUDADES (READ ONLY)
     // ========================================================================
     Route::get('ciudades/todas/sin-paginacion', [CiudadController::class, 'todas'])
