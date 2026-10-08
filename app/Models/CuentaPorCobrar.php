@@ -122,6 +122,14 @@ class CuentaPorCobrar extends Model
     }
 
     /**
+     * Servicio de streaming asociado
+     */
+    public function servicioStreaming(): BelongsTo
+    {
+        return $this->belongsTo(\App\Models\Services\ServicioStreaming::class, 'servicio_streaming_id', 'id');
+    }
+
+    /**
      * Transacciones de ingreso asociadas a esta cuenta
      */
     public function transacciones(): HasMany

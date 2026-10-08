@@ -607,20 +607,22 @@ class AgendaService
             ->table('services.servicios_streaming as ss')
             ->leftJoin('people.personas as pp', 'ss.persona_id', '=', 'pp.id')
             ->leftJoin('people.clientes_externos as ce', 'ss.cliente_externo_id', '=', 'ce.id')
+            ->leftJoin('core.ciudades as ci', 'ss.ciudad_id', '=', 'ci.id')
             ->whereBetween('ss.fecha_evento', [$fechaInicio, $fechaFin])
             ->select(
                 'ss.id as referencia_id',
                 DB::raw("'STREAMING' as tipo_evento"),
-                DB::raw("COALESCE('Streaming: ' || ss.descripcion, 'Servicio de streaming') as titulo"),
+                DB::raw("COALESCE(ss.titulo, 'Streaming: ' || ss.descripcion, 'Cobertura de Streaming') as titulo"),
                 'ss.fecha_evento as fecha',
                 'ss.hora_inicio',
                 'ss.hora_fin',
                 DB::raw('NULL as instructor_id'),
                 DB::raw("COALESCE(pp.nombres || ' ' || pp.apellidos, ce.nombres || ' ' || COALESCE(ce.apellidos, '')) as instructor_nombre"),
                 'ss.lugar as aula_nombre',
+                'ci.nombre as ciudad_nombre',
                 'ss.estado',
                 'ss.descripcion',
-                DB::raw("'#06b6d4' as color")
+                DB::raw("'#e11d48' as color")
             )
             ->get()
             ->map(fn($row) => $this->normalizeEvent((array) $row, 'STREAMING'));
@@ -639,21 +641,27 @@ class AgendaService
             ->table('services.servicios_streaming as ss')
             ->leftJoin('people.personas as pp', 'ss.persona_id', '=', 'pp.id')
             ->leftJoin('people.clientes_externos as ce', 'ss.cliente_externo_id', '=', 'ce.id')
+            ->leftJoin('core.ciudades as ci', 'ss.ciudad_id', '=', 'ci.id')
             ->where('ss.id', $id)
             ->select(
                 'ss.id as referencia_id',
                 DB::raw("'STREAMING' as tipo_evento"),
-                DB::raw("COALESCE('Streaming: ' || ss.descripcion, 'Servicio de streaming') as titulo"),
+                DB::raw("COALESCE(ss.titulo, 'Streaming: ' || ss.descripcion, 'Cobertura de Streaming') as titulo"),
                 'ss.fecha_evento as fecha',
                 'ss.hora_inicio',
                 'ss.hora_fin',
                 DB::raw('NULL as instructor_id'),
                 DB::raw("COALESCE(pp.nombres || ' ' || pp.apellidos, ce.nombres || ' ' || COALESCE(ce.apellidos, '')) as instructor_nombre"),
                 'ss.lugar as aula_nombre',
-                'ss.precio_total',
+                'ci.nombre as ciudad_nombre',
+                'ss.direccion',
+                'ss.referencias_ubicacion',
+                'ss.equipos_detalle',
                 'ss.descripcion',
+                'ss.observaciones',
+                'ss.precio_total',
                 'ss.estado',
-                DB::raw("'#06b6d4' as color")
+                DB::raw("'#e11d48' as color")
             )
             ->first();
 
@@ -662,10 +670,31 @@ class AgendaService
         }
 
         $servicio = (array) $servicio;
+
+        // Cargar personal técnico asignado
+        $staff = DB::connection('pgsql')
+            ->table('services.asignaciones_personal as ap')
+            ->join('people.personas as p', 'ap.persona_id', '=', 'p.id')
+            ->where('ap.servicio_streaming_id', $id)
+            ->select(
+                'p.id as persona_id',
+                DB::raw("p.nombres || ' ' || p.apellidos as nombre_completo"),
+                'p.celular',
+                'ap.rol_en_servicio as rol'
+            )
+            ->get()
+            ->toArray();
+
         $event = $this->normalizeEvent($servicio, 'STREAMING');
         $event['detalle'] = [
-            'descripcion' => $servicio['descripcion'] ?? null,
-            'precio_total' => $servicio['precio_total'] ?? null,
+            'titulo' => $servicio['titulo'] ?? null,
+            'lugar' => $servicio['aula_nombre'] ?? null,
+            'direccion' => $servicio['direccion'] ?? null,
+            'referencias_ubicacion' => $servicio['referencias_ubicacion'] ?? null,
+            'equipos_detalle' => $servicio['equipos_detalle'] ?? null,
+            'observaciones' => $servicio['observaciones'] ?? $servicio['descripcion'] ?? null,
+            'cliente_nombre' => $servicio['instructor_nombre'] ?? null,
+            'personal_tecnico' => $staff,
         ];
 
         return $event;

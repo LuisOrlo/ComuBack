@@ -20,6 +20,7 @@ class AsignacionPersonal extends Model
         'persona_id',
         'reserva_podcast_id',
         'reserva_radio_id',
+        'servicio_streaming_id',
         'rol_en_servicio',
     ];
 
@@ -36,5 +37,10 @@ class AsignacionPersonal extends Model
     public function reservaRadio(): BelongsTo
     {
         return $this->belongsTo(ReservaRadio::class, 'reserva_radio_id');
+    }
+
+    public function servicioStreaming(): BelongsTo
+    {
+        return $this->belongsTo(ServicioStreaming::class, 'servicio_streaming_id');
     }
 }

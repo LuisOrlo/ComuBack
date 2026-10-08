@@ -116,6 +116,14 @@ class ClienteExterno extends Model
         return $this->hasMany(\App\Models\Services\AlquilerEquipo::class, 'cliente_externo_id');
     }
 
+    /**
+     * Servicios de streaming de este cliente
+     */
+    public function serviciosStreaming(): HasMany
+    {
+        return $this->hasMany(\App\Models\Services\ServicioStreaming::class, 'cliente_externo_id');
+    }
+
     // ========================================================================
     // SCOPES
     // ========================================================================

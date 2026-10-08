@@ -44,6 +44,7 @@ use App\Http\Controllers\Api\ReservaPodcastController;
 use App\Http\Controllers\Api\TrabajoEdicionController;
 use App\Http\Controllers\Api\TarifaRadioController;
 use App\Http\Controllers\Api\ReservaRadioController;
+use App\Http\Controllers\Api\ServicioStreamingController;
 use App\Http\Controllers\Api\InstructorPortalController;
 use App\Http\Controllers\Api\FinanceController;
 use App\Http\Controllers\Api\EstadisticasController;
@@ -467,6 +468,18 @@ use Illuminate\Support\Facades\Route;
             Route::delete('{id}', [ReservaRadioController::class, 'destroy'])->name('reservas-radio.destroy');
         });
 
+        // SERVICIOS - STREAMING Y COBERTURAS EXTERNAS
+        Route::prefix('servicios/streaming')->group(function () {
+            Route::get('/', [ServicioStreamingController::class, 'index'])->name('streaming.index');
+            Route::post('/', [ServicioStreamingController::class, 'store'])->name('streaming.store');
+            Route::post('verificar-disponibilidad', [ServicioStreamingController::class, 'verificarDisponibilidadStaff'])->name('streaming.verificar-disponibilidad');
+            Route::get('{id}', [ServicioStreamingController::class, 'show'])->name('streaming.show');
+            Route::put('{id}', [ServicioStreamingController::class, 'update'])->name('streaming.update');
+            Route::delete('{id}', [ServicioStreamingController::class, 'destroy'])->name('streaming.destroy');
+            Route::post('{id}/pago', [ServicioStreamingController::class, 'registrarPago'])->name('streaming.pago');
+            Route::post('{id}/estado', [ServicioStreamingController::class, 'cambiarEstado'])->name('streaming.estado');
+        });
+
         // MATRICULAS
         Route::prefix('matriculas')->group(function () {
             Route::get('/', [MatriculaController::class, 'index'])->name('matriculas.index');
@@ -732,6 +745,12 @@ Route::prefix('reports')->group(function () {
     Route::middleware('auth:sanctum')->prefix('academic')->group(function () {
         Route::prefix('notificaciones')->group(function () {
             Route::get('/', [NotificationController::class, 'index'])->name('notificaciones.index');
+        });
+
+        // Consulta de streaming (lectura para cualquier usuario autenticado)
+        Route::prefix('servicios/streaming-consultas')->group(function () {
+            Route::get('/', [ServicioStreamingController::class, 'index'])->name('streaming.consultas.index');
+            Route::get('{id}', [ServicioStreamingController::class, 'show'])->name('streaming.consultas.show');
         });
     });
 
