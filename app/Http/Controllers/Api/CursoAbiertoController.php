@@ -82,6 +82,19 @@ class CursoAbiertoController extends Controller
             $query->whereDate('fecha_inicio', '<', now()->subDays(7)->toDateString());
         }
 
+        if ($request->filled('fecha_desde')) {
+            $fechaDesde = $request->fecha_desde;
+            $query->where(function ($q) use ($fechaDesde) {
+                $q->whereDate('fecha_fin', '>=', $fechaDesde)
+                  ->orWhereDate('fecha_inicio', '>=', $fechaDesde);
+            });
+        }
+
+        if ($request->filled('fecha_hasta')) {
+            $fechaHasta = $request->fecha_hasta;
+            $query->whereDate('fecha_inicio', '<=', $fechaHasta);
+        }
+
         if ($request->filled('modalidad')) {
             $query->where('modalidad', $request->modalidad);
         }
