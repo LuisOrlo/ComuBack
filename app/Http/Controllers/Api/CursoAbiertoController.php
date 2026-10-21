@@ -9,6 +9,7 @@ use App\Models\HorarioDia;
 use App\Models\Clase;
 use App\Models\Modulo;
 use App\Models\Asistencia;
+use App\Models\Ciudad;
 use App\Http\Requests\StoreCursoAbiertoRequest;
 use App\Http\Requests\UpdateCursoAbiertoRequest;
 use App\Services\InstructorConflictValidator;
@@ -16,6 +17,8 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Carbon\Carbon;
 
@@ -34,6 +37,23 @@ class CursoAbiertoController extends Controller
 
     public function index(Request $request)
     {
+        $validator = Validator::make($request->all(), [
+            'fecha_desde' => 'nullable|date_format:Y-m-d',
+            'fecha_hasta' => 'nullable|date_format:Y-m-d|after_or_equal:fecha_desde',
+            'ciudad_id'   => [
+                'nullable',
+                'integer',
+                Rule::exists(Ciudad::class, 'id'),
+            ],
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'message' => 'Parámetros de filtrado inválidos.',
+                'errors'  => $validator->errors(),
+            ], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
         $query = CursoAbierto::with([
             'catalogo:id,nombre,categoria,color,imagen,horas_totales,modulos_default',
             'ciudad:id,nombre',
@@ -86,7 +106,7 @@ class CursoAbiertoController extends Controller
             $fechaDesde = $request->fecha_desde;
             $query->where(function ($q) use ($fechaDesde) {
                 $q->whereDate('fecha_fin', '>=', $fechaDesde)
-                  ->orWhereDate('fecha_inicio', '>=', $fechaDesde);
+                  ->orWhereNull('fecha_fin');
             });
         }
 
@@ -135,7 +155,7 @@ class CursoAbiertoController extends Controller
         }
 
         if ($request->filled('ciudad_id')) {
-            $query->where('ciudad_id', $request->ciudad_id);
+            $query->where('ciudad_id', (int) $request->ciudad_id);
         }
 
         if ($request->filled('ciudad')) {
