@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\InscripcionTaller;
 use App\Models\Taller;
+use App\Models\Ciudad;
 use App\Models\Persona;
 use App\Models\ClienteExterno;
 use App\Models\CuentaPorCobrar;
@@ -90,6 +91,10 @@ class InscripcionTallerController extends Controller
             $query->where('taller_id', $request->taller_id);
         }
 
+        if ($request->filled('ciudad_id')) {
+            $query->whereHas('taller', fn ($t) => $t->where('ciudad_id', $request->ciudad_id));
+        }
+
         if ($request->filled('fecha_desde')) {
             $query->whereDate('fecha_inscripcion', '>=', $request->fecha_desde);
         }
@@ -104,6 +109,9 @@ class InscripcionTallerController extends Controller
         $statsQuery = InscripcionTaller::query();
         if ($request->filled('taller_id')) {
             $statsQuery->where('taller_id', $request->taller_id);
+        }
+        if ($request->filled('ciudad_id')) {
+            $statsQuery->whereHas('taller', fn ($t) => $t->where('ciudad_id', $request->ciudad_id));
         }
         $statsRaw = (clone $statsQuery)->selectRaw("
             count(*) as total,
@@ -595,6 +603,10 @@ class InscripcionTallerController extends Controller
             $query->where('taller_id', $request->taller_id);
         }
 
+        if ($request->filled('ciudad_id')) {
+            $query->whereHas('taller', fn ($t) => $t->where('ciudad_id', $request->ciudad_id));
+        }
+
         if ($request->filled('fecha_desde')) {
             $query->whereDate('fecha_inscripcion', '>=', $request->fecha_desde);
         }
@@ -798,5 +810,85 @@ class InscripcionTallerController extends Controller
             'mensaje' => 'Estudiante inscrito exitosamente al taller',
             'data' => $inscripcion,
         ], 201);
+    }
+
+    /**
+     * GET /api/academic/inscripciones-talleres/talleres-con-inscripciones
+     * Devuelve solo los talleres que tienen estudiantes inscritos según contexto
+     */
+    public function talleresConInscripciones(Request $request): JsonResponse
+    {
+        $query = Taller::query()
+            ->whereHas('inscripciones', function ($i) use ($request) {
+                if ($request->filled('pago_verificado')) {
+                    $i->where('pago_verificado', $request->pago_verificado === 'true');
+                }
+                if ($request->filled('estado')) {
+                    $i->where('estado', $request->estado);
+                }
+                if ($request->filled('fecha_desde')) {
+                    $i->whereDate('fecha_inscripcion', '>=', $request->fecha_desde);
+                }
+                if ($request->filled('fecha_hasta')) {
+                    $i->whereDate('fecha_inscripcion', '<=', $request->fecha_hasta);
+                }
+                if ($request->pago_verificado === 'true' && !$request->filled('fecha_desde')) {
+                    $i->where('fecha_inscripcion', '>=', now()->subDays(90));
+                }
+            })
+            ->select(['id', 'nombre', 'ciudad_id', 'modalidad'])
+            ->with(['ciudad:id,nombre']);
+
+        if ($request->filled('ciudad_id')) {
+            $query->where('ciudad_id', $request->ciudad_id);
+        }
+
+        $talleres = $query->orderBy('nombre')->get();
+
+        $data = $talleres->map(function ($taller) {
+            $ciudadNombre = $taller->ciudad->nombre ?? null;
+            return [
+                'id' => $taller->id,
+                'nombre' => $ciudadNombre ? "{$taller->nombre} ({$ciudadNombre})" : $taller->nombre,
+                'nombre_simple' => $taller->nombre,
+                'ciudad_id' => $taller->ciudad_id,
+                'ciudad_nombre' => $ciudadNombre,
+            ];
+        });
+
+        return response()->json(['data' => $data]);
+    }
+
+    /**
+     * GET /api/academic/inscripciones-talleres/ciudades-con-inscripciones
+     * Devuelve solo las ciudades que tienen talleres con inscripciones según contexto
+     */
+    public function ciudadesConInscripciones(Request $request): JsonResponse
+    {
+        $ciudades = Ciudad::query()
+            ->whereHas('talleres', function ($t) use ($request) {
+                $t->whereHas('inscripciones', function ($i) use ($request) {
+                    if ($request->filled('pago_verificado')) {
+                        $i->where('pago_verificado', $request->pago_verificado === 'true');
+                    }
+                    if ($request->filled('estado')) {
+                        $i->where('estado', $request->estado);
+                    }
+                    if ($request->filled('fecha_desde')) {
+                        $i->whereDate('fecha_inscripcion', '>=', $request->fecha_desde);
+                    }
+                    if ($request->filled('fecha_hasta')) {
+                        $i->whereDate('fecha_inscripcion', '<=', $request->fecha_hasta);
+                    }
+                    if ($request->pago_verificado === 'true' && !$request->filled('fecha_desde')) {
+                        $i->where('fecha_inscripcion', '>=', now()->subDays(90));
+                    }
+                });
+            })
+            ->select(['id', 'nombre'])
+            ->orderBy('nombre')
+            ->get();
+
+        return response()->json(['data' => $ciudades]);
     }
 }

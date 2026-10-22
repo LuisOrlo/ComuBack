@@ -11,6 +11,7 @@ use App\Models\Persona;
 use App\Models\PerfilEstudiante;
 use App\Services\RegistrationValidationService;
 use App\Services\PaymentVerificationService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Storage;
@@ -220,5 +221,26 @@ class RegistrationController extends Controller
             ],
             'fecha_registro' => $solicitud->created_at,
         ];
+    }
+
+    /**
+     * POST /api/matriculas/validar-cedula
+     * Valida de forma ultrarrápida si la cédula ya existe en la base de datos
+     */
+    public function validarCedula(Request $request): JsonResponse
+    {
+        $request->validate([
+            'cedula' => 'required|string|max:20',
+        ]);
+
+        $cedula = preg_replace('/[^0-9]/', '', (string) $request->cedula);
+        if (empty($cedula)) {
+            return response()->json(['existe' => false]);
+        }
+
+        $existe = Persona::where('cedula', $cedula)->exists()
+            || ClienteExterno::where('cedula', $cedula)->exists();
+
+        return response()->json(['existe' => $existe]);
     }
 }

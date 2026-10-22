@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\ValidateRegistrationRequest;
 use App\Http\Requests\RejectRegistrationRequest;
 use App\Models\SolicitudInscripcion;
+use App\Models\CursoAbierto;
+use App\Models\Ciudad;
 use App\Models\Persona;
 use App\Models\Horario;
 use App\Services\RegistrationStateService;
@@ -62,12 +64,23 @@ class StaffRegistrationController extends Controller
             $query->where('curso_abierto_id', $request->curso_abierto_id);
         }
 
+        // Filtro por ciudad
+        if ($request->filled('ciudad_id')) {
+            $query->whereHas('cursoAbierto', fn ($c) => $c->where('ciudad_id', $request->ciudad_id));
+        }
+
         if ($request->filled('categoria')) {
             if ($request->categoria === 'personalizado') {
                 $query->whereHas('cursoAbierto', fn ($curso) => $curso->where('es_personalizado', true));
             } else {
                 $query->whereHas('cursoAbierto', fn ($curso) => $curso->where('es_personalizado', false))
-                    ->whereHas('cursoAbierto.catalogo', fn ($catalogo) => $catalogo->where('categoria', $request->categoria));
+                    ->whereHas('cursoAbierto.catalogo', function ($catalogo) use ($request) {
+                        if ($request->categoria === 'regular') {
+                            $catalogo->where(fn ($q) => $q->where('categoria', 'regular')->orWhereNull('categoria'));
+                        } else {
+                            $catalogo->where('categoria', $request->categoria);
+                        }
+                    });
             }
         }
 
@@ -92,12 +105,21 @@ class StaffRegistrationController extends Controller
         $solicitudes = $query->paginate($perPage);
 
         $countsQuery = SolicitudInscripcion::query();
+        if ($request->filled('ciudad_id')) {
+            $countsQuery->whereHas('cursoAbierto', fn ($c) => $c->where('ciudad_id', $request->ciudad_id));
+        }
         if ($request->filled('categoria')) {
             if ($request->categoria === 'personalizado') {
                 $countsQuery->whereHas('cursoAbierto', fn ($curso) => $curso->where('es_personalizado', true));
             } else {
                 $countsQuery->whereHas('cursoAbierto', fn ($curso) => $curso->where('es_personalizado', false))
-                    ->whereHas('cursoAbierto.catalogo', fn ($c) => $c->where('categoria', $request->categoria));
+                    ->whereHas('cursoAbierto.catalogo', function ($c) use ($request) {
+                        if ($request->categoria === 'regular') {
+                            $c->where(fn ($q) => $q->where('categoria', 'regular')->orWhereNull('categoria'));
+                        } else {
+                            $c->where('categoria', $request->categoria);
+                        }
+                    });
             }
         }
         $estadosCount = $countsQuery
@@ -309,8 +331,15 @@ class StaffRegistrationController extends Controller
             if ($request->categoria === 'personalizado') {
                 $query->whereHas('cursoAbierto', fn ($curso) => $curso->where('es_personalizado', true));
             } elseif ($request->categoria === 'regular') {
-                $query->whereHas('cursoAbierto', fn ($curso) => $curso->where('es_personalizado', false));
+                $query->whereHas('cursoAbierto', fn ($curso) => $curso->where('es_personalizado', false))
+                    ->whereHas('cursoAbierto.catalogo', function ($catalogo) {
+                        $catalogo->where(fn ($q) => $q->where('categoria', 'regular')->orWhereNull('categoria'));
+                    });
             }
+        }
+
+        if ($request->filled('ciudad_id')) {
+            $query->whereHas('cursoAbierto', fn ($c) => $c->where('ciudad_id', $request->ciudad_id));
         }
 
         if ($request->has('search')) {
@@ -1012,5 +1041,123 @@ class StaffRegistrationController extends Controller
         return response()->json([
             'mensaje' => 'Archivo eliminado del almacenamiento. El registro se conserva como constancia histórica.',
         ]);
+    }
+
+    /**
+     * GET /api/academic/solicitudes-inscripcion/cursos-con-solicitudes
+     * Devuelve solo los cursos abiertos que tienen estudiantes/solicitudes de inscripción según contexto
+     */
+    public function cursosConSolicitudes(Request $request): JsonResponse
+    {
+        $query = CursoAbierto::query()
+            ->whereHas('solicitudesInscripcion', function ($s) use ($request) {
+                if ($request->filled('estado') && $request->estado !== 'todos') {
+                    $s->where('estado', $request->estado);
+                }
+                if ($request->filled('fecha_desde')) {
+                    $s->whereDate('created_at', '>=', $request->fecha_desde);
+                }
+                if ($request->filled('fecha_hasta')) {
+                    $s->whereDate('created_at', '<=', $request->fecha_hasta);
+                }
+                // Si estamos en aprobados (matricula_creada) y no hay fecha_desde, acotar a los últimos 90 días
+                if ($request->estado === 'matricula_creada' && !$request->filled('fecha_desde')) {
+                    $s->where('created_at', '>=', now()->subDays(90));
+                }
+            })
+            ->select([
+                'id',
+                'catalogo_curso_id',
+                'nombre_instancia',
+                'ciudad_id',
+                'modalidad',
+                'es_personalizado',
+            ])
+            ->with([
+                'catalogo:id,nombre,categoria',
+                'ciudad:id,nombre',
+            ]);
+
+        if ($request->filled('ciudad_id')) {
+            $query->where('ciudad_id', $request->ciudad_id);
+        }
+
+        if ($request->filled('categoria')) {
+            if ($request->categoria === 'personalizado') {
+                $query->where('es_personalizado', true);
+            } else {
+                $query->where('es_personalizado', false)
+                    ->whereHas('catalogo', function ($c) use ($request) {
+                        if ($request->categoria === 'regular') {
+                            $c->where(fn ($q) => $q->where('categoria', 'regular')->orWhereNull('categoria'));
+                        } else {
+                            $c->where('categoria', $request->categoria);
+                        }
+                    });
+            }
+        }
+
+        $cursos = $query->orderBy('nombre_instancia')->get();
+
+        $data = $cursos->map(function ($curso) {
+            $nombreBase = $curso->nombre_instancia ?: ($curso->catalogo->nombre ?? 'Curso sin nombre');
+            $ciudadNombre = $curso->ciudad->nombre ?? null;
+            return [
+                'id' => $curso->id,
+                'nombre' => $ciudadNombre ? "{$nombreBase} ({$ciudadNombre})" : $nombreBase,
+                'nombre_simple' => $nombreBase,
+                'catalogo_id' => $curso->catalogo_curso_id,
+                'ciudad_id' => $curso->ciudad_id,
+                'ciudad_nombre' => $ciudadNombre,
+                'es_personalizado' => $curso->es_personalizado,
+            ];
+        });
+
+        return response()->json(['data' => $data]);
+    }
+
+    /**
+     * GET /api/academic/solicitudes-inscripcion/ciudades-con-solicitudes
+     * Devuelve solo las ciudades que tienen cursos con solicitudes según contexto
+     */
+    public function ciudadesConSolicitudes(Request $request): JsonResponse
+    {
+        $ciudades = Ciudad::query()
+            ->whereHas('cursosAbiertos', function ($c) use ($request) {
+                if ($request->filled('categoria')) {
+                    if ($request->categoria === 'personalizado') {
+                        $c->where('es_personalizado', true);
+                    } else {
+                        $c->where('es_personalizado', false)
+                            ->whereHas('catalogo', function ($cat) use ($request) {
+                                if ($request->categoria === 'regular') {
+                                    $cat->where(fn ($q) => $q->where('categoria', 'regular')->orWhereNull('categoria'));
+                                } else {
+                                    $cat->where('categoria', $request->categoria);
+                                }
+                            });
+                    }
+                }
+
+                $c->whereHas('solicitudesInscripcion', function ($s) use ($request) {
+                    if ($request->filled('estado') && $request->estado !== 'todos') {
+                        $s->where('estado', $request->estado);
+                    }
+                    if ($request->filled('fecha_desde')) {
+                        $s->whereDate('created_at', '>=', $request->fecha_desde);
+                    }
+                    if ($request->filled('fecha_hasta')) {
+                        $s->whereDate('created_at', '<=', $request->fecha_hasta);
+                    }
+                    if ($request->estado === 'matricula_creada' && !$request->filled('fecha_desde')) {
+                        $s->where('created_at', '>=', now()->subDays(90));
+                    }
+                });
+            })
+            ->select(['id', 'nombre'])
+            ->orderBy('nombre')
+            ->get();
+
+        return response()->json(['data' => $ciudades]);
     }
 }

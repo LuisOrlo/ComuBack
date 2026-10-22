@@ -72,6 +72,11 @@ use Illuminate\Support\Facades\Route;
         ->middleware('throttle:10,1')
         ->name('registrations.store');
 
+    // Validar existencia de cédula antes de matricular (público)
+    Route::post('matriculas/validar-cedula', [RegistrationController::class, 'validarCedula'])
+        ->middleware('throttle:30,1')
+        ->name('matriculas.validar-cedula');
+
     // Inscripción pública a taller
     Route::post('talleres/inscribir', [InscripcionTallerController::class, 'store'])
         ->middleware('throttle:10,1')
@@ -254,6 +259,8 @@ use Illuminate\Support\Facades\Route;
         // SOLICITUDES DE INSCRIPCIÓN (aprobación)
         Route::prefix('solicitudes-inscripcion')->group(function () {
             Route::get('/', [StaffRegistrationController::class, 'index'])->name('solicitudes-inscripcion.index');
+            Route::get('cursos-con-solicitudes', [StaffRegistrationController::class, 'cursosConSolicitudes'])->name('solicitudes-inscripcion.cursos');
+            Route::get('ciudades-con-solicitudes', [StaffRegistrationController::class, 'ciudadesConSolicitudes'])->name('solicitudes-inscripcion.ciudades');
             Route::get('{id}', [StaffRegistrationController::class, 'show'])->name('solicitudes-inscripcion.show');
             Route::post('{id}/validar', [StaffRegistrationController::class, 'approve'])->name('solicitudes-inscripcion.approve');
             Route::post('{id}/rechazar', [StaffRegistrationController::class, 'reject'])->name('solicitudes-inscripcion.reject');
@@ -567,6 +574,8 @@ use Illuminate\Support\Facades\Route;
 
         Route::prefix('inscripciones-talleres')->group(function () {
             Route::get('/', [InscripcionTallerController::class, 'listarPendientes'])->name('inscripciones-talleres.index');
+            Route::get('talleres-con-inscripciones', [InscripcionTallerController::class, 'talleresConInscripciones'])->name('inscripciones-talleres.talleres');
+            Route::get('ciudades-con-inscripciones', [InscripcionTallerController::class, 'ciudadesConInscripciones'])->name('inscripciones-talleres.ciudades');
             Route::post('inscribir-desde-perfil', [InscripcionTallerController::class, 'inscribirDesdePerfil'])->name('inscripciones-talleres.inscribir-desde-perfil');
             Route::get('{id}/adjacent', [InscripcionTallerController::class, 'adjacent'])->name('inscripciones-talleres.adjacent');
             Route::get('{id}', [InscripcionTallerController::class, 'show'])->name('inscripciones-talleres.show');
@@ -906,6 +915,8 @@ Route::prefix('reports')->group(function () {
         // Solicitudes de inscripción
         Route::prefix('solicitudes-inscripcion')->group(function () {
             Route::get('/', [StaffRegistrationController::class, 'index'])->name('secretaria.solicitudes-inscripcion.index');
+            Route::get('cursos-con-solicitudes', [StaffRegistrationController::class, 'cursosConSolicitudes'])->name('secretaria.solicitudes-inscripcion.cursos');
+            Route::get('ciudades-con-solicitudes', [StaffRegistrationController::class, 'ciudadesConSolicitudes'])->name('secretaria.solicitudes-inscripcion.ciudades');
             Route::get('{id}', [StaffRegistrationController::class, 'show'])->name('secretaria.solicitudes-inscripcion.show');
             Route::post('{id}/validar', [StaffRegistrationController::class, 'approve'])->name('secretaria.solicitudes-inscripcion.approve');
             Route::post('{id}/rechazar', [StaffRegistrationController::class, 'reject'])->name('secretaria.solicitudes-inscripcion.reject');

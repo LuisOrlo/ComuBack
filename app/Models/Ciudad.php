@@ -22,4 +22,14 @@ class Ciudad extends Model
     {
         return $this->hasMany(Persona::class);
     }
+
+    public function cursosAbiertos(): HasMany
+    {
+        return $this->hasMany(CursoAbierto::class, 'ciudad_id', 'id');
+    }
+
+    public function talleres(): HasMany
+    {
+        return $this->hasMany(Taller::class, 'ciudad_id', 'id');
+    }
 }

@@ -173,6 +173,14 @@ class CursoAbierto extends Model
     }
 
     /**
+     * Solicitudes de inscripción para este curso
+     */
+    public function solicitudesInscripcion(): HasMany
+    {
+        return $this->hasMany(SolicitudInscripcion::class, 'curso_abierto_id', 'id');
+    }
+
+    /**
      * Cambios de horario relacionados a este curso
      */
     public function cambiosHorarioDestino(): HasMany
