@@ -1012,32 +1012,48 @@ class EstudianteController extends Controller
                 ->toArray();
 
             // 4. Obtener cuentas por cobrar asociadas a matrículas, solicitudes o talleres
-            $cuentaCobrarIds = DB::table('finance.cuentas_por_cobrar')
-                ->where(function ($q) use ($matriculaIds, $solicitudIds, $tallerInscripcionIds) {
-                    if (!empty($matriculaIds)) {
-                        $q->orWhereIn('matricula_id', $matriculaIds);
-                    }
-                    if (!empty($solicitudIds)) {
-                        $q->orWhereIn('solicitud_inscripcion_id', $solicitudIds);
-                    }
-                    if (!empty($tallerInscripcionIds)) {
-                        $q->orWhereIn('inscripcion_taller_id', $tallerInscripcionIds);
-                    }
-                })
-                ->pluck('id')
-                ->toArray();
+            $cuentaCobrarIds = [];
+            if (!empty($matriculaIds) || !empty($solicitudIds) || !empty($tallerInscripcionIds)) {
+                $cuentaCobrarIds = DB::table('finance.cuentas_por_cobrar')
+                    ->where(function ($q) use ($matriculaIds, $solicitudIds, $tallerInscripcionIds) {
+                        if (!empty($matriculaIds)) {
+                            $q->orWhereIn('matricula_id', $matriculaIds);
+                        }
+                        if (!empty($solicitudIds)) {
+                            $q->orWhereIn('solicitud_inscripcion_id', $solicitudIds);
+                        }
+                        if (!empty($tallerInscripcionIds)) {
+                            $q->orWhereIn('inscripcion_taller_id', $tallerInscripcionIds);
+                        }
+                    })
+                    ->pluck('id')
+                    ->toArray();
+            }
 
             // Cuentas por cobrar de reservas de servicios vinculados
-            $cuentasServicios = DB::table('finance.cuentas_por_cobrar')
-                ->whereIn('reserva_aula_id', DB::table('services.reservas_aulas')->where('persona_id', $personaId)->pluck('id'))
-                ->orWhereIn('reserva_podcast_id', DB::table('services.reservas_podcast')->where('persona_id', $personaId)->pluck('id'))
-                ->orWhereIn('reserva_radio_id', DB::table('services.reservas_radio')->where('persona_id', $personaId)->pluck('id'))
-                ->orWhereIn('alquiler_equipo_id', DB::table('services.alquiler_equipos')->where('persona_id', $personaId)->pluck('id'))
-                ->orWhereIn('edicion_video_id', DB::table('services.edicion_videos')->where('persona_id', $personaId)->pluck('id'))
-                ->orWhereIn('servicio_streaming_id', DB::table('services.servicios_streaming')->where('persona_id', $personaId)->pluck('id'))
-                ->orWhereIn('servicio_produccion_id', DB::table('services.servicios_produccion')->where('persona_id', $personaId)->pluck('id'))
-                ->pluck('id')
-                ->toArray();
+            $reservaAulaIds = DB::table('services.reservas_aulas')->where('persona_id', $personaId)->pluck('id')->toArray();
+            $reservaPodcastIds = DB::table('services.reservas_podcast')->where('persona_id', $personaId)->pluck('id')->toArray();
+            $reservaRadioIds = DB::table('services.reservas_radio')->where('persona_id', $personaId)->pluck('id')->toArray();
+            $alquilerEquipoIds = DB::table('services.alquiler_equipos')->where('persona_id', $personaId)->pluck('id')->toArray();
+            $edicionVideoIds = DB::table('services.edicion_videos')->where('persona_id', $personaId)->pluck('id')->toArray();
+            $streamingIds = DB::table('services.servicios_streaming')->where('persona_id', $personaId)->pluck('id')->toArray();
+            $produccionIds = DB::table('services.servicios_produccion')->where('persona_id', $personaId)->pluck('id')->toArray();
+
+            $cuentasServicios = [];
+            if (!empty($reservaAulaIds) || !empty($reservaPodcastIds) || !empty($reservaRadioIds) || !empty($alquilerEquipoIds) || !empty($edicionVideoIds) || !empty($streamingIds) || !empty($produccionIds)) {
+                $cuentasServicios = DB::table('finance.cuentas_por_cobrar')
+                    ->where(function ($q) use ($reservaAulaIds, $reservaPodcastIds, $reservaRadioIds, $alquilerEquipoIds, $edicionVideoIds, $streamingIds, $produccionIds) {
+                        if (!empty($reservaAulaIds)) $q->orWhereIn('reserva_aula_id', $reservaAulaIds);
+                        if (!empty($reservaPodcastIds)) $q->orWhereIn('reserva_podcast_id', $reservaPodcastIds);
+                        if (!empty($reservaRadioIds)) $q->orWhereIn('reserva_radio_id', $reservaRadioIds);
+                        if (!empty($alquilerEquipoIds)) $q->orWhereIn('alquiler_equipo_id', $alquilerEquipoIds);
+                        if (!empty($edicionVideoIds)) $q->orWhereIn('edicion_video_id', $edicionVideoIds);
+                        if (!empty($streamingIds)) $q->orWhereIn('servicio_streaming_id', $streamingIds);
+                        if (!empty($produccionIds)) $q->orWhereIn('servicio_produccion_id', $produccionIds);
+                    })
+                    ->pluck('id')
+                    ->toArray();
+            }
 
             $todasCuentasCobrarIds = array_unique(array_merge($cuentaCobrarIds, $cuentasServicios));
 
@@ -1051,16 +1067,18 @@ class EstudianteController extends Controller
             }
 
             // 6. FINANZAS: Eliminar transacciones de ingreso vinculadas
-            DB::table('finance.transacciones_ingreso')
-                ->where(function ($q) use ($todasCuentasCobrarIds, $lineasPagoIds) {
-                    if (!empty($todasCuentasCobrarIds)) {
-                        $q->orWhereIn('cuenta_cobrar_id', $todasCuentasCobrarIds);
-                    }
-                    if (!empty($lineasPagoIds)) {
-                        $q->orWhereIn('linea_pago_modulo_id', $lineasPagoIds);
-                    }
-                })
-                ->delete();
+            if (!empty($todasCuentasCobrarIds) || !empty($lineasPagoIds)) {
+                DB::table('finance.transacciones_ingreso')
+                    ->where(function ($q) use ($todasCuentasCobrarIds, $lineasPagoIds) {
+                        if (!empty($todasCuentasCobrarIds)) {
+                            $q->orWhereIn('cuenta_cobrar_id', $todasCuentasCobrarIds);
+                        }
+                        if (!empty($lineasPagoIds)) {
+                            $q->orWhereIn('linea_pago_modulo_id', $lineasPagoIds);
+                        }
+                    })
+                    ->delete();
+            }
 
             // 7. FINANZAS: Eliminar líneas de pago por módulo
             if (!empty($lineasPagoIds)) {
@@ -1182,13 +1200,16 @@ class EstudianteController extends Controller
             $solicitudIds = $cliente->solicitudesInscripcion()->pluck('id')->toArray();
             $matriculaIds = Matricula::whereIn('solicitud_inscripcion_id', $solicitudIds)->pluck('id')->toArray();
 
-            $cuentaCobrarIds = DB::table('finance.cuentas_por_cobrar')
-                ->where(function ($q) use ($matriculaIds, $solicitudIds) {
-                    if (!empty($matriculaIds)) $q->orWhereIn('matricula_id', $matriculaIds);
-                    if (!empty($solicitudIds)) $q->orWhereIn('solicitud_inscripcion_id', $solicitudIds);
-                })
-                ->pluck('id')
-                ->toArray();
+            $cuentaCobrarIds = [];
+            if (!empty($matriculaIds) || !empty($solicitudIds)) {
+                $cuentaCobrarIds = DB::table('finance.cuentas_por_cobrar')
+                    ->where(function ($q) use ($matriculaIds, $solicitudIds) {
+                        if (!empty($matriculaIds)) $q->orWhereIn('matricula_id', $matriculaIds);
+                        if (!empty($solicitudIds)) $q->orWhereIn('solicitud_inscripcion_id', $solicitudIds);
+                    })
+                    ->pluck('id')
+                    ->toArray();
+            }
 
             if (!empty($cuentaCobrarIds)) {
                 DB::table('finance.transacciones_ingreso')->whereIn('cuenta_cobrar_id', $cuentaCobrarIds)->delete();

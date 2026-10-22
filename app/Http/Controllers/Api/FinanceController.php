@@ -2273,15 +2273,13 @@ class FinanceController extends Controller
         }
     }
 
-    public function getIngresos(Request $request): JsonResponse
+    private function aplicarFiltrosIngresosQuery($query, Request $request): void
     {
-        $query = TransaccionIngreso::query();
-
         if ($desde = $request->get('fecha_desde')) {
-            $query->where('fecha_pago', '>=', $desde);
+            $query->whereDate('fecha_pago', '>=', $desde);
         }
         if ($hasta = $request->get('fecha_hasta')) {
-            $query->where('fecha_pago', '<=', $hasta . ' 23:59:59');
+            $query->whereDate('fecha_pago', '<=', $hasta);
         }
         if ($metodo = $request->get('metodo_pago')) {
             $query->where('metodo_pago', $metodo);
@@ -2314,30 +2312,81 @@ class FinanceController extends Controller
             }
         }
 
-        if ($search = $request->get('search')) {
-            $query->where(function ($q) use ($search) {
-                $q->whereHas('cuentaPorCobrar.matricula.estudiante', fn($sq) =>
-                    $sq->where('nombres', 'ilike', "%{$search}%")->orWhere('apellidos', 'ilike', "%{$search}%"))
-                  ->orWhereHas('cuentaPorCobrar.reservaPodcast.persona', fn($sq) =>
-                    $sq->where('nombres', 'ilike', "%{$search}%")->orWhere('apellidos', 'ilike', "%{$search}%"))
-                  ->orWhereHas('cuentaPorCobrar.reservaAula.persona', fn($sq) =>
-                    $sq->where('nombres', 'ilike', "%{$search}%")->orWhere('apellidos', 'ilike', "%{$search}%"))
-                  ->orWhereHas('cuentaPorCobrar.reservaRadio.persona', fn($sq) =>
-                    $sq->where('nombres', 'ilike', "%{$search}%")->orWhere('apellidos', 'ilike', "%{$search}%"))
-                  ->orWhereHas('cuentaPorCobrar.reservaRadio.clienteExterno', fn($sq) =>
-                    $sq->where('nombres', 'ilike', "%{$search}%")->orWhere('apellidos', 'ilike', "%{$search}%"))
-                  ->orWhereHas('cuentaPorCobrar.edicionVideo.cliente', fn($sq) =>
-                    $sq->where('nombres', 'ilike', "%{$search}%")->orWhere('apellidos', 'ilike', "%{$search}%"))
-                  ->orWhereHas('cuentaPorCobrar.edicionVideo.clienteExterno', fn($sq) =>
-                    $sq->where('nombres', 'ilike', "%{$search}%")->orWhere('apellidos', 'ilike', "%{$search}%"))
-                  ->orWhereHas('cuentaPorCobrar.alquilerEquipo.clienteExterno', fn($sq) =>
-                    $sq->where('nombres', 'ilike', "%{$search}%")->orWhere('apellidos', 'ilike', "%{$search}%"))
-                  ->orWhereHas('cuentaPorCobrar.inscripcionTaller', fn($sq) =>
-                    $sq->where('nombres', 'ilike', "%{$search}%")
-                       ->orWhere('apellidos', 'ilike', "%{$search}%")
-                       ->orWhere('cedula', 'ilike', "%{$search}%"));
+        if ($search = trim((string) $request->get('search', ''))) {
+            $likeSearch = "%{$search}%";
+            $query->where(function ($q) use ($likeSearch) {
+                $q->where('referencia_pago', 'ilike', $likeSearch)
+                  ->orWhere('observaciones', 'ilike', $likeSearch)
+                  ->orWhereHas('cuentaPorCobrar', function ($cpQ) use ($likeSearch) {
+                      $cpQ->whereHas('matricula.estudiante', function ($sq) use ($likeSearch) {
+                              $sq->where('nombres', 'ilike', $likeSearch)
+                                 ->orWhere('apellidos', 'ilike', $likeSearch)
+                                 ->orWhere('cedula', 'ilike', $likeSearch)
+                                 ->orWhereRaw("COALESCE(nombres, '') || ' ' || COALESCE(apellidos, '') ILIKE ?", [$likeSearch]);
+                          })
+                          ->orWhereHas('matricula.cursoAbierto.catalogo', fn($cq) => $cq->where('nombre', 'ilike', $likeSearch))
+                          ->orWhereHas('solicitudInscripcion.estudiante', function ($sq) use ($likeSearch) {
+                              $sq->where('nombres', 'ilike', $likeSearch)
+                                 ->orWhere('apellidos', 'ilike', $likeSearch)
+                                 ->orWhere('cedula', 'ilike', $likeSearch)
+                                 ->orWhereRaw("COALESCE(nombres, '') || ' ' || COALESCE(apellidos, '') ILIKE ?", [$likeSearch]);
+                          })
+                          ->orWhereHas('solicitudInscripcion.participanteExterno', function ($pq) use ($likeSearch) {
+                              $pq->where('nombres', 'ilike', $likeSearch)
+                                 ->orWhere('apellidos', 'ilike', $likeSearch)
+                                 ->orWhere('cedula', 'ilike', $likeSearch)
+                                 ->orWhereRaw("COALESCE(nombres, '') || ' ' || COALESCE(apellidos, '') ILIKE ?", [$likeSearch]);
+                          })
+                          ->orWhereHas('inscripcionTaller', function ($itq) use ($likeSearch) {
+                              $itq->where('nombres', 'ilike', $likeSearch)
+                                  ->orWhere('apellidos', 'ilike', $likeSearch)
+                                  ->orWhere('cedula', 'ilike', $likeSearch)
+                                  ->orWhereRaw("COALESCE(nombres, '') || ' ' || COALESCE(apellidos, '') ILIKE ?", [$likeSearch]);
+                          })
+                          ->orWhereHas('inscripcionTaller.taller', fn($tq) => $tq->where('nombre', 'ilike', $likeSearch))
+                          ->orWhereHas('reservaPodcast.persona', fn($pq) => $pq->where('nombres', 'ilike', $likeSearch)->orWhere('apellidos', 'ilike', $likeSearch)->orWhere('cedula', 'ilike', $likeSearch))
+                          ->orWhereHas('reservaPodcast.clienteExterno', fn($cq) => $cq->where('nombres', 'ilike', $likeSearch)->orWhere('apellidos', 'ilike', $likeSearch))
+                          ->orWhereHas('reservaPodcast.paquete', fn($pkq) => $pkq->where('nombre', 'ilike', $likeSearch))
+                          ->orWhereHas('reservaAula.persona', fn($pq) => $pq->where('nombres', 'ilike', $likeSearch)->orWhere('apellidos', 'ilike', $likeSearch)->orWhere('cedula', 'ilike', $likeSearch))
+                          ->orWhereHas('reservaAula.clienteExterno', fn($cq) => $cq->where('nombres', 'ilike', $likeSearch)->orWhere('apellidos', 'ilike', $likeSearch))
+                          ->orWhereHas('reservaAula.aula', fn($aq) => $aq->where('nombre', 'ilike', $likeSearch))
+                          ->orWhereHas('reservaRadio.persona', fn($pq) => $pq->where('nombres', 'ilike', $likeSearch)->orWhere('apellidos', 'ilike', $likeSearch)->orWhere('cedula', 'ilike', $likeSearch))
+                          ->orWhereHas('reservaRadio.clienteExterno', fn($cq) => $cq->where('nombres', 'ilike', $likeSearch)->orWhere('apellidos', 'ilike', $likeSearch))
+                          ->orWhereHas('edicionVideo.cliente', fn($cq) => $cq->where('nombres', 'ilike', $likeSearch)->orWhere('apellidos', 'ilike', $likeSearch))
+                          ->orWhereHas('edicionVideo.clienteExterno', fn($cq) => $cq->where('nombres', 'ilike', $likeSearch)->orWhere('apellidos', 'ilike', $likeSearch))
+                          ->orWhereHas('alquilerEquipo.persona', fn($pq) => $pq->where('nombres', 'ilike', $likeSearch)->orWhere('apellidos', 'ilike', $likeSearch))
+                          ->orWhereHas('alquilerEquipo.clienteExterno', fn($cq) => $cq->where('nombres', 'ilike', $likeSearch)->orWhere('apellidos', 'ilike', $likeSearch))
+                          ->orWhereHas('alquilerEquipo.equipo', fn($eq) => $eq->where('nombre', 'ilike', $likeSearch));
+                  })
+                  ->orWhereHas('lineaPagoModulo', function ($lpQ) use ($likeSearch) {
+                      $lpQ->whereHas('modulo', fn($mq) => $mq->where('nombre_modulo', 'ilike', $likeSearch))
+                          ->orWhereHas('matricula.estudiante', function ($sq) use ($likeSearch) {
+                              $sq->where('nombres', 'ilike', $likeSearch)
+                                 ->orWhere('apellidos', 'ilike', $likeSearch)
+                                 ->orWhere('cedula', 'ilike', $likeSearch)
+                                 ->orWhereRaw("COALESCE(nombres, '') || ' ' || COALESCE(apellidos, '') ILIKE ?", [$likeSearch]);
+                          })
+                          ->orWhereHas('matricula.cursoAbierto.catalogo', fn($cq) => $cq->where('nombre', 'ilike', $likeSearch))
+                          ->orWhereHas('matricula.solicitudInscripcion.estudiante', function ($sq) use ($likeSearch) {
+                              $sq->where('nombres', 'ilike', $likeSearch)
+                                 ->orWhere('apellidos', 'ilike', $likeSearch)
+                                 ->orWhere('cedula', 'ilike', $likeSearch)
+                                 ->orWhereRaw("COALESCE(nombres, '') || ' ' || COALESCE(apellidos, '') ILIKE ?", [$likeSearch]);
+                          })
+                          ->orWhereHas('matricula.solicitudInscripcion.participanteExterno', function ($pq) use ($likeSearch) {
+                              $pq->where('nombres', 'ilike', $likeSearch)
+                                 ->orWhere('apellidos', 'ilike', $likeSearch)
+                                 ->orWhere('cedula', 'ilike', $likeSearch);
+                          });
+                  });
             });
         }
+    }
+
+    public function getIngresos(Request $request): JsonResponse
+    {
+        $query = TransaccionIngreso::query();
+        $this->aplicarFiltrosIngresosQuery($query, $request);
 
         $totalQuery = clone $query;
         $totales = [
@@ -2358,9 +2407,12 @@ class FinanceController extends Controller
         $totales['servicios'] = (float) $serviciosTotal;
         $totales['otros'] = max(0, $totales['total'] - $totales['cursos'] - $totales['talleres'] - $totales['servicios']);
 
+        $desde = $request->get('fecha_desde');
+        $hasta = $request->get('fecha_hasta');
+
         $grafico = TransaccionIngreso::selectRaw("to_char(fecha_pago, 'YYYY-MM') as mes, SUM(monto) as total")
-            ->when($desde, fn($q) => $q->where('fecha_pago', '>=', $desde))
-            ->when($hasta, fn($q) => $q->where('fecha_pago', '<=', $hasta . ' 23:59:59'))
+            ->when($desde, fn($q) => $q->whereDate('fecha_pago', '>=', $desde))
+            ->when($hasta, fn($q) => $q->whereDate('fecha_pago', '<=', $hasta))
             ->groupBy('mes')->orderBy('mes')->limit(12)
             ->get()->map(fn($r) => ['mes' => $r->mes, 'total' => (float) $r->total]);
 
@@ -2371,64 +2423,7 @@ class FinanceController extends Controller
         $ingresoIdsQuery = TransaccionIngreso::query()
             ->selectRaw("id, 'ingreso' as tipo_movimiento, fecha_pago, fecha_verificacion as orden_registro");
 
-        if ($desde) {
-            $ingresoIdsQuery->where('fecha_pago', '>=', $desde);
-        }
-        if ($hasta) {
-            $ingresoIdsQuery->where('fecha_pago', '<=', $hasta . ' 23:59:59');
-        }
-        if ($metodo) {
-            $ingresoIdsQuery->where('metodo_pago', $metodo);
-        }
-        if ($categoriaFilter) {
-            if ($categoriaFilter === 'cursos_personalizados') {
-                $ingresoIdsQuery->where(function ($q) {
-                    $q->whereHas('cuentaPorCobrar.matricula.cursoAbierto', fn($sq) => $sq->where('es_personalizado', true))
-                      ->orWhereHas('lineaPagoModulo.matricula.cursoAbierto', fn($sq) => $sq->where('es_personalizado', true));
-                });
-            } elseif ($categoriaFilter === 'cursos') {
-                $ingresoIdsQuery->where(function ($q) {
-                    $q->whereHas('cuentaPorCobrar', fn($sq) => $sq->whereNotNull('matricula_id'))
-                      ->orWhereNotNull('linea_pago_modulo_id');
-                });
-            } elseif ($categoriaFilter === 'talleres') {
-                $ingresoIdsQuery->whereHas('cuentaPorCobrar', fn($q) => $q->whereNotNull('inscripcion_taller_id'));
-            } else {
-                $fkMap = [
-                    'aulas' => 'reserva_aula_id', 'podcast' => 'reserva_podcast_id',
-                    'radio' => 'reserva_radio_id', 'edicion' => 'edicion_video_id',
-                    'equipos' => 'alquiler_equipo_id', 'streaming' => 'servicio_streaming_id',
-                    'produccion' => 'servicio_produccion_id', 'asesorias' => 'clase_extra_id',
-                ];
-                if (isset($fkMap[$categoriaFilter])) {
-                    $ingresoIdsQuery->whereHas('cuentaPorCobrar', fn($q) => $q->whereNotNull($fkMap[$categoriaFilter]));
-                }
-            }
-        }
-        if ($search) {
-            $ingresoIdsQuery->where(function ($q) use ($search) {
-                $q->whereHas('cuentaPorCobrar.matricula.estudiante', fn($sq) =>
-                    $sq->where('nombres', 'ilike', "%{$search}%")->orWhere('apellidos', 'ilike', "%{$search}%"))
-                  ->orWhereHas('cuentaPorCobrar.reservaPodcast.persona', fn($sq) =>
-                    $sq->where('nombres', 'ilike', "%{$search}%")->orWhere('apellidos', 'ilike', "%{$search}%"))
-                  ->orWhereHas('cuentaPorCobrar.reservaAula.persona', fn($sq) =>
-                    $sq->where('nombres', 'ilike', "%{$search}%")->orWhere('apellidos', 'ilike', "%{$search}%"))
-                  ->orWhereHas('cuentaPorCobrar.reservaRadio.persona', fn($sq) =>
-                    $sq->where('nombres', 'ilike', "%{$search}%")->orWhere('apellidos', 'ilike', "%{$search}%"))
-                  ->orWhereHas('cuentaPorCobrar.reservaRadio.clienteExterno', fn($sq) =>
-                    $sq->where('nombres', 'ilike', "%{$search}%")->orWhere('apellidos', 'ilike', "%{$search}%"))
-                  ->orWhereHas('cuentaPorCobrar.edicionVideo.cliente', fn($sq) =>
-                    $sq->where('nombres', 'ilike', "%{$search}%")->orWhere('apellidos', 'ilike', "%{$search}%"))
-                  ->orWhereHas('cuentaPorCobrar.edicionVideo.clienteExterno', fn($sq) =>
-                    $sq->where('nombres', 'ilike', "%{$search}%")->orWhere('apellidos', 'ilike', "%{$search}%"))
-                  ->orWhereHas('cuentaPorCobrar.alquilerEquipo.clienteExterno', fn($sq) =>
-                    $sq->where('nombres', 'ilike', "%{$search}%")->orWhere('apellidos', 'ilike', "%{$search}%"))
-                  ->orWhereHas('cuentaPorCobrar.inscripcionTaller', fn($sq) =>
-                    $sq->where('nombres', 'ilike', "%{$search}%")
-                       ->orWhere('apellidos', 'ilike', "%{$search}%")
-                       ->orWhere('cedula', 'ilike', "%{$search}%"));
-            });
-        }
+        $this->aplicarFiltrosIngresosQuery($ingresoIdsQuery, $request);
 
         $totalAll = $ingresoIdsQuery->count();
 

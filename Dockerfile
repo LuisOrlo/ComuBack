@@ -19,7 +19,7 @@ COPY resources/ resources/
 RUN npm run build
 
 # Etapa 3: Imagen final (Apache + mod_php, un solo proceso para Render)
-FROM php:8.4-apache-bookworm
+FROM php:8.4.27-apache-bookworm
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq-dev \
