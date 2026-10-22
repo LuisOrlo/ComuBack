@@ -146,11 +146,56 @@ class MatriculaController extends Controller
         return response()->json(['data' => $matricula, 'message' => 'Actualizado exitosamente']);
     }
 
-    public function destroy($id)
+    public function destroy(Request $request, $id)
     {
         $matricula = Matricula::findOrFail($id);
         $eliminadoPor = auth()->id() ?? auth()->user()?->persona_id ?? null;
-        $matricula->delete();
+
+        DB::transaction(function () use ($matricula) {
+            $cuentaIds = DB::table('finance.cuentas_por_cobrar')
+                ->where('matricula_id', $matricula->id)
+                ->pluck('id')
+                ->toArray();
+
+            $lineaIds = DB::table('finance.lineas_pago_modulo')
+                ->where('matricula_id', $matricula->id)
+                ->pluck('id')
+                ->toArray();
+
+            DB::table('finance.transacciones_ingreso')->where(function ($q) use ($cuentaIds, $lineaIds) {
+                if (!empty($cuentaIds)) $q->orWhereIn('cuenta_cobrar_id', $cuentaIds);
+                if (!empty($lineaIds)) $q->orWhereIn('linea_pago_modulo_id', $lineaIds);
+            })->delete();
+
+            if (!empty($lineaIds)) {
+                DB::table('finance.lineas_pago_modulo')->whereIn('id', $lineaIds)->delete();
+            }
+
+            if (!empty($cuentaIds)) {
+                DB::table('finance.cuentas_por_cobrar')->whereIn('id', $cuentaIds)->delete();
+            }
+
+            DB::table('academic.notas')->where('matricula_id', $matricula->id)->delete();
+            DB::table('academic.asistencias')->where('matricula_id', $matricula->id)->delete();
+            DB::table('academic.cambios_horario')->where('matricula_origen_id', $matricula->id)->delete();
+            DB::table('academic.traslados_modulo')->where('matricula_origen_id', $matricula->id)->delete();
+
+            $cursoId = $matricula->curso_abierto_id;
+            $matricula->delete();
+
+            if ($cursoId) {
+                $activeCount = DB::table('academic.matriculas')
+                    ->where('curso_abierto_id', $cursoId)
+                    ->whereNull('deleted_at')
+                    ->count();
+
+                DB::table('academic.cursos_abiertos')->where('id', $cursoId)->update([
+                    'estudiantes_inscritos' => $activeCount,
+                    'ingreso_proyectado' => DB::raw("precio_base * {$activeCount}"),
+                ]);
+            }
+        });
+
         Log::channel('audit')->info('matricula.eliminada', ['matricula_id' => $matricula->id, 'usuario_id' => auth()->id(), 'ip' => $request->ip()]);
 
         app(StorageCleanupService::class)->deleteRecordFiles($matricula, $eliminadoPor);

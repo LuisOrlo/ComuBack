@@ -29,11 +29,14 @@ class FinanceController extends Controller
     public function getCuentas(Request $request): JsonResponse
     {
         $recientes = $request->boolean('recientes');
-        $perPage = min(max((int) $request->get('per_page', 15), 10), 100);
+        $perPage = min(max((int) $request->get('per_page', 15), 10), 1000);
         $origen = $request->get('origen');
         $estado = $request->get('estado');
         $search = $request->get('search');
         $modalidad = $request->get('modalidad');
+        $ciudadId = $request->get('ciudad_id');
+        $fechaDesde = $request->get('fecha_desde');
+        $fechaHasta = $request->get('fecha_hasta');
 
         // --- Cuentas por cobrar (carga selectiva según origen) ---
         $query = CuentaPorCobrar::query();
@@ -42,10 +45,12 @@ class FinanceController extends Controller
             $query->with([
                 'matricula.estudiante',
                 'matricula.cursoAbierto.catalogo',
+                'matricula.cursoAbierto.ciudad',
                 'matricula.lineasPago.modulo',
                 'solicitudInscripcion.estudiante',
                 'solicitudInscripcion.participanteExterno',
                 'solicitudInscripcion.cursoAbierto.catalogo',
+                'solicitudInscripcion.cursoAbierto.ciudad',
             ]);
         }
         if (!$origen || $origen === 'servicio') {
@@ -64,10 +69,13 @@ class FinanceController extends Controller
                 'reservaRadio.tarifa',
                 'edicionVideo.cliente',
                 'edicionVideo.clienteExterno',
+                'servicioStreaming.ciudad',
             ]);
         }
         if (!$origen || $origen === 'taller') {
-            $query->with(['inscripcionTaller.taller']);
+            $query->with([
+                'inscripcionTaller.taller.ciudad',
+            ]);
         }
 
         if ($estado) {
@@ -79,6 +87,57 @@ class FinanceController extends Controller
                 $q->whereHas('matricula.estudiante', fn($sq) => $sq->where('nombres', 'ilike', "%{$search}%")->orWhere('apellidos', 'ilike', "%{$search}%"))
                   ->orWhereHas('solicitudInscripcion.estudiante', fn($sq) => $sq->where('nombres', 'ilike', "%{$search}%")->orWhere('apellidos', 'ilike', "%{$search}%"))
                   ->orWhereHas('solicitudInscripcion.participanteExterno', fn($sq) => $sq->where('nombres', 'ilike', "%{$search}%")->orWhere('apellidos', 'ilike', "%{$search}%"));
+            });
+        }
+
+        if ($modalidad && in_array($modalidad, ['presencial', 'virtual'])) {
+            $query->where(function($q) use ($modalidad) {
+                $q->whereHas('matricula.cursoAbierto', fn($sq) => $sq->where('modalidad', $modalidad))
+                  ->orWhereHas('solicitudInscripcion.cursoAbierto', fn($sq) => $sq->where('modalidad', $modalidad))
+                  ->orWhereHas('inscripcionTaller.taller', fn($sq) => $sq->where('modalidad', $modalidad));
+            });
+        }
+
+
+
+        if ($ciudadId) {
+            $query->where(function($q) use ($ciudadId) {
+                $q->whereHas('matricula.cursoAbierto', fn($sq) => $sq->where('ciudad_id', $ciudadId))
+                  ->orWhereHas('solicitudInscripcion.cursoAbierto', fn($sq) => $sq->where('ciudad_id', $ciudadId))
+                  ->orWhereHas('inscripcionTaller.taller', fn($sq) => $sq->where('ciudad_id', $ciudadId))
+                  ->orWhereHas('servicioStreaming', fn($sq) => $sq->where('ciudad_id', $ciudadId));
+            });
+        }
+
+        if ($fechaDesde || $fechaHasta) {
+            $desde = $fechaDesde ?? '1970-01-01';
+            $hasta = $fechaHasta ?? '2099-12-31';
+
+            $query->where(function ($q) use ($desde, $hasta) {
+                $q->whereHas('matricula.cursoAbierto', function ($sq) use ($desde, $hasta) {
+                    $sq->whereDate('fecha_inicio', '<=', $hasta)
+                       ->where(fn($sq2) => $sq2->whereDate('fecha_fin', '>=', $desde)->orWhereNull('fecha_fin'));
+                })
+                ->orWhereHas('solicitudInscripcion.cursoAbierto', function ($sq) use ($desde, $hasta) {
+                    $sq->whereDate('fecha_inicio', '<=', $hasta)
+                       ->where(fn($sq2) => $sq2->whereDate('fecha_fin', '>=', $desde)->orWhereNull('fecha_fin'));
+                })
+                ->orWhereHas('inscripcionTaller.taller', function ($sq) use ($desde, $hasta) {
+                    $sq->where(function ($sq2) use ($desde, $hasta) {
+                        $sq2->whereDate('fecha', '<=', $hasta)
+                            ->where(fn($sq3) => $sq3->whereDate('fecha_fin', '>=', $desde)->orWhereNull('fecha_fin')->orWhereDate('fecha', '>=', $desde));
+                    });
+                })
+                ->orWhereHas('reservaAula', fn($sq) => $sq->whereBetween('fecha_reserva', [$desde, $hasta]))
+                ->orWhereHas('reservaPodcast', fn($sq) => $sq->whereBetween('fecha_reserva', [$desde, $hasta]))
+                ->orWhereHas('alquilerEquipo', fn($sq) => $sq->whereDate('fecha_entrega', '<=', $hasta)->where(fn($sq2) => $sq2->whereDate('fecha_devolucion_esperada', '>=', $desde)->orWhereNull('fecha_devolucion_esperada')))
+                ->orWhereHas('servicioStreaming', fn($sq) => $sq->whereBetween('fecha_evento', [$desde, $hasta]))
+                ->orWhereHas('reservaRadio', fn($sq) => $sq->whereBetween('fecha_reserva', [$desde, $hasta]))
+                ->orWhereHas('edicionVideo', fn($sq) => $sq->where(fn($sq2) => $sq2->whereBetween('fecha_recibo', [$desde, $hasta])->orWhereBetween('fecha_entrega', [$desde, $hasta])))
+                ->orWhere(function ($sq) use ($desde, $hasta) {
+                    $sq->whereDate('created_at', '>=', $desde)
+                       ->whereDate('created_at', '<=', $hasta);
+                });
             });
         }
 
@@ -132,6 +191,13 @@ class FinanceController extends Controller
                         ->whereColumn('cc.matricula_id', 'm.id');
                 })
                 ->when($modalidad && in_array($modalidad, ['presencial', 'virtual']), fn($q) => $q->where('ca.modalidad', $modalidad))
+                ->when($ciudadId, fn($q) => $q->where('ca.ciudad_id', $ciudadId))
+                ->when($fechaDesde || $fechaHasta, function ($q) use ($fechaDesde, $fechaHasta) {
+                    $desde = $fechaDesde ?? '1970-01-01';
+                    $hasta = $fechaHasta ?? '2099-12-31';
+                    $q->whereDate('ca.fecha_inicio', '<=', $hasta)
+                      ->where(fn($sq) => $sq->whereDate('ca.fecha_fin', '>=', $desde)->orWhereNull('ca.fecha_fin'));
+                })
                 ->when($search, fn($q) => $q->where(function($q) use ($search) {
                     $q->where('p.nombres', 'ilike', "%{$search}%")
                       ->orWhere('p.apellidos', 'ilike', "%{$search}%");
@@ -151,13 +217,7 @@ class FinanceController extends Controller
                 ->groupBy('m.id')
                 ->get();
 
-        if ($modalidad && in_array($modalidad, ['presencial', 'virtual'])) {
-            $query->where(function($q) use ($modalidad) {
-                $q->whereHas('matricula.cursoAbierto', fn($sq) => $sq->where('modalidad', $modalidad))
-                  ->orWhereHas('solicitudInscripcion.cursoAbierto', fn($sq) => $sq->where('modalidad', $modalidad))
-                  ->orWhereHas('inscripcionTaller.taller', fn($sq) => $sq->where('modalidad', $modalidad));
-            });
-        }
+
 
         if ($recientes) {
                 $lineasAgrupadas = $lineasAgrupadas->filter(function ($l) {

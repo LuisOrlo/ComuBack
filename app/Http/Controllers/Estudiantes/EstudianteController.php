@@ -23,9 +23,11 @@ use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Database\QueryException;
+use App\Services\StorageCleanupService;
 use League\Csv\Reader;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 
@@ -892,30 +894,38 @@ class EstudianteController extends Controller
 
     public function destroy(string $id): JsonResponse
     {
-        $estudiante = Persona::query()
-            ->estudiantes()
-            ->find($id);
+        $estudiante = Persona::withTrashed()->find($id);
 
         if ($estudiante) {
-            $this->eliminarEstudianteInterno($estudiante);
-            return response()->json(['mensaje' => 'Estudiante eliminado exitosamente.']);
+            $this->purgarEstudianteInternoCompleto($estudiante);
+            return response()->json(['mensaje' => 'Estudiante y todos sus registros eliminados exitosamente.']);
         }
 
-        $cliente = ClienteExterno::query()->find($id);
+        $cliente = ClienteExterno::withTrashed()->find($id);
 
         if ($cliente) {
-            $this->eliminarEstudianteExterno($cliente);
-            return response()->json(['mensaje' => 'Estudiante externo eliminado exitosamente.']);
+            $this->purgarEstudianteExternoCompleto($cliente);
+            return response()->json(['mensaje' => 'Estudiante externo y todos sus registros eliminados exitosamente.']);
         }
 
         // Participante de taller
         $inscripcion = \App\Models\InscripcionTaller::find($id);
         if ($inscripcion) {
             DB::transaction(function () use ($inscripcion) {
-                // Se conserva la cuenta por cobrar y transacciones históricas
+                $cuentaIds = DB::table('finance.cuentas_por_cobrar')
+                    ->where('inscripcion_taller_id', $inscripcion->id)
+                    ->pluck('id')
+                    ->toArray();
+
+                if (!empty($cuentaIds)) {
+                    DB::table('finance.transacciones_ingreso')->whereIn('cuenta_cobrar_id', $cuentaIds)->delete();
+                    DB::table('finance.cuentas_por_cobrar')->whereIn('id', $cuentaIds)->delete();
+                }
+
+                DB::table('academic.asistencia_taller_estudiantes')->where('inscripcion_taller_id', $inscripcion->id)->delete();
                 $inscripcion->delete();
             });
-            return response()->json(['mensaje' => 'Participante de taller eliminado exitosamente.']);
+            return response()->json(['mensaje' => 'Participante de taller y sus deudas eliminados exitosamente.']);
         }
 
         return response()->json(['mensaje' => 'Estudiante no encontrado'], 404);
@@ -932,21 +942,31 @@ class EstudianteController extends Controller
         $noEncontrados = [];
         DB::transaction(function () use ($ids, &$noEncontrados) {
             foreach (array_unique($ids) as $id) {
-                $estudiante = Persona::query()->estudiantes()->find($id);
+                $estudiante = Persona::withTrashed()->find($id);
                 if ($estudiante) {
-                    $this->eliminarEstudianteInterno($estudiante);
+                    $this->purgarEstudianteInternoCompleto($estudiante);
                     continue;
                 }
 
-                $cliente = ClienteExterno::query()->find($id);
+                $cliente = ClienteExterno::withTrashed()->find($id);
                 if ($cliente) {
-                    $this->eliminarEstudianteExterno($cliente);
+                    $this->purgarEstudianteExternoCompleto($cliente);
                     continue;
                 }
 
                 $inscripcion = \App\Models\InscripcionTaller::find($id);
                 if ($inscripcion) {
-                    // Se conserva la cuenta por cobrar y transacciones históricas
+                    $cuentaIds = DB::table('finance.cuentas_por_cobrar')
+                        ->where('inscripcion_taller_id', $inscripcion->id)
+                        ->pluck('id')
+                        ->toArray();
+
+                    if (!empty($cuentaIds)) {
+                        DB::table('finance.transacciones_ingreso')->whereIn('cuenta_cobrar_id', $cuentaIds)->delete();
+                        DB::table('finance.cuentas_por_cobrar')->whereIn('id', $cuentaIds)->delete();
+                    }
+
+                    DB::table('academic.asistencia_taller_estudiantes')->where('inscripcion_taller_id', $inscripcion->id)->delete();
                     $inscripcion->delete();
                     continue;
                 }
@@ -962,48 +982,246 @@ class EstudianteController extends Controller
         ]);
     }
 
-    private function eliminarEstudianteInterno(Persona $estudiante): void
+    private function purgarEstudianteInternoCompleto(Persona $estudiante): void
     {
         DB::transaction(function () use ($estudiante) {
-            $matriculaIds = Matricula::where('estudiante_id', $estudiante->id)->pluck('id');
+            $personaId = $estudiante->id;
+            $eliminadoPor = auth()->id() ?? auth()->user()?->persona_id ?? null;
 
-            if ($matriculaIds->isNotEmpty()) {
-                // Separar la baja académica de la contabilidad histórica:
-                // Se conservan transacciones de ingreso, cuentas por cobrar y líneas de pago
-                // para mantener la integridad contable y trazabilidad histórica.
-                Nota::whereIn('matricula_id', $matriculaIds)->delete();
-                Asistencia::whereIn('matricula_id', $matriculaIds)->delete();
-                Matricula::whereIn('id', $matriculaIds)->delete();
+            // 1. Obtener todas las matrículas del estudiante y los cursos asociados
+            $matriculasQuery = DB::table('academic.matriculas')->where('estudiante_id', $personaId);
+            $matriculaIds = (clone $matriculasQuery)->pluck('id')->toArray();
+            $cursosAfectadosIds = (clone $matriculasQuery)->pluck('curso_abierto_id')->unique()->filter()->toArray();
+
+            // 2. Obtener solicitudes de inscripción asociadas
+            $solicitudIds = DB::table('academic.solicitudes_inscripcion')
+                ->where('persona_id', $personaId)
+                ->pluck('id')
+                ->toArray();
+
+            // 3. Obtener inscripciones a talleres
+            $tallerInscripcionIds = DB::table('academic.inscripciones_taller')
+                ->where('persona_id', $personaId)
+                ->when(!empty($estudiante->cedula), fn($q) => $q->orWhere('cedula', $estudiante->cedula))
+                ->pluck('id')
+                ->toArray();
+
+            $talleresLegacyIds = DB::table('academic.inscripciones_talleres')
+                ->where('estudiante_id', $personaId)
+                ->pluck('id')
+                ->toArray();
+
+            // 4. Obtener cuentas por cobrar asociadas a matrículas, solicitudes o talleres
+            $cuentaCobrarIds = DB::table('finance.cuentas_por_cobrar')
+                ->where(function ($q) use ($matriculaIds, $solicitudIds, $tallerInscripcionIds) {
+                    if (!empty($matriculaIds)) {
+                        $q->orWhereIn('matricula_id', $matriculaIds);
+                    }
+                    if (!empty($solicitudIds)) {
+                        $q->orWhereIn('solicitud_inscripcion_id', $solicitudIds);
+                    }
+                    if (!empty($tallerInscripcionIds)) {
+                        $q->orWhereIn('inscripcion_taller_id', $tallerInscripcionIds);
+                    }
+                })
+                ->pluck('id')
+                ->toArray();
+
+            // Cuentas por cobrar de reservas de servicios vinculados
+            $cuentasServicios = DB::table('finance.cuentas_por_cobrar')
+                ->whereIn('reserva_aula_id', DB::table('services.reservas_aulas')->where('persona_id', $personaId)->pluck('id'))
+                ->orWhereIn('reserva_podcast_id', DB::table('services.reservas_podcast')->where('persona_id', $personaId)->pluck('id'))
+                ->orWhereIn('reserva_radio_id', DB::table('services.reservas_radio')->where('persona_id', $personaId)->pluck('id'))
+                ->orWhereIn('alquiler_equipo_id', DB::table('services.alquiler_equipos')->where('persona_id', $personaId)->pluck('id'))
+                ->orWhereIn('edicion_video_id', DB::table('services.edicion_videos')->where('persona_id', $personaId)->pluck('id'))
+                ->orWhereIn('servicio_streaming_id', DB::table('services.servicios_streaming')->where('persona_id', $personaId)->pluck('id'))
+                ->orWhereIn('servicio_produccion_id', DB::table('services.servicios_produccion')->where('persona_id', $personaId)->pluck('id'))
+                ->pluck('id')
+                ->toArray();
+
+            $todasCuentasCobrarIds = array_unique(array_merge($cuentaCobrarIds, $cuentasServicios));
+
+            // 5. Líneas de pago por módulo de las matrículas
+            $lineasPagoIds = [];
+            if (!empty($matriculaIds)) {
+                $lineasPagoIds = DB::table('finance.lineas_pago_modulo')
+                    ->whereIn('matricula_id', $matriculaIds)
+                    ->pluck('id')
+                    ->toArray();
             }
 
-            // Desactivar expediente y aplicar soft delete
-            $estudiante->update(['es_activo' => false]);
-            $estudiante->delete();
+            // 6. FINANZAS: Eliminar transacciones de ingreso vinculadas
+            DB::table('finance.transacciones_ingreso')
+                ->where(function ($q) use ($todasCuentasCobrarIds, $lineasPagoIds) {
+                    if (!empty($todasCuentasCobrarIds)) {
+                        $q->orWhereIn('cuenta_cobrar_id', $todasCuentasCobrarIds);
+                    }
+                    if (!empty($lineasPagoIds)) {
+                        $q->orWhereIn('linea_pago_modulo_id', $lineasPagoIds);
+                    }
+                })
+                ->delete();
 
-            $this->eliminarServiciosYFinanzasVinculados('persona_id', $estudiante->id);
+            // 7. FINANZAS: Eliminar líneas de pago por módulo
+            if (!empty($lineasPagoIds)) {
+                DB::table('finance.lineas_pago_modulo')->whereIn('id', $lineasPagoIds)->delete();
+            }
+
+            // 8. FINANZAS: Eliminar cuentas por cobrar (elimina deudas y saldos pendientes)
+            if (!empty($todasCuentasCobrarIds)) {
+                DB::table('finance.cuentas_por_cobrar')->whereIn('id', $todasCuentasCobrarIds)->delete();
+            }
+
+            // 9. ACADÉMICO: Eliminar asistencias, notas, cambios y traslados de matrícula
+            if (!empty($matriculaIds)) {
+                DB::table('academic.asistencias')->whereIn('matricula_id', $matriculaIds)->delete();
+                DB::table('academic.notas')->whereIn('matricula_id', $matriculaIds)->delete();
+                DB::table('academic.cambios_horario')->whereIn('matricula_origen_id', $matriculaIds)->delete();
+                DB::table('academic.traslados_modulo')->whereIn('matricula_origen_id', $matriculaIds)->delete();
+            }
+
+            // 10. ACADÉMICO: Asistencias de talleres
+            if (!empty($tallerInscripcionIds)) {
+                DB::table('academic.asistencia_taller_estudiantes')->whereIn('inscripcion_taller_id', $tallerInscripcionIds)->delete();
+            }
+
+            // 11. ACADÉMICO: Certificados, clases extras y asesorías
+            DB::table('academic.certificados')->where('estudiante_id', $personaId)->delete();
+            DB::table('academic.clases_extras')->where('estudiante_id', $personaId)->delete();
+            DB::table('academic.asesorias')->where('persona_id', $personaId)->delete();
+
+            // 12. ACADÉMICO: Matrículas e inscripciones
+            if (!empty($matriculaIds)) {
+                DB::table('academic.matriculas')->whereIn('id', $matriculaIds)->delete();
+
+                // Recalcular explícitamente estudiantes_inscritos en cada curso afectado
+                foreach ($cursosAfectadosIds as $cId) {
+                    $activeCount = DB::table('academic.matriculas')
+                        ->where('curso_abierto_id', $cId)
+                        ->whereNull('deleted_at')
+                        ->count();
+
+                    DB::table('academic.cursos_abiertos')->where('id', $cId)->update([
+                        'estudiantes_inscritos' => $activeCount,
+                        'ingreso_proyectado' => DB::raw("precio_base * {$activeCount}"),
+                    ]);
+                }
+            }
+            if (!empty($solicitudIds)) {
+                DB::table('academic.solicitudes_inscripcion')->whereIn('id', $solicitudIds)->delete();
+            }
+            if (!empty($tallerInscripcionIds)) {
+                DB::table('academic.inscripciones_taller')->whereIn('id', $tallerInscripcionIds)->delete();
+            }
+            if (!empty($talleresLegacyIds)) {
+                DB::table('academic.inscripciones_talleres')->whereIn('id', $talleresLegacyIds)->delete();
+            }
+
+            // 13. Participantes en cursos personalizados
+            if (!empty($estudiante->correo)) {
+                $extIds = DB::table('academic.participantes_externos')
+                    ->where('email', $estudiante->correo)
+                    ->pluck('id')
+                    ->toArray();
+
+                if (!empty($extIds)) {
+                    DB::table('academic.participantes_cursos_personalizados')->whereIn('participante_externo_id', $extIds)->delete();
+                    DB::table('academic.inscripciones_externos_talleres')->whereIn('participante_externo_id', $extIds)->delete();
+                }
+            }
+
+            // 14. SERVICIOS: Reservas y asignaciones
+            $this->eliminarServiciosYFinanzasVinculados('persona_id', $personaId);
+
+            // 15. ARCHIVOS: Limpieza en storage
+            try {
+                $storageService = app(StorageCleanupService::class);
+                $storageService->deleteRecordFiles($estudiante, $eliminadoPor);
+            } catch (\Throwable $e) {
+                Log::warning('No se pudieron eliminar archivos de storage para estudiante: ' . $personaId, ['error' => $e->getMessage()]);
+            }
+
+            // 16. USUARIO Y SEGURIDAD: Cuentas de sistema, tokens, roles y logins
+            DB::table('audit.inicios_sesion')->where('persona_id', $personaId)->delete();
+
+            $cuentasIds = DB::table('people.cuentas_sistema')->where('persona_id', $personaId)->pluck('id')->toArray();
+            if (!empty($cuentasIds)) {
+                DB::table('core.model_has_roles')->where('model_type', 'App\Models\CuentaSistema')->whereIn('model_id', $cuentasIds)->delete();
+                DB::table('core.model_has_permissions')->where('model_type', 'App\Models\CuentaSistema')->whereIn('model_id', $cuentasIds)->delete();
+                DB::table('audit.personal_access_tokens')->where('tokenable_type', 'App\Models\CuentaSistema')->whereIn('tokenable_id', $cuentasIds)->delete();
+                DB::table('people.cuentas_sistema')->whereIn('id', $cuentasIds)->delete();
+            }
+
+            // 17. PERFILES: Perfil estudiante
+            DB::table('people.perfil_estudiante')->where('persona_id', $personaId)->delete();
+
+            // 18. Clientes externos / contactos espejo con la misma cédula si existieran
+            if (!empty($estudiante->cedula)) {
+                $clienteExtIds = DB::table('people.clientes_externos')->where('cedula', $estudiante->cedula)->pluck('id')->toArray();
+                if (!empty($clienteExtIds)) {
+                    DB::table('people.clientes_externos_contactos')->whereIn('cliente_externo_id', $clienteExtIds)->delete();
+                    DB::table('people.clientes_externos')->whereIn('id', $clienteExtIds)->delete();
+                }
+            }
+
+            // 19. PERSONA: Borrado físico definitivo
+            DB::table('people.personas')->where('id', $personaId)->delete();
+
+            Log::channel('audit')->info('estudiante.purgado_completamente', [
+                'persona_id' => $personaId,
+                'cedula' => $estudiante->cedula,
+                'nombre' => $estudiante->nombres . ' ' . $estudiante->apellidos,
+                'eliminado_por' => $eliminadoPor,
+            ]);
         });
     }
 
-    private function eliminarEstudianteExterno(ClienteExterno $cliente): void
+    private function purgarEstudianteExternoCompleto(ClienteExterno $cliente): void
     {
         DB::transaction(function () use ($cliente) {
-            $solicitudes = $cliente->solicitudesInscripcion()
-                ->whereIn('estado', ['aprobado', 'matricula_creada'])
-                ->get();
+            $solicitudIds = $cliente->solicitudesInscripcion()->pluck('id')->toArray();
+            $matriculaIds = Matricula::whereIn('solicitud_inscripcion_id', $solicitudIds)->pluck('id')->toArray();
 
-            foreach ($solicitudes as $solicitud) {
-                if ($solicitud->matricula) {
-                    // Conservar transacciones de ingreso y cuentas por cobrar históricas
-                    Nota::where('matricula_id', $solicitud->matricula->id)->delete();
-                    Asistencia::where('matricula_id', $solicitud->matricula->id)->delete();
-                    $solicitud->matricula->delete();
-                }
+            $cuentaCobrarIds = DB::table('finance.cuentas_por_cobrar')
+                ->where(function ($q) use ($matriculaIds, $solicitudIds) {
+                    if (!empty($matriculaIds)) $q->orWhereIn('matricula_id', $matriculaIds);
+                    if (!empty($solicitudIds)) $q->orWhereIn('solicitud_inscripcion_id', $solicitudIds);
+                })
+                ->pluck('id')
+                ->toArray();
 
-                $solicitud->delete();
+            if (!empty($cuentaCobrarIds)) {
+                DB::table('finance.transacciones_ingreso')->whereIn('cuenta_cobrar_id', $cuentaCobrarIds)->delete();
+                DB::table('finance.cuentas_por_cobrar')->whereIn('id', $cuentaCobrarIds)->delete();
             }
 
-            $cliente->solicitudesInscripcion()->delete();
+            if (!empty($matriculaIds)) {
+                $cursosExternosIds = Matricula::whereIn('id', $matriculaIds)->pluck('curso_abierto_id')->unique()->filter()->toArray();
+
+                DB::table('finance.lineas_pago_modulo')->whereIn('matricula_id', $matriculaIds)->delete();
+                DB::table('academic.notas')->whereIn('matricula_id', $matriculaIds)->delete();
+                DB::table('academic.asistencias')->whereIn('matricula_id', $matriculaIds)->delete();
+                DB::table('academic.matriculas')->whereIn('id', $matriculaIds)->delete();
+
+                foreach ($cursosExternosIds as $cId) {
+                    $activeCount = DB::table('academic.matriculas')
+                        ->where('curso_abierto_id', $cId)
+                        ->whereNull('deleted_at')
+                        ->count();
+
+                    DB::table('academic.cursos_abiertos')->where('id', $cId)->update([
+                        'estudiantes_inscritos' => $activeCount,
+                        'ingreso_proyectado' => DB::raw("precio_base * {$activeCount}"),
+                    ]);
+                }
+            }
+
+            if (!empty($solicitudIds)) {
+                DB::table('academic.solicitudes_inscripcion')->whereIn('id', $solicitudIds)->delete();
+            }
+
             $this->eliminarServiciosYFinanzasVinculados('cliente_externo_id', $cliente->id);
+            DB::table('people.clientes_externos_contactos')->where('cliente_externo_id', $cliente->id)->delete();
             $cliente->delete();
         });
     }
@@ -1026,7 +1244,6 @@ class EstudianteController extends Controller
                 ->delete();
         }
 
-        // NO se eliminan TransaccionIngreso ni CuentaPorCobrar para preservar trazabilidad fiscal y contable.
         DB::table('academic.asesorias')->where($columna, $id)->delete();
         DB::table('services.reservas_aulas')->where($columna, $id)->delete();
         DB::table('services.reservas_podcast')->where($columna, $id)->delete();

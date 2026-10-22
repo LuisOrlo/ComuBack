@@ -529,7 +529,17 @@ class InscripcionTallerController extends Controller
         $eliminadoPor = auth()->id() ?? auth()->user()?->persona_id ?? null;
 
         DB::transaction(function () use ($inscripcion) {
-            CuentaPorCobrar::where('inscripcion_taller_id', $inscripcion->id)->delete();
+            $cuentaIds = DB::table('finance.cuentas_por_cobrar')
+                ->where('inscripcion_taller_id', $inscripcion->id)
+                ->pluck('id')
+                ->toArray();
+
+            if (!empty($cuentaIds)) {
+                DB::table('finance.transacciones_ingreso')->whereIn('cuenta_cobrar_id', $cuentaIds)->delete();
+                DB::table('finance.cuentas_por_cobrar')->whereIn('id', $cuentaIds)->delete();
+            }
+
+            DB::table('academic.asistencia_taller_estudiantes')->where('inscripcion_taller_id', $inscripcion->id)->delete();
             $inscripcion->delete();
         });
 
