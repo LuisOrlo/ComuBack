@@ -925,7 +925,8 @@ class FinanceController extends Controller
                 $linea = LineaPagoModulo::whereKey($pago['linea_pago_modulo_id'])->lockForUpdate()->firstOrFail();
 
                 // Ajuste de precio para este estudiante, si se solicitó
-                if (! empty($pago['monto_ajustado']) && $pago['monto_ajustado'] != $linea->monto_ajustado) {
+                $tieneAjuste = isset($pago['monto_ajustado']) && $pago['monto_ajustado'] !== '';
+                if ($tieneAjuste && (float) $pago['monto_ajustado'] != (float) $linea->monto_ajustado) {
                     $linea->update([
                         'monto_ajustado' => $pago['monto_ajustado'],
                         'motivo_ajuste' => $pago['motivo_ajuste'] ?? null,

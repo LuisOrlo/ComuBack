@@ -28,7 +28,7 @@ class StorePagoInicialRequest extends FormRequest
             'pagos.*.monto' => [
                 'required',
                 'numeric',
-                'min:0.01',
+                'min:0',
                 function (string $attribute, mixed $value, Closure $fail) {
                     $index = explode('.', $attribute)[1];
                     $lineaId = $this->input("pagos.{$index}.linea_pago_modulo_id");
@@ -45,7 +45,7 @@ class StorePagoInicialRequest extends FormRequest
                     $montoAjustado = $this->input("pagos.{$index}.monto_ajustado");
                     $montoTope = $montoAjustado !== null ? (float) $montoAjustado : $linea->monto_ajustado;
                     $saldo = max($montoTope - $linea->monto_abonado, 0);
-                    if ((float) $value > $saldo + 0.001) {
+                    if ((float) $value > $saldo) {
                         $fail("El monto ingresado (\${$value}) excede el saldo pendiente del módulo. Máximo permitido: \${$saldo}.");
                     }
                 },

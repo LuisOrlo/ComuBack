@@ -27,11 +27,11 @@ class ValidateRegistrationRequest extends FormRequest
             'observaciones_validacion' => 'nullable|string|max:500',
             'pagos' => 'nullable|array',
             'pagos.*.modulo_id' => 'required_with:pagos|uuid|exists:pgsql.modulos,id',
-            'pagos.*.monto' => 'required_with:pagos|numeric|min:0.01',
+            'pagos.*.monto' => 'required_with:pagos|numeric|min:0',
             'pagos.*.monto_ajustado' => 'nullable|numeric|min:0',
             'pagos.*.motivo_ajuste' => 'required_with:pagos.*.monto_ajustado|nullable|string|max:255',
             'metodo_pago' => 'nullable|string|in:efectivo,transferencia,deposito,tarjeta,otro',
-            'precio_inscripcion' => 'nullable|numeric|min:0.01',
+            'precio_inscripcion' => 'nullable|numeric|min:0',
             'inscripcion_cubierta' => 'nullable|numeric|min:0',
             'motivo_ajuste' => 'nullable|string|max:255',
         ];
@@ -48,18 +48,21 @@ class ValidateRegistrationRequest extends FormRequest
             }
 
             $pago = $this->input('inscripcion_cubierta');
-            $precio = (float) ($this->input('precio_inscripcion') ?: ($curso->precio_base ?? 0));
+            $precioInput = $this->input('precio_inscripcion');
+            $precio = ($precioInput !== null && $precioInput !== '') ? (float) $precioInput : (float) ($curso->precio_base ?? 0);
 
-            if ($pago === null || (float) $pago <= 0) {
+            if ($precio > 0 && ($pago === null || (float) $pago <= 0)) {
                 $validator->errors()->add('inscripcion_cubierta', 'El pago inicial del curso personalizado debe ser mayor que cero');
+            } elseif ($pago !== null && (float) $pago < 0) {
+                $validator->errors()->add('inscripcion_cubierta', 'El pago inicial no puede ser negativo');
             } elseif ((float) $pago > $precio) {
                 $validator->errors()->add('inscripcion_cubierta', 'El pago inicial no puede superar el precio total del curso');
             }
-            if ($this->filled('precio_inscripcion') && (float) $this->input('precio_inscripcion') > (float) ($curso->precio_base ?? 0)) {
+            if ($precioInput !== null && $precioInput !== '' && (float) $precioInput > (float) ($curso->precio_base ?? 0)) {
                 $validator->errors()->add('precio_inscripcion', 'El precio ajustado no puede superar el precio original del curso');
             }
-            if ($this->filled('precio_inscripcion')
-                && (float) $this->input('precio_inscripcion') < (float) ($curso->precio_base ?? 0)
+            if ($precioInput !== null && $precioInput !== ''
+                && (float) $precioInput < (float) ($curso->precio_base ?? 0)
                 && trim((string) $this->input('motivo_ajuste')) === '') {
                 $validator->errors()->add('motivo_ajuste', 'Debes indicar el motivo del descuento');
             }

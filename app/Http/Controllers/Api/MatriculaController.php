@@ -275,7 +275,7 @@ class MatriculaController extends Controller
             $pagoInicial = (float) $request->input('pago_inicial', 0);
             $precio = (float) ($curso->precio_base ?? 0);
 
-            if ($precio <= 0 || $pagoInicial <= 0 || $pagoInicial > $precio) {
+            if ($precio < 0 || $pagoInicial < 0 || $pagoInicial > $precio || ($precio > 0 && $pagoInicial <= 0)) {
                 return response()->json([
                     'mensaje' => 'El pago inicial debe ser mayor que cero y no superar el precio del curso personalizado.',
                 ], Response::HTTP_UNPROCESSABLE_ENTITY);
@@ -350,7 +350,7 @@ class MatriculaController extends Controller
         $request->validate([
             'pagos' => $sinRegistroFinanciero ? 'nullable|array|size:0' : 'required|array|min:1',
             'pagos.*.modulo_id' => 'required|uuid|exists:pgsql.academic.modulos,id',
-            'pagos.*.monto' => 'required|numeric|min:0.01',
+            'pagos.*.monto' => 'required|numeric|min:0',
             'pagos.*.monto_ajustado' => 'nullable|numeric|min:0',
             'pagos.*.motivo_ajuste' => 'nullable|string|max:255',
             'precio_inscripcion' => 'nullable|numeric|min:0',

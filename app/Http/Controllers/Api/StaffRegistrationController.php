@@ -679,7 +679,7 @@ class StaffRegistrationController extends Controller
         $solicitud = SolicitudInscripcion::findOrFail($id);
 
         $validated = $request->validate([
-            'monto_solicitado' => 'nullable|numeric|min:0.01',
+            'monto_solicitado' => 'nullable|numeric|min:0',
             'tipo_pago' => 'nullable|string|in:completo,abono',
             'tipo_comprobante' => 'nullable|string|max:50',
             'fecha_pago_declarada' => 'nullable|date',
@@ -901,19 +901,19 @@ class StaffRegistrationController extends Controller
                 $montoAbonado = (float) $linea['monto_abonado'];
                 $montoAbonadoActual = (float) $lineaPago->monto_abonado;
 
-                if ($montoAjustado + 0.001 < $montoAbonadoActual) {
+                if ($montoAjustado < $montoAbonadoActual) {
                     throw \Illuminate\Validation\ValidationException::withMessages([
                         "lineas.{$indice}.monto_ajustado" => "El precio ajustado no puede ser menor que lo ya pagado (\${$montoAbonadoActual}).",
                     ]);
                 }
 
-                if ($montoAbonado + 0.001 < $montoAbonadoActual) {
+                if ($montoAbonado < $montoAbonadoActual) {
                     throw \Illuminate\Validation\ValidationException::withMessages([
                         "lineas.{$indice}.monto_abonado" => 'No se puede reducir un pago histórico ya registrado.',
                     ]);
                 }
 
-                if ($montoAbonado > $montoAjustado + 0.001) {
+                if ($montoAbonado > $montoAjustado) {
                     throw \Illuminate\Validation\ValidationException::withMessages([
                         "lineas.{$indice}.monto_abonado" => "El monto abonado no puede exceder el monto ajustado (\${$montoAjustado}).",
                     ]);

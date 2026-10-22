@@ -901,7 +901,7 @@ class EstudianteController extends Controller
             return response()->json(['mensaje' => 'Estudiante y todos sus registros eliminados exitosamente.']);
         }
 
-        $cliente = ClienteExterno::withTrashed()->find($id);
+        $cliente = ClienteExterno::find($id);
 
         if ($cliente) {
             $this->purgarEstudianteExternoCompleto($cliente);
@@ -948,7 +948,7 @@ class EstudianteController extends Controller
                     continue;
                 }
 
-                $cliente = ClienteExterno::withTrashed()->find($id);
+                $cliente = ClienteExterno::find($id);
                 if ($cliente) {
                     $this->purgarEstudianteExternoCompleto($cliente);
                     continue;

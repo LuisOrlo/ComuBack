@@ -184,7 +184,7 @@ class RegistrationStateService
                     $precioPersonalizado = $precioInscripcion !== null ? (float) $precioInscripcion : $precioOriginalPersonalizado;
                     $pagoInicial = (float) $inscripcionCubierta;
 
-                    if ($precioPersonalizado <= 0 || $precioPersonalizado > $precioOriginalPersonalizado || $pagoInicial <= 0 || $pagoInicial > $precioPersonalizado) {
+                    if ($precioPersonalizado < 0 || $precioPersonalizado > $precioOriginalPersonalizado || $pagoInicial < 0 || $pagoInicial > $precioPersonalizado || ($precioPersonalizado > 0 && $pagoInicial <= 0)) {
                         return [
                             'exito' => false,
                             'codigo' => 'validacion',
@@ -222,7 +222,13 @@ class RegistrationStateService
 
                 $inscripcionLinea = null;
 
-                if ($precioInscripcion && $precioInscripcion > 0) {
+                $debeCrearInscripcion = $precioInscripcion !== null && (
+                    $precioInscripcion > 0 ||
+                    $motivoAjuste !== null ||
+                    ((float) $precioOriginalInscripcion > 0)
+                );
+
+                if ($debeCrearInscripcion) {
                     $inscripcionCubierta = max(0, $inscripcionCubierta);
                     $esAjustado = $motivoAjuste || ((float) $precioInscripcion !== (float) $precioOriginalInscripcion);
                     $inscripcionLinea = LineaPagoModulo::create([
@@ -235,7 +241,7 @@ class RegistrationStateService
                         'motivo_ajuste' => $motivoAjuste ?: null,
                         'ajustado_por' => $esAjustado ? ($validadorId ?? auth()->user()->persona_id ?? null) : null,
                         'fecha_ajuste' => $esAjustado ? now() : null,
-                        'estado' => 'pendiente',
+                        'estado' => $precioInscripcion <= 0 ? LineaPagoModulo::ESTADO_PAGADO : LineaPagoModulo::ESTADO_PENDIENTE,
                         'orden' => 999,
                     ]);
                     $lineasPagoIds[] = $inscripcionLinea->id;
@@ -249,12 +255,12 @@ class RegistrationStateService
                     $todosLineasPago->push($inscripcionLinea);
                 }
                 $montoTotal = $todosLineasPago->sum('monto_ajustado');
-                $cuentaCobrar = $montoTotal > 0
+                $cuentaCobrar = (! $sinRegistroFinanciero && $todosLineasPago->isNotEmpty())
                     ? CuentaPorCobrar::create([
                         'matricula_id' => $matricula->id,
                         'monto_total' => $montoTotal,
                         'monto_abonado' => 0,
-                        'estado' => CuentaPorCobrar::ESTADO_PENDIENTE,
+                        'estado' => $montoTotal <= 0 ? CuentaPorCobrar::ESTADO_PAGADO : CuentaPorCobrar::ESTADO_PENDIENTE,
                     ])
                     : null;
 
@@ -267,34 +273,40 @@ class RegistrationStateService
                     $lineasPorModulo = collect($lineasPago)->keyBy('modulo_id');
 
                     foreach ($pagos as $pago) {
-                        if (empty($pago['monto']) || (float) $pago['monto'] <= 0) continue;
-
                         $linea = $lineasPorModulo->get($pago['modulo_id']);
                         if (! $linea) continue;
 
-                        if (! empty($pago['monto_ajustado']) && (float) $pago['monto_ajustado'] != $linea->monto_ajustado) {
+                        $tieneAjuste = isset($pago['monto_ajustado']) && $pago['monto_ajustado'] !== null && $pago['monto_ajustado'] !== '';
+                        if ($tieneAjuste && (float) $pago['monto_ajustado'] != (float) $linea->monto_ajustado) {
                             $linea->update([
                                 'monto_ajustado' => (float) $pago['monto_ajustado'],
                                 'motivo_ajuste' => $pago['motivo_ajuste'] ?? null,
                                 'ajustado_por' => $validadorId ?? auth()->user()->persona_id ?? null,
                                 'fecha_ajuste' => now(),
+                                'estado' => (float) $pago['monto_ajustado'] <= 0 ? LineaPagoModulo::ESTADO_PAGADO : $linea->estado,
                             ]);
                             $linea->refresh();
                         }
 
-                        $transaccion = TransaccionIngreso::create([
-                            'linea_pago_modulo_id' => $linea->id,
-                            'monto' => (float) $pago['monto'],
-                            'metodo_pago' => $metodoPago,
-                            'comprobante_url' => $solicitud->archivo_comprobante_url,
-                            'fecha_pago' => now(),
-                            'registrado_por' => $validadorId ?? auth()->user()->persona_id ?? null,
-                            'verificado_por' => $validadorId ?? auth()->user()->persona_id ?? null,
-                            'fecha_verificacion' => now(),
-                            'estado_verificacion' => TransaccionIngreso::VERIFICACION_APROBADO,
-                            'referencia_pago' => $referencia,
-                        ]);
-                        $linea->aplicarTransaccion($transaccion);
+                        $montoPago = isset($pago['monto']) ? (float) $pago['monto'] : 0;
+                        if ($montoPago > 0) {
+                            $transaccion = TransaccionIngreso::create([
+                                'linea_pago_modulo_id' => $linea->id,
+                                'monto' => $montoPago,
+                                'metodo_pago' => $metodoPago,
+                                'comprobante_url' => $solicitud->archivo_comprobante_url,
+                                'fecha_pago' => now(),
+                                'registrado_por' => $validadorId ?? auth()->user()->persona_id ?? null,
+                                'verificado_por' => $validadorId ?? auth()->user()->persona_id ?? null,
+                                'fecha_verificacion' => now(),
+                                'estado_verificacion' => TransaccionIngreso::VERIFICACION_APROBADO,
+                                'referencia_pago' => $referencia,
+                            ]);
+                            $linea->aplicarTransaccion($transaccion);
+                        } else {
+                            $linea->recalcularEstado();
+                            $linea->save();
+                        }
                     }
 
                     if ($inscripcionLinea && $inscripcionCubierta > 0) {
@@ -314,21 +326,24 @@ class RegistrationStateService
                     }
                 }
 
-                if (! empty($pagos)) {
-                    $totalPagado = collect($pagos)->sum('monto') + $inscripcionCubierta;
-                    $totalEsperado = $todosLineasPago->sum('monto_ajustado');
-                    $solicitud->update([
-                        'monto_solicitado' => $totalPagado,
-                        'tipo_pago' => $totalPagado >= $totalEsperado ? 'completo' : 'abono',
-                    ]);
-                }
+                $totalPagado = collect($pagos)->sum('monto') + $inscripcionCubierta;
+                $montosActuales = $todosLineasPago->map(fn($l) => $l->refresh());
+                $montoTotalFinal = $montosActuales->sum('monto_ajustado');
+                $totalAbonadoFinal = $montosActuales->sum('monto_abonado');
+
+                $solicitud->update([
+                    'monto_solicitado' => $totalPagado,
+                    'tipo_pago' => $totalPagado >= $montoTotalFinal ? 'completo' : 'abono',
+                ]);
 
                 Cache::forget('finance.resumen');
 
-                $montosActuales = $todosLineasPago->map(fn($l) => $l->refresh());
-                $montoTotalFinal = $montosActuales->sum('monto_ajustado');
                 $cuentaCobrar?->update([
                     'monto_total' => $montoTotalFinal,
+                    'monto_abonado' => $totalAbonadoFinal,
+                    'estado' => $totalAbonadoFinal >= $montoTotalFinal
+                        ? CuentaPorCobrar::ESTADO_PAGADO
+                        : ($totalAbonadoFinal > 0 ? CuentaPorCobrar::ESTADO_ABONADO : CuentaPorCobrar::ESTADO_PENDIENTE),
                 ]);
 
                 return [
