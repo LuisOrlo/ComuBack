@@ -113,31 +113,49 @@ class FinanceController extends Controller
             $desde = $fechaDesde ?? '1970-01-01';
             $hasta = $fechaHasta ?? '2099-12-31';
 
-            $query->where(function ($q) use ($desde, $hasta) {
-                $q->whereHas('matricula.cursoAbierto', function ($sq) use ($desde, $hasta) {
-                    $sq->whereDate('fecha_inicio', '<=', $hasta)
-                       ->where(fn($sq2) => $sq2->whereDate('fecha_fin', '>=', $desde)->orWhereNull('fecha_fin'));
-                })
-                ->orWhereHas('solicitudInscripcion.cursoAbierto', function ($sq) use ($desde, $hasta) {
-                    $sq->whereDate('fecha_inicio', '<=', $hasta)
-                       ->where(fn($sq2) => $sq2->whereDate('fecha_fin', '>=', $desde)->orWhereNull('fecha_fin'));
-                })
-                ->orWhereHas('inscripcionTaller.taller', function ($sq) use ($desde, $hasta) {
-                    $sq->where(function ($sq2) use ($desde, $hasta) {
-                        $sq2->whereDate('fecha', '<=', $hasta)
-                            ->where(fn($sq3) => $sq3->whereDate('fecha_fin', '>=', $desde)->orWhereNull('fecha_fin')->orWhereDate('fecha', '>=', $desde));
+            $query->where(function ($q) use ($desde, $hasta, $origen) {
+                if (!$origen || $origen === 'curso') {
+                    $q->where(function ($sub) use ($desde, $hasta) {
+                        $sub->whereHas('matricula.cursoAbierto', fn($sq) => $sq->whereBetween('fecha_inicio', [$desde, $hasta]))
+                            ->orWhereHas('solicitudInscripcion.cursoAbierto', fn($sq) => $sq->whereBetween('fecha_inicio', [$desde, $hasta]));
                     });
-                })
-                ->orWhereHas('reservaAula', fn($sq) => $sq->whereBetween('fecha_reserva', [$desde, $hasta]))
-                ->orWhereHas('reservaPodcast', fn($sq) => $sq->whereBetween('fecha_reserva', [$desde, $hasta]))
-                ->orWhereHas('alquilerEquipo', fn($sq) => $sq->whereDate('fecha_entrega', '<=', $hasta)->where(fn($sq2) => $sq2->whereDate('fecha_devolucion_esperada', '>=', $desde)->orWhereNull('fecha_devolucion_esperada')))
-                ->orWhereHas('servicioStreaming', fn($sq) => $sq->whereBetween('fecha_evento', [$desde, $hasta]))
-                ->orWhereHas('reservaRadio', fn($sq) => $sq->whereBetween('fecha_reserva', [$desde, $hasta]))
-                ->orWhereHas('edicionVideo', fn($sq) => $sq->where(fn($sq2) => $sq2->whereBetween('fecha_recibo', [$desde, $hasta])->orWhereBetween('fecha_entrega', [$desde, $hasta])))
-                ->orWhere(function ($sq) use ($desde, $hasta) {
-                    $sq->whereDate('created_at', '>=', $desde)
-                       ->whereDate('created_at', '<=', $hasta);
-                });
+                }
+
+                if (!$origen || $origen === 'taller') {
+                    $method = (!$origen) ? 'orWhereHas' : 'whereHas';
+                    $q->{$method}('inscripcionTaller.taller', fn($sq) => $sq->whereBetween('fecha', [$desde, $hasta]));
+                }
+
+                if (!$origen || $origen === 'servicio') {
+                    $method = (!$origen) ? 'orWhere' : 'where';
+                    $q->{$method}(function ($sub) use ($desde, $hasta) {
+                        $sub->whereHas('reservaAula', fn($sq) => $sq->whereBetween('fecha_reserva', [$desde, $hasta]))
+                            ->orWhereHas('reservaPodcast', fn($sq) => $sq->whereBetween('fecha_reserva', [$desde, $hasta]))
+                            ->orWhereHas('alquilerEquipo', fn($sq) => $sq->whereBetween('fecha_entrega', [$desde, $hasta]))
+                            ->orWhereHas('servicioStreaming', fn($sq) => $sq->whereBetween('fecha_evento', [$desde, $hasta]))
+                            ->orWhereHas('reservaRadio', fn($sq) => $sq->whereBetween('fecha_reserva', [$desde, $hasta]))
+                            ->orWhereHas('edicionVideo', fn($sq) => $sq->where(fn($sq2) => $sq2->whereBetween('fecha_recibo', [$desde, $hasta])->orWhereBetween('fecha_entrega', [$desde, $hasta])));
+                    });
+                }
+
+                if (!$origen) {
+                    $q->orWhere(function ($sq) use ($desde, $hasta) {
+                        $sq->whereNull('matricula_id')
+                           ->whereNull('solicitud_inscripcion_id')
+                           ->whereNull('inscripcion_taller_id')
+                           ->whereNull('reserva_aula_id')
+                           ->whereNull('reserva_podcast_id')
+                           ->whereNull('alquiler_equipo_id')
+                           ->whereNull('servicio_streaming_id')
+                           ->whereNull('servicio_produccion_id')
+                           ->whereNull('edicion_video_id')
+                           ->whereNull('clase_extra_id')
+                           ->whereNull('asesoria_id')
+                           ->whereNull('reserva_radio_id')
+                           ->whereDate('created_at', '>=', $desde)
+                           ->whereDate('created_at', '<=', $hasta);
+                    });
+                }
             });
         }
 

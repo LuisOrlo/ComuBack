@@ -1275,6 +1275,118 @@ class EstudianteController extends Controller
     }
 
     /**
+     * Resumen ligero y rápido de todas las vinculaciones activas del estudiante:
+     * Cursos, Talleres y Servicios.
+     */
+    public function resumenVinculaciones(string $id): JsonResponse
+    {
+        $persona = Persona::withTrashed()->find($id);
+
+        if (!$persona) {
+            $cliente = ClienteExterno::find($id);
+            if ($cliente) {
+                return response()->json([
+                    'estudiante_id' => $cliente->id,
+                    'nombre_completo' => $cliente->nombre,
+                    'total_vinculaciones' => 1,
+                    'cursos' => [],
+                    'talleres' => [],
+                    'servicios' => [],
+                ]);
+            }
+            return response()->json(['mensaje' => 'Estudiante no encontrado'], 404);
+        }
+
+        $personaId = $persona->id;
+
+        // 1. Cursos activos
+        $cursos = DB::table('academic.matriculas as m')
+            ->join('academic.cursos_abiertos as ca', 'ca.id', '=', 'm.curso_abierto_id')
+            ->leftJoin('academic.catalogo_cursos as cc', 'cc.id', '=', 'ca.catalogo_curso_id')
+            ->where('m.estudiante_id', $personaId)
+            ->whereNull('m.deleted_at')
+            ->select([
+                'm.id as matricula_id',
+                'ca.id as curso_id',
+                DB::raw("COALESCE(ca.nombre_instancia, cc.nombre, 'Curso') as nombre"),
+                'ca.modalidad',
+            ])
+            ->get();
+
+        // 2. Talleres
+        $talleres = DB::table('academic.inscripciones_taller as it')
+            ->join('academic.talleres as t', 't.id', '=', 'it.taller_id')
+            ->where(function ($q) use ($persona, $personaId) {
+                $q->where('it.persona_id', $personaId);
+                if (!empty($persona->cedula)) {
+                    $q->orWhere('it.cedula', $persona->cedula);
+                }
+            })
+            ->select([
+                'it.id as inscripcion_id',
+                't.id as taller_id',
+                't.nombre as nombre',
+            ])
+            ->get();
+
+        // 3. Servicios (podcast, aulas, streaming, alquiler)
+        $podcasts = DB::table('services.reservas_podcast')
+            ->where('persona_id', $personaId)
+            ->select([
+                'id',
+                DB::raw("'podcast' as tipo"),
+                DB::raw("COALESCE(titulo, 'Reserva Podcast') as nombre"),
+                DB::raw("fecha_reserva::text as fecha")
+            ])
+            ->get();
+
+        $aulas = DB::table('services.reservas_aulas as ra')
+            ->join('services.aulas as a', 'a.id', '=', 'ra.aula_id')
+            ->where('ra.persona_id', $personaId)
+            ->select([
+                'ra.id',
+                DB::raw("'aula' as tipo"),
+                DB::raw("CONCAT('Aula: ', a.nombre) as nombre"),
+                DB::raw("ra.fecha_reserva::text as fecha")
+            ])
+            ->get();
+
+        $streamings = DB::table('services.servicios_streaming')
+            ->where('persona_id', $personaId)
+            ->select([
+                'id',
+                DB::raw("'streaming' as tipo"),
+                DB::raw("COALESCE(titulo, descripcion, 'Servicio Streaming') as nombre"),
+                DB::raw("fecha_evento::text as fecha")
+            ])
+            ->get();
+
+        $alquileres = DB::table('services.alquiler_equipos as ae')
+            ->join('services.equipos as e', 'e.id', '=', 'ae.equipo_id')
+            ->where('ae.persona_id', $personaId)
+            ->select([
+                'ae.id',
+                DB::raw("'alquiler' as tipo"),
+                DB::raw("CONCAT('Alquiler: ', e.nombre) as nombre"),
+                DB::raw("ae.fecha_entrega::text as fecha")
+            ])
+            ->get();
+
+        $servicios = $podcasts->concat($aulas)->concat($streamings)->concat($alquileres)->values();
+
+        $totalVinculaciones = $cursos->count() + $talleres->count() + $servicios->count();
+
+        return response()->json([
+            'estudiante_id' => $personaId,
+            'nombre_completo' => trim("{$persona->nombres} {$persona->apellidos}"),
+            'total_vinculaciones' => $totalVinculaciones,
+            'cursos' => $cursos,
+            'talleres' => $talleres,
+            'servicios' => $servicios,
+        ]);
+    }
+
+    /**
      * Perfil financiero completo de un estudiante
      */
     public function financialProfile(string $id): JsonResponse

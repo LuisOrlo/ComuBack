@@ -162,10 +162,12 @@ class MatriculaController extends Controller
                 ->pluck('id')
                 ->toArray();
 
-            DB::table('finance.transacciones_ingreso')->where(function ($q) use ($cuentaIds, $lineaIds) {
-                if (!empty($cuentaIds)) $q->orWhereIn('cuenta_cobrar_id', $cuentaIds);
-                if (!empty($lineaIds)) $q->orWhereIn('linea_pago_modulo_id', $lineaIds);
-            })->delete();
+            if (!empty($cuentaIds) || !empty($lineaIds)) {
+                DB::table('finance.transacciones_ingreso')->where(function ($q) use ($cuentaIds, $lineaIds) {
+                    if (!empty($cuentaIds)) $q->orWhereIn('cuenta_cobrar_id', $cuentaIds);
+                    if (!empty($lineaIds)) $q->orWhereIn('linea_pago_modulo_id', $lineaIds);
+                })->delete();
+            }
 
             if (!empty($lineaIds)) {
                 DB::table('finance.lineas_pago_modulo')->whereIn('id', $lineaIds)->delete();

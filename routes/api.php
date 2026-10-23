@@ -194,6 +194,7 @@ use Illuminate\Support\Facades\Route;
         Route::get('{estudiante}/asistencias', [EstudianteController::class, 'detalleAsistencias'])->name('estudiantes.asistencias');
         Route::get('{estudiante}/academic-profile', [EstudianteController::class, 'academicProfile'])->name('estudiantes.academic-profile');
         Route::get('{estudiante}/financial-profile', [EstudianteController::class, 'financialProfile'])->name('estudiantes.financial-profile');
+        Route::get('{estudiante}/vinculaciones', [EstudianteController::class, 'resumenVinculaciones'])->name('estudiantes.vinculaciones');
         Route::get('{estudiante}', [EstudianteController::class, 'show'])->name('estudiantes.show');
         Route::put('{estudiante}', [EstudianteController::class, 'update'])->name('estudiantes.update');
         Route::delete('{estudiante}', [EstudianteController::class, 'destroy'])->name('estudiantes.destroy');
