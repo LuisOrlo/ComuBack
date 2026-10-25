@@ -25,12 +25,37 @@ class ValidateRegistrationRequest extends FormRequest
     {
         return [
             'observaciones_validacion' => 'nullable|string|max:500',
+            'grupo_pago_id' => 'nullable|uuid',
             'pagos' => 'nullable|array',
             'pagos.*.modulo_id' => 'required_with:pagos|uuid|exists:pgsql.modulos,id',
             'pagos.*.monto' => 'required_with:pagos|numeric|min:0',
             'pagos.*.monto_ajustado' => 'nullable|numeric|min:0',
             'pagos.*.motivo_ajuste' => 'required_with:pagos.*.monto_ajustado|nullable|string|max:255',
             'metodo_pago' => 'nullable|string|in:efectivo,transferencia,deposito,tarjeta,otro',
+            'metodos_pago' => 'nullable|array|max:20',
+            'metodos_pago.*.modulo_id' => [
+                'nullable',
+                'string',
+                function ($attribute, $value, $fail) {
+                    if ($value !== 'inscripcion' && !\Illuminate\Support\Str::isUuid($value)) {
+                        $fail("El campo {$attribute} debe ser un UUID válido o 'inscripcion'.");
+                    }
+                },
+            ],
+            'metodos_pago.*.linea_pago_modulo_id' => [
+                'nullable',
+                'string',
+                function ($attribute, $value, $fail) {
+                    if ($value !== 'inscripcion' && !\Illuminate\Support\Str::isUuid($value)) {
+                        $fail("El campo {$attribute} debe ser un UUID válido o 'inscripcion'.");
+                    }
+                },
+            ],
+            'metodos_pago.*.metodo_pago' => 'required_with:metodos_pago|string|in:efectivo,transferencia,deposito,tarjeta,otro',
+            'metodos_pago.*.monto' => 'required_with:metodos_pago|numeric|min:0.01',
+            'metodos_pago.*.referencia_pago' => 'nullable|string|max:100',
+            'metodos_pago.*.comprobante_url' => 'nullable|string|max:500',
+            'metodos_pago.*.fecha_pago' => 'nullable|date',
             'precio_inscripcion' => 'nullable|numeric|min:0',
             'inscripcion_cubierta' => 'nullable|numeric|min:0',
             'motivo_ajuste' => 'nullable|string|max:255',

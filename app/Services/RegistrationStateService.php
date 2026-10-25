@@ -91,11 +91,13 @@ class RegistrationStateService
         ?float $precioInscripcion = null,
         float $inscripcionCubierta = 0,
         ?string $motivoAjuste = null,
-        bool $sinRegistroFinanciero = false
+        bool $sinRegistroFinanciero = false,
+        ?string $grupoPagoId = null,
+        ?array $metodosPago = null
     ): array
     {
         try {
-            return DB::transaction(function () use ($solicitud, $validadorId, $observaciones, $pagos, $metodoPago, $precioInscripcion, $inscripcionCubierta, $motivoAjuste, $sinRegistroFinanciero) {
+            return DB::transaction(function () use ($solicitud, $validadorId, $observaciones, $pagos, $metodoPago, $precioInscripcion, $inscripcionCubierta, $motivoAjuste, $sinRegistroFinanciero, $grupoPagoId, $metodosPago) {
                 // Bloquear la solicitud para evitar aprobaciones concurrentes simultáneas
                 $solicitudLocked = SolicitudInscripcion::where('id', $solicitud->id)->lockForUpdate()->first();
                 if (!$solicitudLocked || $solicitudLocked->estado !== SolicitudInscripcion::ESTADO_PENDIENTE_VALIDACION) {
@@ -220,6 +222,27 @@ class RegistrationStateService
                     : $this->crearLineasPagoModulo($solicitud, $matricula);
                 $lineasPagoIds = collect($lineasPago)->pluck('id')->toArray();
 
+                // Aplicar ajustes de precio a los módulos si vienen especificados en $pagos
+                $lineasPorModulo = collect($lineasPago)->keyBy('modulo_id');
+                foreach ($pagos as $pago) {
+                    $lpMod = $lineasPorModulo->get($pago['modulo_id'] ?? null);
+                    if (!$lpMod) continue;
+
+                    if (isset($pago['monto_ajustado']) && $pago['monto_ajustado'] !== null && $pago['monto_ajustado'] !== '') {
+                        $nuevoAjustado = round((float) $pago['monto_ajustado'], 2);
+                        if ($nuevoAjustado != (float) $lpMod->monto_ajustado) {
+                            $lpMod->update([
+                                'monto_ajustado' => $nuevoAjustado,
+                                'motivo_ajuste' => $pago['motivo_ajuste'] ?? null,
+                                'ajustado_por' => $validadorId ?? auth()->user()->persona_id ?? null,
+                                'fecha_ajuste' => now(),
+                                'estado' => $nuevoAjustado <= 0 ? LineaPagoModulo::ESTADO_PAGADO : LineaPagoModulo::ESTADO_PENDIENTE,
+                            ]);
+                            $lpMod->refresh();
+                        }
+                    }
+                }
+
                 $inscripcionLinea = null;
 
                 $debeCrearInscripcion = $precioInscripcion !== null && (
@@ -268,61 +291,90 @@ class RegistrationStateService
                 $solicitud->save();
 
                 $referencia = 'mat-' . $matricula->id . '-' . now()->timestamp;
+                $grupoPagoId = $grupoPagoId ?: (string) \Illuminate\Support\Str::uuid();
 
-                if (! empty($pagos) || ($esCursoPersonalizado && $inscripcionLinea && $inscripcionCubierta > 0)) {
+                // Idempotencia: si ya existe una transacción con ese grupo_pago_id, abortar
+                if (TransaccionIngreso::where('grupo_pago_id', $grupoPagoId)->exists()) {
+                    return [
+                        'exito' => false,
+                        'mensaje' => 'Esta operación de pago ya fue procesada anteriormente.',
+                        'matricula_id' => null,
+                        'cuenta_cobrar_id' => null,
+                    ];
+                }
+
+                $totalPagado = (float) collect($pagos)->sum('monto') + (float) $inscripcionCubierta;
+                $totalPagadoCentavos = (int) round($totalPagado * 100);
+
+                if ($totalPagadoCentavos > 0) {
+                    $rawMetodos = (!empty($metodosPago) && is_array($metodosPago))
+                        ? $metodosPago
+                        : [[
+                            'metodo_pago' => $metodoPago,
+                            'monto' => $totalPagado,
+                            'referencia_pago' => $referencia,
+                            'comprobante_url' => $solicitud->archivo_comprobante_url,
+                        ]];
+
                     $lineasPorModulo = collect($lineasPago)->keyBy('modulo_id');
 
-                    foreach ($pagos as $pago) {
-                        $linea = $lineasPorModulo->get($pago['modulo_id']);
-                        if (! $linea) continue;
-
-                        $tieneAjuste = isset($pago['monto_ajustado']) && $pago['monto_ajustado'] !== null && $pago['monto_ajustado'] !== '';
-                        if ($tieneAjuste && (float) $pago['monto_ajustado'] != (float) $linea->monto_ajustado) {
-                            $linea->update([
-                                'monto_ajustado' => (float) $pago['monto_ajustado'],
-                                'motivo_ajuste' => $pago['motivo_ajuste'] ?? null,
-                                'ajustado_por' => $validadorId ?? auth()->user()->persona_id ?? null,
-                                'fecha_ajuste' => now(),
-                                'estado' => (float) $pago['monto_ajustado'] <= 0 ? LineaPagoModulo::ESTADO_PAGADO : $linea->estado,
-                            ]);
-                            $linea->refresh();
+                    foreach ($rawMetodos as &$rm) {
+                        $targetModuloId = $rm['modulo_id'] ?? null;
+                        // Si linea_pago_modulo_id contiene en realidad un modulo_id o la palabra 'inscripcion'
+                        if (isset($rm['linea_pago_modulo_id'])) {
+                            if ($rm['linea_pago_modulo_id'] === 'inscripcion' || isset($lineasPorModulo[$rm['linea_pago_modulo_id']])) {
+                                $targetModuloId = $rm['linea_pago_modulo_id'];
+                            }
                         }
 
-                        $montoPago = isset($pago['monto']) ? (float) $pago['monto'] : 0;
-                        if ($montoPago > 0) {
-                            $transaccion = TransaccionIngreso::create([
-                                'linea_pago_modulo_id' => $linea->id,
-                                'monto' => $montoPago,
-                                'metodo_pago' => $metodoPago,
-                                'comprobante_url' => $solicitud->archivo_comprobante_url,
-                                'fecha_pago' => now(),
-                                'registrado_por' => $validadorId ?? auth()->user()->persona_id ?? null,
-                                'verificado_por' => $validadorId ?? auth()->user()->persona_id ?? null,
-                                'fecha_verificacion' => now(),
-                                'estado_verificacion' => TransaccionIngreso::VERIFICACION_APROBADO,
-                                'referencia_pago' => $referencia,
-                            ]);
-                            $linea->aplicarTransaccion($transaccion);
-                        } else {
-                            $linea->recalcularEstado();
-                            $linea->save();
+                        if ($targetModuloId === 'inscripcion' && $inscripcionLinea) {
+                            $rm['linea_pago_modulo_id'] = $inscripcionLinea->id;
+                        } elseif ($targetModuloId && isset($lineasPorModulo[$targetModuloId])) {
+                            $rm['linea_pago_modulo_id'] = $lineasPorModulo[$targetModuloId]->id;
                         }
                     }
+                    unset($rm);
 
+                    /** @var \App\Services\Finance\PaymentAllocationService $allocationService */
+                    $allocationService = app(\App\Services\Finance\PaymentAllocationService::class);
+                    $metodosNormalizados = $allocationService->validateAndNormalizeMethods($rawMetodos, $totalPagadoCentavos);
+
+                    $lineasItems = [];
+
+                    // Módulos
+                    foreach ($pagos as $pago) {
+                        $linea = $lineasPorModulo->get($pago['modulo_id']);
+                        if (!$linea) continue;
+
+                        $lineasItems[] = [
+                            'linea' => $linea,
+                            'monto' => (float) ($pago['monto'] ?? 0),
+                            'monto_ajustado' => isset($pago['monto_ajustado']) && $pago['monto_ajustado'] !== '' ? (float) $pago['monto_ajustado'] : null,
+                            'motivo_ajuste' => $pago['motivo_ajuste'] ?? null,
+                        ];
+                    }
+
+                    // Inscripción si aplica
                     if ($inscripcionLinea && $inscripcionCubierta > 0) {
-                        $transInsc = TransaccionIngreso::create([
-                            'linea_pago_modulo_id' => $inscripcionLinea->id,
-                            'monto' => $inscripcionCubierta,
-                            'metodo_pago' => $metodoPago,
-                            'comprobante_url' => $solicitud->archivo_comprobante_url,
-                            'fecha_pago' => now(),
-                            'registrado_por' => $validadorId ?? auth()->user()->persona_id ?? null,
-                            'verificado_por' => $validadorId ?? auth()->user()->persona_id ?? null,
-                            'fecha_verificacion' => now(),
-                            'estado_verificacion' => TransaccionIngreso::VERIFICACION_APROBADO,
-                            'referencia_pago' => $referencia . '-insc',
-                        ]);
-                        $inscripcionLinea->aplicarTransaccion($transInsc);
+                        $lineasItems[] = [
+                            'linea' => $inscripcionLinea,
+                            'monto' => (float) $inscripcionCubierta,
+                            'monto_ajustado' => null,
+                            'motivo_ajuste' => null,
+                        ];
+                    }
+
+                    $allocationService->allocateModulePayments(
+                        $lineasItems,
+                        $metodosNormalizados,
+                        $grupoPagoId,
+                        $validadorId ?? auth()->user()->persona_id ?? null,
+                        $solicitud->archivo_comprobante_url
+                    );
+                } else {
+                    foreach ($todosLineasPago as $linea) {
+                        $linea->recalcularEstado();
+                        $linea->save();
                     }
                 }
 

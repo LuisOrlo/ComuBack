@@ -186,6 +186,7 @@ class LineaPagoModulo extends Model
     public function recalcularEstado(): void
     {
         $this->estado = match(true) {
+            (float) $this->monto_ajustado <= 0 => self::ESTADO_PAGADO,
             $this->monto_abonado >= $this->monto_ajustado => self::ESTADO_PAGADO,
             $this->monto_abonado > 0 => self::ESTADO_ABONADO,
             default => self::ESTADO_PENDIENTE,

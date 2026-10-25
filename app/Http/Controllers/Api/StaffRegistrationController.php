@@ -208,7 +208,10 @@ class StaffRegistrationController extends Controller
             $request->metodo_pago ?? 'efectivo',
             $request->has('precio_inscripcion') ? (float) $request->precio_inscripcion : null,
             (float) ($request->inscripcion_cubierta ?? 0),
-            $request->motivo_ajuste
+            $request->motivo_ajuste,
+            false,
+            $request->grupo_pago_id,
+            $request->metodos_pago
         );
 
         if (!$resultado['exito']) {
@@ -400,8 +403,13 @@ class StaffRegistrationController extends Controller
         ]);
 
         $lineasPago = null;
+        $esMixto = false;
+        $desgloseMetodos = [];
         if ($solicitud->estado === SolicitudInscripcion::ESTADO_MATRICULA_CREADA) {
-            $matricula = \App\Models\Matricula::with('lineasPago.modulo')
+            $matricula = \App\Models\Matricula::with([
+                'lineasPago.modulo:id,nombre_modulo,numero_orden',
+                'lineasPago.transacciones:id,linea_pago_modulo_id,monto,metodo_pago,referencia_pago,comprobante_url,fecha_pago,estado_verificacion,grupo_pago_id'
+            ])
                 ->where('solicitud_inscripcion_id', $solicitud->id)
                 ->first();
             if ($matricula?->lineasPago) {
@@ -410,17 +418,41 @@ class StaffRegistrationController extends Controller
                 $modulosList = [];
                 $inscripcionData = null;
 
+                $allTxs = $matricula->lineasPago->flatMap->transacciones;
+                $metodosUnicos = $allTxs->pluck('metodo_pago')->filter()->unique();
+                $esMixto = $metodosUnicos->count() > 1;
+                $desgloseMetodos = $allTxs->groupBy('metodo_pago')->map(fn($g, $m) => [
+                    'metodo' => (string) $m,
+                    'monto' => round((float) $g->sum('monto'), 2),
+                    'comprobantes' => $g->pluck('comprobante_url')->filter()->unique()->values()->all(),
+                ])->values()->all();
+
                 foreach ($matricula->lineasPago->sortBy('orden') as $lp) {
                     $totalAbonado += (float) $lp->monto_abonado;
                     $totalEsperado += (float) $lp->monto_ajustado;
+
+                    $txsLinea = $lp->transacciones->map(fn($t) => [
+                        'id' => $t->id,
+                        'monto' => (float) $t->monto,
+                        'metodo_pago' => (string) $t->metodo_pago,
+                        'referencia_pago' => $t->referencia_pago,
+                        'comprobante_url' => $t->comprobante_url,
+                        'fecha_pago' => $t->fecha_pago?->toISOString(),
+                    ])->values()->all();
+
                     $linea = [
                         'id' => $lp->id,
+                        'modulo_id' => $lp->modulo_id,
                         'tipo' => $lp->tipo,
                         'modulo_nombre' => $lp->tipo === 'inscripcion' ? 'Inscripción' : ($lp->modulo?->nombre_modulo ?? 'Módulo'),
+                        'monto_original' => (float) ($lp->monto_original ?? $lp->monto_ajustado),
                         'monto_ajustado' => (float) $lp->monto_ajustado,
+                        'motivo_ajuste' => $lp->motivo_ajuste,
                         'monto_abonado' => (float) $lp->monto_abonado,
                         'saldo' => max(0, (float) $lp->monto_ajustado - (float) $lp->monto_abonado),
                         'estado' => $lp->estado,
+                        'metodos' => $txsLinea,
+                        'es_mixto' => count($txsLinea) > 1,
                     ];
 
                     if ($lp->tipo === 'inscripcion') {
@@ -498,6 +530,8 @@ class StaffRegistrationController extends Controller
             'pago' => [
                 'monto_solicitado' => $solicitud->monto_solicitado,
                 'tipo_pago' => $solicitud->tipo_pago,
+                'es_mixto' => $esMixto,
+                'desglose_metodos' => $desgloseMetodos,
                 'comprobante' => [
                     'tipo' => $solicitud->tipo_comprobante,
                     'url' => $solicitud->archivo_comprobante_url,
@@ -883,10 +917,28 @@ class StaffRegistrationController extends Controller
             'lineas.*.monto_abonado' => 'required|numeric|min:0',
             'lineas.*.monto_ajustado' => 'nullable|numeric|min:0',
             'lineas.*.motivo_ajuste' => 'nullable|string|max:255',
+            'lineas.*.metodos' => 'nullable|array',
+            'lineas.*.metodos.*.metodo_pago' => 'nullable|string',
+            'lineas.*.metodos.*.monto' => 'nullable|numeric|min:0',
+            'lineas.*.metodos.*.referencia_pago' => 'nullable|string',
+            'lineas.*.metodos.*.comprobante_url' => 'nullable|string',
         ]);
 
-        DB::transaction(function () use ($validated, $matricula, $solicitud) {
+        $metodosValidos = ['transferencia', 'efectivo', 'tarjeta', 'deposito', 'otro'];
+        $sanitizarMetodo = function (?string $metodo) use ($metodosValidos): string {
+            $m = strtolower(trim($metodo ?? ''));
+            return in_array($m, $metodosValidos, true) ? $m : 'transferencia';
+        };
+
+        DB::transaction(function () use ($validated, $matricula, $solicitud, $sanitizarMetodo) {
             $matriculaId = $matricula->id;
+            $validadorId = auth()->user()->persona_id ?? auth()->id();
+
+            // Reutilizar el grupo_pago_id existente de la matrícula si existe
+            $primerGrupoPagoId = \App\Models\TransaccionIngreso::whereHas('lineaPagoModulo', fn($q) => $q->where('matricula_id', $matriculaId))
+                ->whereNotNull('grupo_pago_id')
+                ->value('grupo_pago_id');
+            $grupoPagoId = $primerGrupoPagoId ?: (string) \Illuminate\Support\Str::uuid();
 
             foreach ($validated['lineas'] as $indice => $linea) {
                 $lineaPago = $matricula->lineasPago()->where('id', $linea['id'])->lockForUpdate()->first();
@@ -895,50 +947,118 @@ class StaffRegistrationController extends Controller
                 }
 
                 $montoAjustado = isset($linea['monto_ajustado']) && $linea['monto_ajustado'] !== null
-                    ? (float) $linea['monto_ajustado']
-                    : (float) $lineaPago->monto_ajustado;
+                    ? round((float) $linea['monto_ajustado'], 2)
+                    : round((float) $lineaPago->monto_ajustado, 2);
 
-                $montoAbonado = (float) $linea['monto_abonado'];
-                $montoAbonadoActual = (float) $lineaPago->monto_abonado;
+                $montoAbonado = round((float) $linea['monto_abonado'], 2);
 
-                if ($montoAjustado < $montoAbonadoActual) {
-                    throw \Illuminate\Validation\ValidationException::withMessages([
-                        "lineas.{$indice}.monto_ajustado" => "El precio ajustado no puede ser menor que lo ya pagado (\${$montoAbonadoActual}).",
-                    ]);
-                }
-
-                if ($montoAbonado < $montoAbonadoActual) {
-                    throw \Illuminate\Validation\ValidationException::withMessages([
-                        "lineas.{$indice}.monto_abonado" => 'No se puede reducir un pago histórico ya registrado.',
-                    ]);
+                // Si se especificaron métodos explícitos, asegurar que el monto abonado coincida con su suma
+                if (isset($linea['metodos']) && is_array($linea['metodos'])) {
+                    $montoAbonado = round((float) collect($linea['metodos'])->sum(fn($m) => (float) ($m['monto'] ?? 0)), 2);
                 }
 
                 if ($montoAbonado > $montoAjustado) {
                     throw \Illuminate\Validation\ValidationException::withMessages([
-                        "lineas.{$indice}.monto_abonado" => "El monto abonado no puede exceder el monto ajustado (\${$montoAjustado}).",
+                        "lineas.{$indice}.monto_abonado" => "El monto abonado (\${$montoAbonado}) no puede exceder el precio (\${$montoAjustado}).",
                     ]);
                 }
 
+                $motivoAjuste = array_key_exists('motivo_ajuste', $linea)
+                    ? $linea['motivo_ajuste']
+                    : $lineaPago->motivo_ajuste;
+
+                // Manejo de transacciones de ingreso (sin disparar observers para evitar incrementos dobles no deseados)
+                \App\Models\TransaccionIngreso::withoutEvents(function () use (
+                    $linea, $lineaPago, $grupoPagoId, $sanitizarMetodo, $solicitud, $validadorId, $montoAbonado
+                ) {
+                    if (isset($linea['metodos']) && is_array($linea['metodos'])) {
+                        // Si se enviaron métodos explícitos (ej. pago mixto o reasignación)
+                        \App\Models\TransaccionIngreso::where('linea_pago_modulo_id', $lineaPago->id)->delete();
+
+                        foreach ($linea['metodos'] as $m) {
+                            $montoM = round((float) ($m['monto'] ?? 0), 2);
+                            if ($montoM <= 0) continue;
+
+                            \App\Models\TransaccionIngreso::create([
+                                'linea_pago_modulo_id' => $lineaPago->id,
+                                'grupo_pago_id' => $grupoPagoId,
+                                'monto' => $montoM,
+                                'metodo_pago' => $sanitizarMetodo($m['metodo_pago'] ?? null),
+                                'referencia_pago' => $m['referencia_pago'] ?? null,
+                                'comprobante_url' => !empty($m['comprobante_url']) ? $m['comprobante_url'] : $solicitud->archivo_comprobante_url,
+                                'fecha_pago' => now(),
+                                'registrado_por' => $validadorId,
+                                'verificado_por' => $validadorId,
+                                'fecha_verificacion' => now(),
+                                'estado_verificacion' => \App\Models\TransaccionIngreso::VERIFICACION_APROBADO,
+                            ]);
+                        }
+                    } else {
+                        // Si no se enviaron métodos explícitos pero cambió monto_abonado
+                        $txsExistentes = \App\Models\TransaccionIngreso::where('linea_pago_modulo_id', $lineaPago->id)->get();
+                        if ($montoAbonado <= 0) {
+                            \App\Models\TransaccionIngreso::where('linea_pago_modulo_id', $lineaPago->id)->delete();
+                        } elseif ($txsExistentes->count() === 1) {
+                            $txsExistentes->first()->update([
+                                'monto' => $montoAbonado,
+                                'metodo_pago' => $sanitizarMetodo($txsExistentes->first()->metodo_pago),
+                            ]);
+                        } elseif ($txsExistentes->count() > 1) {
+                            $primerMetodo = $sanitizarMetodo($txsExistentes->first()->metodo_pago);
+                            $primerUrl = $txsExistentes->first()->comprobante_url ?? $solicitud->archivo_comprobante_url;
+                            \App\Models\TransaccionIngreso::where('linea_pago_modulo_id', $lineaPago->id)->delete();
+                            \App\Models\TransaccionIngreso::create([
+                                'linea_pago_modulo_id' => $lineaPago->id,
+                                'grupo_pago_id' => $grupoPagoId,
+                                'monto' => $montoAbonado,
+                                'metodo_pago' => $primerMetodo,
+                                'referencia_pago' => $solicitud->tipo_pago,
+                                'comprobante_url' => $primerUrl,
+                                'fecha_pago' => now(),
+                                'registrado_por' => $validadorId,
+                                'verificado_por' => $validadorId,
+                                'fecha_verificacion' => now(),
+                                'estado_verificacion' => \App\Models\TransaccionIngreso::VERIFICACION_APROBADO,
+                            ]);
+                        } elseif ($txsExistentes->isEmpty() && $montoAbonado > 0) {
+                            \App\Models\TransaccionIngreso::create([
+                                'linea_pago_modulo_id' => $lineaPago->id,
+                                'grupo_pago_id' => $grupoPagoId,
+                                'monto' => $montoAbonado,
+                                'metodo_pago' => $sanitizarMetodo($solicitud->tipo_comprobante),
+                                'referencia_pago' => $solicitud->tipo_pago,
+                                'comprobante_url' => $solicitud->archivo_comprobante_url,
+                                'fecha_pago' => now(),
+                                'registrado_por' => $validadorId,
+                                'verificado_por' => $validadorId,
+                                'fecha_verificacion' => now(),
+                                'estado_verificacion' => \App\Models\TransaccionIngreso::VERIFICACION_APROBADO,
+                            ]);
+                        }
+                    }
+                });
+
+                // Recalcular monto abonado real a partir de las transacciones aprobadas existentes
+                $montoReal = round((float) \App\Models\TransaccionIngreso::where('linea_pago_modulo_id', $lineaPago->id)
+                    ->where('estado_verificacion', \App\Models\TransaccionIngreso::VERIFICACION_APROBADO)
+                    ->sum('monto'), 2);
+
                 $estado = match(true) {
-                    $montoAbonado >= $montoAjustado => 'pagado',
-                    $montoAbonado > 0 => 'abonado',
+                    $montoAjustado <= 0 => 'pagado',
+                    $montoReal >= $montoAjustado => 'pagado',
+                    $montoReal > 0 => 'abonado',
                     default => 'pendiente',
                 };
 
-                DB::update("
-                    UPDATE finance.lineas_pago_modulo SET
-                        monto_ajustado = ?,
-                        monto_abonado = ?,
-                        estado = ?::t_estado_pago,
-                        updated_at = NOW()
-                    WHERE id = ?
-                ", [$montoAjustado, $montoAbonado, $estado, $linea['id']]);
-
-                DB::update("
-                    UPDATE finance.transacciones_ingreso SET
-                        monto = ?
-                    WHERE linea_pago_modulo_id = ?
-                ", [$montoAbonado, $linea['id']]);
+                DB::table('finance.lineas_pago_modulo')
+                    ->where('id', $lineaPago->id)
+                    ->update([
+                        'monto_ajustado' => $montoAjustado,
+                        'motivo_ajuste' => $motivoAjuste,
+                        'monto_abonado' => $montoReal,
+                        'estado' => $estado,
+                        'updated_at' => now(),
+                    ]);
             }
 
             $totalAbonado = (float) DB::table('finance.lineas_pago_modulo')
@@ -950,6 +1070,7 @@ class StaffRegistrationController extends Controller
                 ->sum('monto_ajustado');
 
             $cuentaEstado = match(true) {
+                $totalAjustado <= 0 => 'pagado',
                 $totalAbonado >= $totalAjustado => 'pagado',
                 $totalAbonado > 0 => 'abonado',
                 default => 'pendiente',
@@ -964,11 +1085,13 @@ class StaffRegistrationController extends Controller
                 WHERE matricula_id = ?
             ", [$totalAjustado, $totalAbonado, $cuentaEstado, $matriculaId]);
 
-            if ($solicitud->id) {
-                DB::table('solicitudes_inscripcion')
-                    ->where('id', $solicitud->id)
-                    ->update(['monto_solicitado' => $totalAjustado]);
-            }
+            $solicitud->update([
+                'monto_solicitado' => $totalAbonado,
+                'tipo_pago' => $totalAbonado >= $totalAjustado ? 'completo' : 'abono',
+            ]);
+
+            \Illuminate\Support\Facades\Cache::forget('finance.resumen');
+            \Illuminate\Support\Facades\Cache::increment('estadisticas.version');
         });
 
         return response()->json([

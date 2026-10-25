@@ -13,6 +13,7 @@ use App\Models\TransaccionIngreso;
 use App\Models\ArchivoEliminado;
 use App\Services\StorageCleanupService;
 use App\Services\StudentScheduleConflictService;
+use App\Services\Finance\PaymentAllocationService;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Http\JsonResponse;
@@ -363,6 +364,13 @@ class InscripcionTallerController extends Controller
             'precio_ajustado' => 'nullable|numeric|min:0',
             'motivo_ajuste' => 'nullable|string|max:255',
             'metodo_pago' => 'nullable|string|max:50',
+            'metodos_pago' => 'nullable|array|max:5',
+            'metodos_pago.*.metodo_pago' => 'required_with:metodos_pago|string|in:efectivo,transferencia,deposito,tarjeta,otro',
+            'metodos_pago.*.monto' => 'required_with:metodos_pago|numeric|min:0.01',
+            'metodos_pago.*.referencia_pago' => 'nullable|string|max:100',
+            'metodos_pago.*.comprobante_url' => 'nullable|string|max:500',
+            'metodos_pago.*.fecha_pago' => 'nullable|date',
+            'grupo_pago_id' => 'nullable|uuid',
             'fecha_pago' => 'nullable|date',
             'tipo_pago' => 'nullable|string|in:completo,abono',
         ]);
@@ -387,10 +395,15 @@ class InscripcionTallerController extends Controller
                 ? (float) $validated['monto_pagado']
                 : (float) ($inscripcion->monto_pagado ?? 0);
 
+            $primaryMetodo = $validated['metodo_pago'] ?? $inscripcion->metodo_pago;
+            if (!empty($validated['metodos_pago']) && is_array($validated['metodos_pago'])) {
+                $primaryMetodo = $validated['metodos_pago'][0]['metodo_pago'] ?? $primaryMetodo;
+            }
+
             $updateData = [
                 'pago_verificado' => true,
                 'monto_pagado' => $montoAbonado, // Conservar el abono real, NO sobrescribir con el precio total
-                'metodo_pago' => $validated['metodo_pago'] ?? $inscripcion->metodo_pago,
+                'metodo_pago' => $primaryMetodo,
                 'fecha_pago' => $validated['fecha_pago'] ?? now()->timezone('America/Guayaquil')->toDateString(),
                 'tipo_pago' => $validated['tipo_pago'] ?? ($montoAbonado >= $precioPactado ? 'completo' : 'abono'),
             ];
@@ -424,17 +437,42 @@ class InscripcionTallerController extends Controller
                     $personaId = null;
                 }
 
-                TransaccionIngreso::create([
-                    'cuenta_cobrar_id' => $cuenta->id,
-                    'monto' => $montoAbonado,
-                    'metodo_pago' => $inscripcion->metodo_pago ?? 'efectivo',
-                    'fecha_pago' => $validated['fecha_pago'] ?? $inscripcion->fecha_pago ?? now()->timezone('America/Guayaquil')->toDateString(),
-                    'comprobante_url' => $inscripcion->comprobante_url,
-                    'estado_verificacion' => TransaccionIngreso::VERIFICACION_APROBADO,
-                    'registrado_por' => $personaId,
-                    'verificado_por' => $personaId,
-                    'fecha_verificacion' => now(),
-                ]);
+                $grupoPagoId = $validated['grupo_pago_id'] ?? (string) Str::uuid();
+
+                if (!empty($validated['metodos_pago']) && is_array($validated['metodos_pago'])) {
+                    $allocationService = app(PaymentAllocationService::class);
+                    $totalPagarCentavos = (int) round($montoAbonado * 100);
+                    $metodosNormalizados = $allocationService->validateAndNormalizeMethods($validated['metodos_pago'], $totalPagarCentavos);
+
+                    foreach ($metodosNormalizados as $m) {
+                        TransaccionIngreso::create([
+                            'cuenta_cobrar_id' => $cuenta->id,
+                            'grupo_pago_id' => $grupoPagoId,
+                            'monto' => $m['monto'],
+                            'metodo_pago' => $m['metodo_pago'],
+                            'referencia_pago' => $m['referencia_pago'],
+                            'comprobante_url' => $m['comprobante_url'] ?: $inscripcion->comprobante_url,
+                            'fecha_pago' => $m['fecha_pago'] ?? $validated['fecha_pago'] ?? now()->timezone('America/Guayaquil')->toDateString(),
+                            'estado_verificacion' => TransaccionIngreso::VERIFICACION_APROBADO,
+                            'registrado_por' => $personaId,
+                            'verificado_por' => $personaId,
+                            'fecha_verificacion' => now(),
+                        ]);
+                    }
+                } else {
+                    TransaccionIngreso::create([
+                        'cuenta_cobrar_id' => $cuenta->id,
+                        'grupo_pago_id' => $grupoPagoId,
+                        'monto' => $montoAbonado,
+                        'metodo_pago' => $inscripcion->metodo_pago ?? 'efectivo',
+                        'fecha_pago' => $validated['fecha_pago'] ?? $inscripcion->fecha_pago ?? now()->timezone('America/Guayaquil')->toDateString(),
+                        'comprobante_url' => $inscripcion->comprobante_url,
+                        'estado_verificacion' => TransaccionIngreso::VERIFICACION_APROBADO,
+                        'registrado_por' => $personaId,
+                        'verificado_por' => $personaId,
+                        'fecha_verificacion' => now(),
+                    ]);
+                }
             }
         });
 

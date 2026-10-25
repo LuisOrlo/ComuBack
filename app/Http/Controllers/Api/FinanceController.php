@@ -84,9 +84,54 @@ class FinanceController extends Controller
 
         if ($search) {
             $query->where(function($q) use ($search) {
-                $q->whereHas('matricula.estudiante', fn($sq) => $sq->where('nombres', 'ilike', "%{$search}%")->orWhere('apellidos', 'ilike', "%{$search}%"))
-                  ->orWhereHas('solicitudInscripcion.estudiante', fn($sq) => $sq->where('nombres', 'ilike', "%{$search}%")->orWhere('apellidos', 'ilike', "%{$search}%"))
-                  ->orWhereHas('solicitudInscripcion.participanteExterno', fn($sq) => $sq->where('nombres', 'ilike', "%{$search}%")->orWhere('apellidos', 'ilike', "%{$search}%"));
+                // 1. Estudiante / Persona / Cliente
+                $q->whereHas('matricula.estudiante', fn($sq) =>
+                    $sq->where('nombres', 'ilike', "%{$search}%")
+                       ->orWhere('apellidos', 'ilike', "%{$search}%")
+                       ->orWhere('cedula', 'ilike', "%{$search}%")
+                )
+                ->orWhereHas('solicitudInscripcion.estudiante', fn($sq) =>
+                    $sq->where('nombres', 'ilike', "%{$search}%")
+                       ->orWhere('apellidos', 'ilike', "%{$search}%")
+                       ->orWhere('cedula', 'ilike', "%{$search}%")
+                )
+                ->orWhereHas('solicitudInscripcion.participanteExterno', fn($sq) =>
+                    $sq->where('nombres', 'ilike', "%{$search}%")
+                       ->orWhere('apellidos', 'ilike', "%{$search}%")
+                       ->orWhere('cedula', 'ilike', "%{$search}%")
+                )
+                ->orWhereHas('inscripcionTaller', fn($sq) =>
+                    $sq->where('nombres', 'ilike', "%{$search}%")
+                       ->orWhere('apellidos', 'ilike', "%{$search}%")
+                       ->orWhere('cedula', 'ilike', "%{$search}%")
+                )
+                // 2. Nombre de Curso (instancia) y Catálogo
+                ->orWhereHas('matricula.cursoAbierto', fn($sq) =>
+                    $sq->where('nombre_instancia', 'ilike', "%{$search}%")
+                       ->orWhereHas('catalogo', fn($csq) => $csq->where('nombre', 'ilike', "%{$search}%"))
+                )
+                ->orWhereHas('solicitudInscripcion.cursoAbierto', fn($sq) =>
+                    $sq->where('nombre_instancia', 'ilike', "%{$search}%")
+                       ->orWhereHas('catalogo', fn($csq) => $csq->where('nombre', 'ilike', "%{$search}%"))
+                )
+                // 3. Taller (nombre del taller)
+                ->orWhereHas('inscripcionTaller.taller', fn($sq) =>
+                    $sq->where('nombre', 'ilike', "%{$search}%")
+                )
+                // 4. Servicios (nombre de aula, equipo, podcast, cliente)
+                ->orWhereHas('reservaAula.aula', fn($sq) => $sq->where('nombre', 'ilike', "%{$search}%"))
+                ->orWhereHas('reservaAula.persona', fn($sq) => $sq->where('nombres', 'ilike', "%{$search}%")->orWhere('apellidos', 'ilike', "%{$search}%"))
+                ->orWhereHas('reservaAula.clienteExterno', fn($sq) => $sq->where('nombres', 'ilike', "%{$search}%")->orWhere('apellidos', 'ilike', "%{$search}%")->orWhere('nombre_empresa', 'ilike', "%{$search}%"))
+                ->orWhereHas('alquilerEquipo.equipo', fn($sq) => $sq->where('nombre', 'ilike', "%{$search}%"))
+                ->orWhereHas('alquilerEquipo.persona', fn($sq) => $sq->where('nombres', 'ilike', "%{$search}%")->orWhere('apellidos', 'ilike', "%{$search}%"))
+                ->orWhereHas('alquilerEquipo.clienteExterno', fn($sq) => $sq->where('nombres', 'ilike', "%{$search}%")->orWhere('apellidos', 'ilike', "%{$search}%")->orWhere('nombre_empresa', 'ilike', "%{$search}%"))
+                ->orWhereHas('reservaPodcast.persona', fn($sq) => $sq->where('nombres', 'ilike', "%{$search}%")->orWhere('apellidos', 'ilike', "%{$search}%"))
+                ->orWhereHas('reservaPodcast.clienteExterno', fn($sq) => $sq->where('nombres', 'ilike', "%{$search}%")->orWhere('apellidos', 'ilike', "%{$search}%")->orWhere('nombre_empresa', 'ilike', "%{$search}%"))
+                ->orWhereHas('servicioStreaming', fn($sq) => $sq->where('titulo', 'ilike', "%{$search}%")->orWhere('descripcion', 'ilike', "%{$search}%"))
+                ->orWhereHas('servicioStreaming.persona', fn($sq) => $sq->where('nombres', 'ilike', "%{$search}%")->orWhere('apellidos', 'ilike', "%{$search}%"))
+                ->orWhereHas('servicioStreaming.clienteExterno', fn($sq) => $sq->where('nombres', 'ilike', "%{$search}%")->orWhere('apellidos', 'ilike', "%{$search}%")->orWhere('nombre_empresa', 'ilike', "%{$search}%"))
+                ->orWhereHas('edicionVideo.cliente', fn($sq) => $sq->where('nombres', 'ilike', "%{$search}%")->orWhere('apellidos', 'ilike', "%{$search}%"))
+                ->orWhereHas('edicionVideo.clienteExterno', fn($sq) => $sq->where('nombres', 'ilike', "%{$search}%")->orWhere('apellidos', 'ilike', "%{$search}%")->orWhere('nombre_empresa', 'ilike', "%{$search}%"));
             });
         }
 
@@ -826,12 +871,25 @@ class FinanceController extends Controller
                 'uuid',
                 Rule::exists('pgsql.finance.cuentas_por_cobrar', 'id'),
             ],
-            'monto' => 'required|numeric|min:0.01',
-            'metodo_pago' => 'required|string',
+            'monto' => 'required_without:metodos_pago|nullable|numeric|min:0.01',
+            'metodo_pago' => 'required_without:metodos_pago|nullable|string',
+            'metodos_pago' => 'nullable|array|max:5',
+            'metodos_pago.*.metodo_pago' => 'required_with:metodos_pago|string|in:efectivo,transferencia,deposito,tarjeta,otro',
+            'metodos_pago.*.monto' => 'required_with:metodos_pago|numeric|min:0.01',
+            'metodos_pago.*.referencia_pago' => 'nullable|string|max:100',
+            'metodos_pago.*.comprobante_url' => 'nullable|string|max:500',
+            'metodos_pago.*.fecha_pago' => 'nullable|date',
+            'grupo_pago_id' => 'nullable|uuid',
             'comprobante_url' => 'nullable|string',
             'fecha_pago' => 'nullable|date',
             'observaciones' => 'nullable|string'
         ]);
+
+        $grupoPagoId = $request->grupo_pago_id ?: (string) \Illuminate\Support\Str::uuid();
+
+        if (TransaccionIngreso::where('grupo_pago_id', $grupoPagoId)->exists()) {
+            return response()->json(['mensaje' => 'Esta operación de pago ya fue procesada anteriormente.'], 409);
+        }
 
         DB::beginTransaction();
         try {
@@ -840,38 +898,57 @@ class FinanceController extends Controller
                 DB::rollBack();
                 return response()->json(['mensaje' => 'La cuenta por cobrar no existe o fue eliminada'], 404);
             }
-            
-            $saldo = $cuenta->monto_total - $cuenta->monto_abonado;
-            if ($request->monto > ($saldo + 0.01)) { 
-                DB::rollBack();
-                return response()->json(['mensaje' => 'El monto ($' . $request->monto . ') supera el saldo pendiente ($' . $saldo . ')'], 422);
-            }
 
             $personaId = auth()->user()->persona_id ?? null;
             if ($personaId && !\App\Models\Persona::where('id', $personaId)->exists()) {
                 $personaId = null;
             }
 
-            $transaccion = TransaccionIngreso::create([
-                'cuenta_cobrar_id' => $cuenta->id,
-                'monto' => $request->monto,
-                'metodo_pago' => $request->metodo_pago,
-                'comprobante_url' => $request->comprobante_url,
-                'fecha_pago' => $request->fecha_pago ?? now(),
-                'registrado_por' => $personaId,
-                'observaciones' => $request->observaciones,
-                'estado_verificacion' => 'aprobado',
-                'verificado_por' => $personaId,
-                'fecha_verificacion' => now(),
-            ]);
+            $allocationService = app(\App\Services\Finance\PaymentAllocationService::class);
+
+            if ($request->filled('metodos_pago') && is_array($request->metodos_pago)) {
+                $totalPagar = (float) collect($request->metodos_pago)->sum('monto');
+                $totalPagarCentavos = (int) round($totalPagar * 100);
+                $metodosNormalizados = $allocationService->validateAndNormalizeMethods($request->metodos_pago, $totalPagarCentavos);
+
+                $transacciones = $allocationService->allocateDirectPayment(
+                    $cuenta,
+                    $metodosNormalizados,
+                    $grupoPagoId,
+                    $personaId,
+                    $request->observaciones,
+                    $request->comprobante_url
+                );
+                $transaccion = $transacciones[0] ?? null;
+            } else {
+                $saldo = $cuenta->monto_total - $cuenta->monto_abonado;
+                if ($request->monto > ($saldo + 0.01)) { 
+                    DB::rollBack();
+                    return response()->json(['mensaje' => 'El monto ($' . $request->monto . ') supera el saldo pendiente ($' . $saldo . ')'], 422);
+                }
+
+                $transaccion = TransaccionIngreso::create([
+                    'cuenta_cobrar_id' => $cuenta->id,
+                    'grupo_pago_id' => $grupoPagoId,
+                    'monto' => $request->monto,
+                    'metodo_pago' => $request->metodo_pago,
+                    'referencia_pago' => $request->referencia_pago,
+                    'comprobante_url' => $request->comprobante_url,
+                    'fecha_pago' => $request->fecha_pago ?? now(),
+                    'registrado_por' => $personaId,
+                    'observaciones' => $request->observaciones,
+                    'estado_verificacion' => 'aprobado',
+                    'verificado_por' => $personaId,
+                    'fecha_verificacion' => now(),
+                ]);
+            }
 
             DB::commit();
 
             Log::channel('audit')->info('pago.ingreso_registrado', [
-                'transaccion_id' => $transaccion->id,
+                'transaccion_id' => $transaccion?->id,
+                'grupo_pago_id' => $grupoPagoId,
                 'cuenta_cobrar_id' => $cuenta->id,
-                'monto' => (float) $transaccion->monto,
-                'metodo_pago' => $transaccion->metodo_pago,
                 'usuario_id' => auth()->id(),
                 'ip' => $request->ip(),
             ]);
@@ -887,8 +964,15 @@ class FinanceController extends Controller
             Cache::increment('estadisticas.version');
             return response()->json([
                 'mensaje' => 'Pago registrado correctamente',
-                'datos' => $transaccion
+                'datos' => $transaccion,
+                'grupo_pago_id' => $grupoPagoId,
             ]);
+        } catch (\Illuminate\Validation\ValidationException $ve) {
+            DB::rollBack();
+            return response()->json([
+                'mensaje' => $ve->getMessage(),
+                'errors' => $ve->errors(),
+            ], 422);
         } catch (\Exception $e) {
             DB::rollBack();
             Log::error("Error registrando pago: " . $e->getMessage());
@@ -930,80 +1014,108 @@ class FinanceController extends Controller
 
     public function registrarPagosIniciales(StorePagoInicialRequest $request): JsonResponse
     {
-        $response = DB::transaction(function () use ($request) {
-            $resultados = [];
-            // Un pago único puede cubrir varias líneas (módulos/matrícula).
-            // La referencia común permite agrupar sus asignaciones sin perder
-            // el desglose contable por cada línea.
-            $referenciaPago = $request->boolean('pago_unificado')
-                ? 'pago-' . (string) \Illuminate\Support\Str::uuid()
-                : null;
+        $grupoPagoId = $request->grupo_pago_id ?: (string) \Illuminate\Support\Str::uuid();
 
+        if (TransaccionIngreso::where('grupo_pago_id', $grupoPagoId)->exists()) {
+            return response()->json(['mensaje' => 'Esta operación de pago ya fue procesada anteriormente.'], 409);
+        }
+
+        $response = DB::transaction(function () use ($request, $grupoPagoId) {
+            $personaId = auth()->user()->persona_id ?? auth()->id();
+            if ($personaId && !\App\Models\Persona::where('id', $personaId)->exists()) {
+                $personaId = null;
+            }
+
+            // 1. Bloquear primero la cuenta por cobrar de la matrícula para evitar interbloqueos
+            $matricula = \App\Models\Matricula::find($request->matricula_id);
+            if ($matricula?->cuentaPorCobrar) {
+                CuentaPorCobrar::where('id', $matricula->cuentaPorCobrar->id)->lockForUpdate()->first();
+            }
+
+            // 2. Bloquear líneas de pago ordenadas por ID
+            $lineaIds = collect($request->pagos)->pluck('linea_pago_modulo_id')->all();
+            $lineasBloqueadas = LineaPagoModulo::whereIn('id', $lineaIds)
+                ->orderBy('id')
+                ->lockForUpdate()
+                ->get()
+                ->keyBy('id');
+
+            $totalPagos = (float) collect($request->pagos)->sum('monto');
+            $totalPagosCentavos = (int) round($totalPagos * 100);
+
+            $allocationService = app(\App\Services\Finance\PaymentAllocationService::class);
+
+            if ($request->filled('metodos_pago') && is_array($request->metodos_pago)) {
+                $rawMetodos = $request->metodos_pago;
+            } else {
+                $rawMetodos = collect($request->pagos)->map(fn($p) => [
+                    'metodo_pago' => $p['metodo_pago'] ?? 'efectivo',
+                    'monto' => (float) $p['monto'],
+                    'referencia_pago' => $p['referencia_pago'] ?? null,
+                    'comprobante_url' => $p['comprobante_url'] ?? null,
+                    'fecha_pago' => $p['fecha_pago'] ?? null,
+                ])->all();
+            }
+
+            $metodosNormalizados = $allocationService->validateAndNormalizeMethods($rawMetodos, $totalPagosCentavos);
+
+            $lineasItems = [];
             foreach ($request->pagos as $pago) {
-                $linea = LineaPagoModulo::whereKey($pago['linea_pago_modulo_id'])->lockForUpdate()->firstOrFail();
+                $linea = $lineasBloqueadas->get($pago['linea_pago_modulo_id']);
+                if (!$linea) continue;
 
-                // Ajuste de precio para este estudiante, si se solicitó
-                $tieneAjuste = isset($pago['monto_ajustado']) && $pago['monto_ajustado'] !== '';
-                if ($tieneAjuste && (float) $pago['monto_ajustado'] != (float) $linea->monto_ajustado) {
-                    $linea->update([
-                        'monto_ajustado' => $pago['monto_ajustado'],
-                        'motivo_ajuste' => $pago['motivo_ajuste'] ?? null,
-                        'ajustado_por' => auth()->user()->persona_id ?? auth()->id(),
-                        'fecha_ajuste' => now(),
-                    ]);
-                    $linea->refresh();
-                }
-
-                // Crear transacción individual para esta línea con su monto correspondiente.
-                // El TransaccionIngresoObserver aplicará el abono y actualizará el estado de la línea una sola vez.
-                $transaccion = TransaccionIngreso::create([
-                    'linea_pago_modulo_id' => $linea->id,
-                    'monto' => $pago['monto'],
-                    'metodo_pago' => $pago['metodo_pago'],
-                    'fecha_pago' => $pago['fecha_pago'] ?? now(),
-                    'comprobante_url' => $pago['comprobante_url'] ?? null,
-                    'registrado_por' => auth()->user()->persona_id ?? auth()->id(),
-                    'referencia_pago' => $referenciaPago,
-                    'estado_verificacion' => TransaccionIngreso::VERIFICACION_APROBADO,
-                ]);
-
-                $linea->refresh();
-
-                // Sincronizar la cuenta por cobrar padre de la matrícula si existe
-                if ($linea->matricula && $linea->matricula->cuentaPorCobrar) {
-                    $cuentaPadre = $linea->matricula->cuentaPorCobrar;
-                    $totalAbonado = (float) LineaPagoModulo::where('matricula_id', $linea->matricula_id)->sum('monto_abonado');
-                    $totalAjustado = (float) LineaPagoModulo::where('matricula_id', $linea->matricula_id)->sum('monto_ajustado');
-                    $cuentaPadre->update([
-                        'monto_abonado' => $totalAbonado,
-                        'monto_total' => $totalAjustado,
-                        'estado' => match (true) {
-                            $totalAbonado >= $totalAjustado => CuentaPorCobrar::ESTADO_PAGADO,
-                            $totalAbonado > 0 => CuentaPorCobrar::ESTADO_ABONADO,
-                            default => CuentaPorCobrar::ESTADO_PENDIENTE,
-                        },
-                    ]);
-                }
-
-                $resultados[] = [
-                    'linea_pago_modulo_id' => $linea->id,
-                    'transaccion_id' => $transaccion->id,
-                    'nuevo_estado' => $linea->estado,
-                    'monto_abonado' => (float) $linea->monto_abonado,
-                    'monto_ajustado' => (float) $linea->monto_ajustado,
+                $lineasItems[] = [
+                    'linea' => $linea,
+                    'monto' => (float) $pago['monto'],
+                    'monto_ajustado' => isset($pago['monto_ajustado']) && $pago['monto_ajustado'] !== '' ? (float) $pago['monto_ajustado'] : null,
+                    'motivo_ajuste' => $pago['motivo_ajuste'] ?? null,
                 ];
             }
+
+            $transacciones = $allocationService->allocateModulePayments(
+                $lineasItems,
+                $metodosNormalizados,
+                $grupoPagoId,
+                $personaId,
+                $request->pagos[0]['comprobante_url'] ?? null
+            );
+
+            // Sincronizar cuenta padre
+            if ($matricula?->cuentaPorCobrar) {
+                $cuentaPadre = $matricula->cuentaPorCobrar;
+                $totalAbonado = (float) LineaPagoModulo::where('matricula_id', $matricula->id)->sum('monto_abonado');
+                $totalAjustado = (float) LineaPagoModulo::where('matricula_id', $matricula->id)->sum('monto_ajustado');
+                $cuentaPadre->update([
+                    'monto_abonado' => $totalAbonado,
+                    'monto_total' => $totalAjustado,
+                    'estado' => match (true) {
+                        $totalAbonado >= $totalAjustado => CuentaPorCobrar::ESTADO_PAGADO,
+                        $totalAbonado > 0 => CuentaPorCobrar::ESTADO_ABONADO,
+                        default => CuentaPorCobrar::ESTADO_PENDIENTE,
+                    },
+                ]);
+            }
+
+            $resultados = collect($transacciones)->map(fn($t) => [
+                'linea_pago_modulo_id' => $t->linea_pago_modulo_id,
+                'transaccion_id' => $t->id,
+                'grupo_pago_id' => $t->grupo_pago_id,
+                'metodo_pago' => $t->metodo_pago,
+                'monto' => (float) $t->monto,
+                'referencia_pago' => $t->referencia_pago,
+            ])->all();
+
+            Cache::forget('finance.resumen');
 
             return response()->json([
                 'mensaje' => count($resultados) === 1
                     ? 'Pago registrado correctamente'
-                    : count($resultados) . ' pagos registrados correctamente',
+                    : count($resultados) . ' transacciones registradas correctamente',
                 'pagos' => $resultados,
-            ], 201);
+                'grupo_pago_id' => $grupoPagoId,
+            ]);
         });
 
-        Cache::forget('finance.resumen');
-        Cache::increment('estadisticas.version');
         return $response;
     }
 
@@ -1047,89 +1159,299 @@ class FinanceController extends Controller
     public function updateTransaccion(Request $request, $id): JsonResponse
     {
         $validated = $request->validate([
-            'monto' => 'sometimes|numeric|min:0.01',
-            'metodo_pago' => 'sometimes|string|in:efectivo,transferencia,deposito,tarjeta,otro',
-            'observaciones' => 'sometimes|nullable|string|max:500',
+            'monto' => 'sometimes|nullable|numeric|min:0',
+            'metodo_pago' => 'sometimes|nullable|string',
+            'referencia_pago' => 'sometimes|nullable|string|max:255',
+            'fecha_pago' => 'sometimes|nullable|string',
+            'observaciones' => 'sometimes|nullable|string|max:1000',
             'comprobante' => 'sometimes|nullable|file|image|max:5120',
+            'comprobante_url' => 'sometimes|nullable|string',
+            'desglose_metodos' => 'sometimes|nullable|array',
+            'desglose_metodos.*.metodo_pago' => 'nullable|string',
+            'desglose_metodos.*.monto' => 'nullable|numeric|min:0',
+            'desglose_metodos.*.referencia_pago' => 'nullable|string',
+            'desglose_metodos.*.comprobante_url' => 'nullable|string',
+            'conceptos' => 'sometimes|nullable|array',
+            'conceptos.*.linea_id' => 'required_with:conceptos|string|uuid',
+            'conceptos.*.monto_abonado' => 'nullable|numeric|min:0',
+            'conceptos.*.monto_ajustado' => 'nullable|numeric|min:0',
+            'conceptos.*.motivo_ajuste' => 'nullable|string|max:255',
+            'conceptos.*.metodos' => 'nullable|array',
+            'conceptos.*.metodos.*.metodo_pago' => 'nullable|string',
+            'conceptos.*.metodos.*.monto' => 'nullable|numeric|min:0',
+            'conceptos.*.metodos.*.referencia_pago' => 'nullable|string',
+            'conceptos.*.metodos.*.comprobante_url' => 'nullable|string',
         ]);
 
         $transaccion = TransaccionIngreso::findOrFail($id);
 
-        if ($transaccion->estado_verificacion !== TransaccionIngreso::VERIFICACION_APROBADO) {
-            return response()->json(['mensaje' => 'Slo se pueden editar transacciones aprobadas'], 422);
-        }
-
-        $updateData = [];
-        $montoDiff = 0;
-
-        if (isset($validated['monto']) && $validated['monto'] != $transaccion->monto) {
-            $updateData['monto'] = $validated['monto'];
-            if ($transaccion->estado_verificacion === TransaccionIngreso::VERIFICACION_APROBADO) {
-                $montoDiff = $validated['monto'] - $transaccion->monto;
-            }
-        }
-        if (isset($validated['metodo_pago'])) $updateData['metodo_pago'] = $validated['metodo_pago'];
-        if (array_key_exists('observaciones', $validated)) $updateData['observaciones'] = $validated['observaciones'];
-
+        $comprobanteUrl = $validated['comprobante_url'] ?? null;
         if ($request->hasFile('comprobante')) {
-            // Eliminar comprobante anterior si existe
-            if ($transaccion->comprobante_url) {
-                $oldPath = ltrim((string) parse_url($transaccion->comprobante_url, PHP_URL_PATH), '/');
-                $diskUrl = rtrim((string) config('filesystems.disks.'.config('filesystems.default').'.url'), '/');
-                if ($diskUrl && str_starts_with($transaccion->comprobante_url, $diskUrl.'/')) {
-                    $oldPath = ltrim(substr($transaccion->comprobante_url, strlen($diskUrl)), '/');
-                }
-                Storage::disk()->delete($oldPath);
-            }
             $file = $request->file('comprobante');
             $filename = \Illuminate\Support\Str::uuid() . '.' . $file->getClientOriginalExtension();
             $path = $file->storeAs('comprobantes', $filename);
-            $updateData['comprobante_url'] = Storage::disk()->url($path);
+            $comprobanteUrl = Storage::disk()->url($path);
         }
 
-        if (empty($updateData)) {
-            return response()->json(['mensaje' => 'No hay campos para actualizar'], 422);
-        }
+        $metodosValidos = ['transferencia', 'efectivo', 'tarjeta', 'deposito', 'otro'];
+        $sanitizarMetodo = function (?string $metodo) use ($metodosValidos): string {
+            $m = strtolower(trim($metodo ?? ''));
+            return in_array($m, $metodosValidos, true) ? $m : 'transferencia';
+        };
 
-        \Illuminate\Support\Facades\DB::transaction(function () use ($transaccion, $updateData, $montoDiff) {
-            $transaccion->update($updateData);
+        \Illuminate\Support\Facades\DB::transaction(function () use ($transaccion, $validated, $comprobanteUrl, $sanitizarMetodo) {
+            $grupoPagoId = $transaccion->grupo_pago_id ?: (string) \Illuminate\Support\Str::uuid();
+            $validadorId = auth()->user()->persona_id ?? auth()->id();
 
-            if ($montoDiff != 0) {
-                if ($transaccion->linea_pago_modulo_id) {
-                    $linea = $transaccion->lineaPagoModulo;
-                    $linea->monto_abonado += $montoDiff;
-                    $linea->recalcularEstado();
-                    $linea->save();
-                    
-                    // Call reflection to bypass private syncCuentaPorCobrar if needed, or simply let it sync
-                    // Since it's private we can invoke it via reflection or do it manually
-                    $matricula = $linea->matricula()->first();
-                    if ($matricula) {
-                        $cuenta = $matricula->cuentaPorCobrar()->first();
-                        if ($cuenta) {
-                            $totalAbonado = $matricula->lineasPago()->sum('monto_abonado');
-                            $cuenta->update([
-                                'monto_abonado' => $totalAbonado,
-                                'estado' => $totalAbonado >= $cuenta->monto_total
-                                    ? \App\Models\CuentaPorCobrar::ESTADO_PAGADO
-                                    : ($totalAbonado > 0 ? \App\Models\CuentaPorCobrar::ESTADO_ABONADO : \App\Models\CuentaPorCobrar::ESTADO_PENDIENTE),
+            // CASO 1: Se envían conceptos (edición integral por líneas/módulos de curso)
+            if (!empty($validated['conceptos']) && is_array($validated['conceptos'])) {
+                $matricula = null;
+
+                // Todas las transacciones pertenecientes a este pago específico
+                $pagoTxQuery = TransaccionIngreso::where('id', $transaccion->id);
+                if ($transaccion->grupo_pago_id) {
+                    $pagoTxQuery = TransaccionIngreso::where('grupo_pago_id', $transaccion->grupo_pago_id);
+                }
+                $transaccionesDelPago = $pagoTxQuery->get();
+
+                foreach ($validated['conceptos'] as $item) {
+                    $linea = LineaPagoModulo::lockForUpdate()->find($item['linea_id']);
+                    if (!$linea) continue;
+
+                    if (!$matricula) {
+                        $matricula = $linea->matricula;
+                    }
+
+                    $montoAjustado = isset($item['monto_ajustado']) && $item['monto_ajustado'] !== null
+                        ? round((float) $item['monto_ajustado'], 2)
+                        : round((float) $linea->monto_ajustado, 2);
+
+                    $montoAbonado = isset($item['monto_abonado']) && $item['monto_abonado'] !== null
+                        ? round((float) $item['monto_abonado'], 2)
+                        : round((float) $linea->monto_abonado, 2);
+
+                    $motivoAjuste = array_key_exists('motivo_ajuste', $item)
+                        ? $item['motivo_ajuste']
+                        : $linea->motivo_ajuste;
+
+                    // Transacciones que pertenecen a este pago y a esta línea
+                    $txsLineaGrupo = $transaccionesDelPago->where('linea_pago_modulo_id', $linea->id)->values();
+
+                    // Si se enviaron métodos explícitos para este concepto
+                    if (isset($item['metodos']) && is_array($item['metodos'])) {
+                        $metodosFiltrados = collect($item['metodos'])->filter(fn($m) => (float)($m['monto'] ?? 0) > 0)->values();
+                        $montoAbonado = round((float) $metodosFiltrados->sum(fn($m) => (float) ($m['monto'] ?? 0)), 2);
+
+                        foreach ($metodosFiltrados as $mIdx => $m) {
+                            $montoM = round((float) ($m['monto'] ?? 0), 2);
+                            $metodoStr = $sanitizarMetodo($m['metodo_pago'] ?? null);
+                            $refStr = $m['referencia_pago'] ?? $validated['referencia_pago'] ?? $transaccion->referencia_pago;
+                            $compStr = $comprobanteUrl ?? ($m['comprobante_url'] ?? $transaccion->comprobante_url);
+
+                            if ($mIdx < $txsLineaGrupo->count()) {
+                                // Actualizar la transacción existente en lugar de borrarla
+                                $txExistente = $txsLineaGrupo->get($mIdx);
+                                $txExistente->update([
+                                    'monto' => $montoM,
+                                    'metodo_pago' => $metodoStr,
+                                    'referencia_pago' => $refStr,
+                                    'comprobante_url' => $compStr,
+                                    'fecha_pago' => !empty($validated['fecha_pago']) ? $validated['fecha_pago'] : ($txExistente->fecha_pago ?? now()),
+                                    'observaciones' => $validated['observaciones'] ?? $txExistente->observaciones,
+                                ]);
+                            } else {
+                                // Crear nueva transacción para el método adicional
+                                TransaccionIngreso::create([
+                                    'linea_pago_modulo_id' => $linea->id,
+                                    'grupo_pago_id' => $grupoPagoId,
+                                    'monto' => $montoM,
+                                    'metodo_pago' => $metodoStr,
+                                    'referencia_pago' => $refStr,
+                                    'comprobante_url' => $compStr,
+                                    'fecha_pago' => !empty($validated['fecha_pago']) ? $validated['fecha_pago'] : ($transaccion->fecha_pago ?? now()),
+                                    'observaciones' => $validated['observaciones'] ?? $transaccion->observaciones,
+                                    'registrado_por' => $transaccion->registrado_por ?: $validadorId,
+                                    'verificado_por' => $transaccion->verificado_por ?: $validadorId,
+                                    'fecha_verificacion' => $transaccion->fecha_verificacion ?: now(),
+                                    'estado_verificacion' => TransaccionIngreso::VERIFICACION_APROBADO,
+                                ]);
+                            }
+                        }
+
+                        // Si sobraron transacciones en esta línea dentro de este grupo
+                        if ($txsLineaGrupo->count() > $metodosFiltrados->count()) {
+                            for ($sIdx = $metodosFiltrados->count(); $sIdx < $txsLineaGrupo->count(); $sIdx++) {
+                                $sobrante = $txsLineaGrupo->get($sIdx);
+                                if ($sobrante->id === $transaccion->id) {
+                                    $sobrante->update(['monto' => 0]);
+                                } else {
+                                    $sobrante->delete();
+                                }
+                            }
+                        }
+                    } else {
+                        // Método simple
+                        $metodo = isset($validated['metodo_pago'])
+                            ? $sanitizarMetodo($validated['metodo_pago'])
+                            : ($txsLineaGrupo->first()?->metodo_pago ?? 'transferencia');
+                        $refStr = $validated['referencia_pago'] ?? $transaccion->referencia_pago;
+                        $compStr = $comprobanteUrl ?? $transaccion->comprobante_url;
+
+                        if ($txsLineaGrupo->isNotEmpty()) {
+                            $primeraTx = $txsLineaGrupo->first();
+                            $primeraTx->update([
+                                'monto' => $montoAbonado,
+                                'metodo_pago' => $metodo,
+                                'referencia_pago' => $refStr,
+                                'comprobante_url' => $compStr,
+                                'fecha_pago' => !empty($validated['fecha_pago']) ? $validated['fecha_pago'] : ($primeraTx->fecha_pago ?? now()),
+                                'observaciones' => $validated['observaciones'] ?? $primeraTx->observaciones,
+                            ]);
+
+                            // Si habían transacciones sobrantes de métodos anteriores para esta línea, eliminarlas (sin borrar la principal)
+                            for ($sIdx = 1; $sIdx < $txsLineaGrupo->count(); $sIdx++) {
+                                $sobrante = $txsLineaGrupo->get($sIdx);
+                                if ($sobrante->id === $transaccion->id) {
+                                    $sobrante->update(['monto' => 0]);
+                                } else {
+                                    $sobrante->delete();
+                                }
+                            }
+                        } elseif ($montoAbonado > 0) {
+                            TransaccionIngreso::create([
+                                'linea_pago_modulo_id' => $linea->id,
+                                'grupo_pago_id' => $grupoPagoId,
+                                'monto' => $montoAbonado,
+                                'metodo_pago' => $metodo,
+                                'referencia_pago' => $refStr,
+                                'comprobante_url' => $compStr,
+                                'fecha_pago' => !empty($validated['fecha_pago']) ? $validated['fecha_pago'] : ($transaccion->fecha_pago ?? now()),
+                                'observaciones' => $validated['observaciones'] ?? $transaccion->observaciones,
+                                'registrado_por' => $transaccion->registrado_por ?: $validadorId,
+                                'verificado_por' => $transaccion->verificado_por ?: $validadorId,
+                                'fecha_verificacion' => $transaccion->fecha_verificacion ?: now(),
+                                'estado_verificacion' => TransaccionIngreso::VERIFICACION_APROBADO,
                             ]);
                         }
                     }
+
+                    // Recalcular monto abonado real a partir de las transacciones vigentes
+                    $montoReal = round((float) TransaccionIngreso::where('linea_pago_modulo_id', $linea->id)
+                        ->where('estado_verificacion', TransaccionIngreso::VERIFICACION_APROBADO)
+                        ->sum('monto'), 2);
+
+                    $estado = match(true) {
+                        $montoAjustado <= 0 => LineaPagoModulo::ESTADO_PAGADO,
+                        $montoReal >= $montoAjustado => LineaPagoModulo::ESTADO_PAGADO,
+                        $montoReal > 0 => LineaPagoModulo::ESTADO_ABONADO,
+                        default => LineaPagoModulo::ESTADO_PENDIENTE,
+                    };
+
+                    $linea->update([
+                        'monto_ajustado' => $montoAjustado,
+                        'motivo_ajuste' => $motivoAjuste,
+                        'monto_abonado' => $montoReal,
+                        'estado' => $estado,
+                    ]);
+                }
+
+                // Sincronizar cuenta por cobrar y matrícula
+                if ($matricula) {
+                    $totalAbonado = (float) LineaPagoModulo::where('matricula_id', $matricula->id)->sum('monto_abonado');
+                    $totalAjustado = (float) LineaPagoModulo::where('matricula_id', $matricula->id)->sum('monto_ajustado');
+
+                    $cuentaEstado = match(true) {
+                        $totalAjustado <= 0 => \App\Models\CuentaPorCobrar::ESTADO_PAGADO,
+                        $totalAbonado >= $totalAjustado => \App\Models\CuentaPorCobrar::ESTADO_PAGADO,
+                        $totalAbonado > 0 => \App\Models\CuentaPorCobrar::ESTADO_ABONADO,
+                        default => \App\Models\CuentaPorCobrar::ESTADO_PENDIENTE,
+                    };
+
+                    \Illuminate\Support\Facades\DB::update("
+                        UPDATE finance.cuentas_por_cobrar SET
+                            monto_total = ?,
+                            monto_abonado = ?,
+                            estado = ?::t_estado_pago,
+                            updated_at = NOW()
+                        WHERE matricula_id = ?
+                    ", [$totalAjustado, $totalAbonado, $cuentaEstado, $matricula->id]);
+
+                    if ($matricula->solicitud_inscripcion_id) {
+                        \App\Models\SolicitudInscripcion::where('id', $matricula->solicitud_inscripcion_id)->update([
+                            'monto_solicitado' => $totalAbonado,
+                            'tipo_pago' => $totalAbonado >= $totalAjustado ? 'completo' : 'abono',
+                        ]);
+                    }
+                }
+            } else {
+                // CASO 2: Transacción individual directa o taller/servicio
+                $updateData = [];
+                if (isset($validated['monto'])) $updateData['monto'] = round((float) $validated['monto'], 2);
+                if (isset($validated['metodo_pago'])) $updateData['metodo_pago'] = $sanitizarMetodo($validated['metodo_pago']);
+                if (isset($validated['referencia_pago'])) $updateData['referencia_pago'] = $validated['referencia_pago'];
+                if (isset($validated['fecha_pago'])) $updateData['fecha_pago'] = $validated['fecha_pago'];
+                if (array_key_exists('observaciones', $validated)) $updateData['observaciones'] = $validated['observaciones'];
+                if ($comprobanteUrl) $updateData['comprobante_url'] = $comprobanteUrl;
+
+                if (!empty($updateData)) {
+                    $transaccion->update($updateData);
+                }
+
+                // Recalcular saldo si está asociada a una línea de pago
+                if ($transaccion->linea_pago_modulo_id) {
+                    $linea = $transaccion->lineaPagoModulo;
+                    if ($linea) {
+                        $montoReal = round((float) TransaccionIngreso::where('linea_pago_modulo_id', $linea->id)
+                            ->where('estado_verificacion', TransaccionIngreso::VERIFICACION_APROBADO)
+                            ->sum('monto'), 2);
+                        $linea->monto_abonado = $montoReal;
+                        $linea->recalcularEstado();
+                        $linea->save();
+
+                        $matricula = $linea->matricula;
+                        if ($matricula) {
+                            $totalAbonado = (float) LineaPagoModulo::where('matricula_id', $matricula->id)->sum('monto_abonado');
+                            $totalAjustado = (float) LineaPagoModulo::where('matricula_id', $matricula->id)->sum('monto_ajustado');
+                            $cuentaEstado = match(true) {
+                                $totalAjustado <= 0 => \App\Models\CuentaPorCobrar::ESTADO_PAGADO,
+                                $totalAbonado >= $totalAjustado => \App\Models\CuentaPorCobrar::ESTADO_PAGADO,
+                                $totalAbonado > 0 => \App\Models\CuentaPorCobrar::ESTADO_ABONADO,
+                                default => \App\Models\CuentaPorCobrar::ESTADO_PENDIENTE,
+                            };
+                            \Illuminate\Support\Facades\DB::update("
+                                UPDATE finance.cuentas_por_cobrar SET
+                                    monto_total = ?,
+                                    monto_abonado = ?,
+                                    estado = ?::t_estado_pago,
+                                    updated_at = NOW()
+                                WHERE matricula_id = ?
+                            ", [$totalAjustado, $totalAbonado, $cuentaEstado, $matricula->id]);
+                        }
+                    }
                 } elseif ($transaccion->cuenta_cobrar_id) {
+                    // Recalcular cuenta directa de taller o servicio
                     $cuenta = $transaccion->cuentaPorCobrar;
-                    $cuenta->monto_abonado += $montoDiff;
-                    $cuenta->estado = $cuenta->monto_abonado >= $cuenta->monto_total
-                        ? \App\Models\CuentaPorCobrar::ESTADO_PAGADO
-                        : ($cuenta->monto_abonado > 0 ? \App\Models\CuentaPorCobrar::ESTADO_ABONADO : \App\Models\CuentaPorCobrar::ESTADO_PENDIENTE);
-                    $cuenta->save();
+                    if ($cuenta) {
+                        $montoAbonado = round((float) TransaccionIngreso::where('cuenta_cobrar_id', $cuenta->id)
+                            ->where('estado_verificacion', TransaccionIngreso::VERIFICACION_APROBADO)
+                            ->sum('monto'), 2);
+                        $cuenta->monto_abonado = $montoAbonado;
+                        $cuenta->estado = $montoAbonado >= $cuenta->monto_total
+                            ? \App\Models\CuentaPorCobrar::ESTADO_PAGADO
+                            : ($montoAbonado > 0 ? \App\Models\CuentaPorCobrar::ESTADO_ABONADO : \App\Models\CuentaPorCobrar::ESTADO_PENDIENTE);
+                        $cuenta->save();
+                    }
                 }
             }
+
+            // Invalidad caches financieras y de estadísticas
+            \Illuminate\Support\Facades\Cache::forget('finance.resumen');
+            \Illuminate\Support\Facades\Cache::increment('estadisticas.version');
         });
 
         return response()->json([
-            'mensaje' => 'Transaccin actualizada correctamente',
-            'datos' => $transaccion->fresh(),
+            'mensaje' => 'Transacción actualizada correctamente',
+            'datos' => $this->getTransaccionDetalle($id)->getData()->datos ?? null,
         ]);
     }
 
@@ -1442,19 +1764,34 @@ class FinanceController extends Controller
                     'monto' => $detail['monto'],
                 ])->values()->all();
 
+            $metodosUnicos = $items->pluck('metodo_pago')->unique();
+            $esMixto = $metodosUnicos->count() > 1;
+            $metodoPagoFinal = $esMixto ? 'mixto' : (string) $rep->metodo_pago;
+            $desgloseMetodos = $esMixto
+                ? $items->groupBy('metodo_pago')->map(fn($g, $m) => [
+                    'metodo' => $m,
+                    'metodo_pago' => $m,
+                    'monto' => round((float) $g->sum('monto'), 2),
+                ])->values()->all()
+                : null;
+
             return [
                 'id' => $rep->id,
                 'group_key' => $group['key'],
+                'grupo_pago_id' => $rep->grupo_pago_id,
                 'tipo_movimiento' => 'ingreso',
                 'tipo' => count($conceptDetails) > 1 ? 'agrupado' : 'individual',
                 'referencia_pago' => count($items) > 1 ? $group['key'] : $rep->referencia_pago,
                 'monto' => $amount,
                 'monto_total' => $amount,
-                'metodo_pago' => $rep->metodo_pago,
+                'metodo_pago' => $metodoPagoFinal,
+                'es_mixto' => $esMixto,
+                'desglose_metodos' => $desgloseMetodos,
                 'fecha_pago' => $rep->fecha_pago?->toISOString(),
                 'created_at' => $rep->fecha_verificacion?->toISOString(),
                 'estado_verificacion' => $rep->estado_verificacion,
                 'comprobante_url' => $rep->comprobante_url,
+                'comprobantes' => $items->pluck('comprobante_url')->filter()->unique()->values()->all(),
                 'observaciones' => $rep->observaciones,
                 'estudiante_nombre' => $estudiante ? trim(($estudiante->nombres ?? '') . ' ' . ($estudiante->apellidos ?? '')) : null,
                 'estudiante_cedula' => $estudiante?->cedula ?? null,
@@ -1542,6 +1879,10 @@ class FinanceController extends Controller
 
     private function paymentGroupCandidate(TransaccionIngreso $transaction): string
     {
+        if ($transaction->grupo_pago_id) {
+            return "grp-{$transaction->grupo_pago_id}";
+        }
+
         $reference = $transaction->referencia_pago;
         if (!$reference || !$transaction->linea_pago_modulo_id) {
             return "transaction-{$transaction->id}";
@@ -1559,12 +1900,21 @@ class FinanceController extends Controller
         $first = $transactions->first();
         if (!$first) return false;
 
+        $hasGrupoPagoId = !empty($first->grupo_pago_id);
         $firstMethod = (string) $first->metodo_pago;
         $firstState = (string) $first->estado_verificacion;
         $firstMatricula = $first->lineaPagoModulo?->matricula_id;
         $firstAccount = $first->cuenta_cobrar_id;
 
         foreach ($transactions->skip(1) as $transaction) {
+            if ($hasGrupoPagoId) {
+                if ($transaction->grupo_pago_id !== $first->grupo_pago_id
+                    || (string) $transaction->estado_verificacion !== $firstState) {
+                    return false;
+                }
+                continue;
+            }
+
             if ((string) $transaction->metodo_pago !== $firstMethod
                 || (string) $transaction->estado_verificacion !== $firstState
                 || $transaction->lineaPagoModulo?->matricula_id !== $firstMatricula
@@ -1608,17 +1958,19 @@ class FinanceController extends Controller
             'verificador',
         ])->findOrFail($id);
 
-        // Buscar transacciones hermanas usando la misma clave lógica del
-        // historial. Las referencias IMPORT incluyen el módulo, por lo que se
-        // buscan por el prefijo de fila.
+        // Buscar transacciones hermanas usando grupo_pago_id si existe, o la misma clave lógica histórica
         $hermanas = collect([]);
         $montoTotal = (float) $t->monto;
         $tieneMultiplesModulos = false;
         $modulosDetalle = [];
-        $groupKey = $this->paymentGroupCandidate($t);
+        $groupKey = $t->grupo_pago_id ? 'grp-' . $t->grupo_pago_id : $this->paymentGroupCandidate($t);
 
-        if ($t->referencia_pago && $t->linea_pago_modulo_id) {
-            $groupKey = $this->paymentGroupCandidate($t);
+        if ($t->grupo_pago_id) {
+            $candidates = TransaccionIngreso::with('lineaPagoModulo.modulo')
+                ->where('grupo_pago_id', $t->grupo_pago_id)
+                ->get();
+            $hermanas = $candidates->where('id', '!=', $t->id)->values();
+        } elseif ($t->referencia_pago && $t->linea_pago_modulo_id) {
             $query = TransaccionIngreso::with('lineaPagoModulo.modulo')
                 ->whereNotNull('linea_pago_modulo_id');
 
@@ -1637,36 +1989,83 @@ class FinanceController extends Controller
             $hermanas = $candidates->count() > 1 && $this->paymentGroupCompatible($candidates)
                 ? $candidates->where('id', '!=', $t->id)->values()
                 : collect([]);
-
-            if ($hermanas->isNotEmpty()) {
-                $tieneMultiplesModulos = true;
-                // Incluir la transacción actual en el total
-                $montoTotal = $hermanas->sum('monto') + (float) $t->monto;
-
-                // Ordenar el desglose según el orden académico del módulo,
-                // no según cuál UUID abrió el usuario desde el historial.
-                foreach (collect([$t])->concat($hermanas)->sortBy(
-                    fn($transaction) => $transaction->lineaPagoModulo?->modulo?->numero_orden ?? PHP_INT_MAX
-                ) as $moduleTransaction) {
-                    $linea = $moduleTransaction->lineaPagoModulo;
-                    $esInscripcion = $linea?->tipo === 'inscripcion';
-                    $modulosDetalle[] = [
-                        'tipo' => $esInscripcion ? 'inscripcion' : 'modulo',
-                        'nombre' => $esInscripcion
-                            ? 'Inscripción / Matrícula'
-                            : ($linea?->modulo?->nombre_modulo ?? 'Concepto financiero'),
-                        'modulo_nombre' => $esInscripcion ? null : $linea?->modulo?->nombre_modulo,
-                        'linea_id' => $linea?->id,
-                        'modulo_id' => $linea?->modulo_id,
-                        'monto' => (float) $moduleTransaction->monto,
-                    ];
-                }
-            }
-
+        } elseif ($t->referencia_pago && $t->cuenta_cobrar_id) {
+            $candidates = TransaccionIngreso::where('cuenta_cobrar_id', $t->cuenta_cobrar_id)
+                ->where('referencia_pago', $t->referencia_pago)
+                ->get();
+            $hermanas = $candidates->where('id', '!=', $t->id)->values();
         }
+
+        $todosMiembros = collect([$t])->concat($hermanas);
+
+        if ($hermanas->isNotEmpty()) {
+            $montoTotal = round((float) $todosMiembros->sum('monto'), 2);
+        }
+
+        $porLinea = $todosMiembros->filter(fn($x) => !empty($x->linea_pago_modulo_id))->groupBy('linea_pago_modulo_id');
+
+        if ($porLinea->isNotEmpty()) {
+            $tieneMultiplesModulos = $porLinea->count() > 1;
+
+            // Ordenar conceptos según el orden académico del módulo (inscripción siempre al final)
+            $lineasOrdenadas = $porLinea->sortBy(function ($txs) {
+                $primera = $txs->first();
+                $linea = $primera->lineaPagoModulo;
+                if ($linea?->tipo === 'inscripcion') return PHP_INT_MAX;
+                return $linea?->modulo?->numero_orden ?? (PHP_INT_MAX - 1);
+            });
+
+            foreach ($lineasOrdenadas as $lineaId => $txsDeLinea) {
+                $primera = $txsDeLinea->first();
+                $linea = $primera->lineaPagoModulo;
+                $esInscripcion = $linea?->tipo === 'inscripcion';
+                $montoConcepto = round((float) $txsDeLinea->sum('monto'), 2);
+
+                $metodosConcepto = $txsDeLinea->map(function ($item) {
+                    return [
+                        'id' => $item->id,
+                        'metodo_pago' => $item->metodo_pago,
+                        'monto' => (float) $item->monto,
+                        'referencia_pago' => $item->referencia_pago,
+                        'comprobante_url' => $item->comprobante_url,
+                    ];
+                })->values()->all();
+
+                $modulosDetalle[] = [
+                    'tipo' => $esInscripcion ? 'inscripcion' : 'modulo',
+                    'nombre' => $esInscripcion
+                        ? 'Inscripción / Matrícula'
+                        : ($linea?->modulo?->nombre_modulo ?? 'Concepto financiero'),
+                    'modulo_nombre' => $esInscripcion ? null : $linea?->modulo?->nombre_modulo,
+                    'linea_id' => $linea?->id,
+                    'modulo_id' => $linea?->modulo_id,
+                    'monto' => $montoConcepto,
+                    'monto_ajustado' => (float) ($linea?->monto_ajustado ?? $linea?->monto_catalogo ?? 0),
+                    'motivo_ajuste' => $linea?->motivo_ajuste,
+                    'metodo_pago' => count($metodosConcepto) > 1 ? 'mixto' : ($primera->metodo_pago ?? 'transferencia'),
+                    'metodos' => $metodosConcepto,
+                    'referencia_pago' => $primera->referencia_pago,
+                    'comprobante_url' => $primera->comprobante_url,
+                ];
+            }
+        }
+
+        $metodosDistintos = $todosMiembros->pluck('metodo_pago')->unique();
+        $esMixto = $metodosDistintos->count() > 1;
+
+        $desgloseMetodos = $todosMiembros->groupBy('metodo_pago')->map(function ($items, $metodo) {
+            return [
+                'metodo_pago' => $metodo,
+                'monto' => round((float) $items->sum('monto'), 2),
+                'referencias' => $items->pluck('referencia_pago')->filter()->unique()->values()->all(),
+                'comprobantes' => $items->pluck('comprobante_url')->filter()->unique()->values()->all(),
+                'comprobante_url' => $items->pluck('comprobante_url')->filter()->first(),
+            ];
+        })->values()->all();
 
         $estudiante = null;
         $cursoNombre = null;
+        $catalogoNombre = null;
         $moduloNombre = null;
         $tallerNombre = null;
 
@@ -1675,7 +2074,9 @@ class FinanceController extends Controller
             $estudiante = $mat?->estudiante
                 ?? $mat?->solicitudInscripcion?->estudiante
                 ?? $mat?->solicitudInscripcion?->participanteExterno;
-            $cursoNombre = $mat?->cursoAbierto?->catalogo?->nombre;
+            $ca = $mat?->cursoAbierto;
+            $cursoNombre = $ca?->nombre_instancia ?: $ca?->catalogo?->nombre;
+            $catalogoNombre = $ca?->catalogo?->nombre;
             $moduloNombre = $t->lineaPagoModulo->modulo?->nombre_modulo;
         } elseif ($t->cuentaPorCobrar) {
             $cp = $t->cuentaPorCobrar;
@@ -1691,14 +2092,20 @@ class FinanceController extends Controller
                 ?? $cp->reservaRadio?->clienteExterno
                 ?? $cp->edicionVideo?->cliente
                 ?? $cp->edicionVideo?->clienteExterno;
-            $cursoNombre = $cp->matricula?->cursoAbierto?->catalogo?->nombre
-                ?? $cp->inscripcionTaller?->taller?->nombre
-                ?? $cp->reservaPodcast?->titulo
-                ?? $cp->reservaPodcast?->paquete?->nombre
-                ?? $cp->reservaAula?->aula?->nombre
-                ?? $cp->alquilerEquipo?->equipo?->nombre
-                ?? $cp->edicionVideo?->titulo
-                ?? ($cp->edicion_video_id ? 'Edición de Video' : null);
+
+            $ca = $cp->matricula?->cursoAbierto ?? $cp->solicitudInscripcion?->cursoAbierto;
+            if ($ca) {
+                $cursoNombre = $ca->nombre_instancia ?: $ca->catalogo?->nombre;
+                $catalogoNombre = $ca->catalogo?->nombre;
+            } else {
+                $cursoNombre = $cp->inscripcionTaller?->taller?->nombre
+                    ?? $cp->reservaPodcast?->titulo
+                    ?? $cp->reservaPodcast?->paquete?->nombre
+                    ?? $cp->reservaAula?->aula?->nombre
+                    ?? $cp->alquilerEquipo?->equipo?->nombre
+                    ?? $cp->edicionVideo?->titulo
+                    ?? ($cp->edicion_video_id ? 'Edición de Video' : null);
+            }
             $tallerNombre = $cp->inscripcionTaller?->taller?->nombre;
         }
 
@@ -1747,29 +2154,56 @@ class FinanceController extends Controller
             );
         }
 
+        $lineasMatricula = [];
+        if ($t->lineaPagoModulo?->matricula) {
+            foreach ($t->lineaPagoModulo->matricula->lineasPago()->with('modulo')->get() as $lp) {
+                $esIns = $lp->tipo === 'inscripcion';
+                $lineasMatricula[] = [
+                    'id' => $lp->id,
+                    'tipo' => $lp->tipo,
+                    'nombre' => $esIns ? 'Inscripción / Matrícula' : ($lp->modulo?->nombre_modulo ?? 'Módulo'),
+                    'monto_catalogo' => (float) $lp->monto_catalogo,
+                    'monto_ajustado' => (float) ($lp->monto_ajustado ?? $lp->monto_catalogo ?? 0),
+                    'monto_abonado' => (float) $lp->monto_abonado,
+                    'saldo_pendiente' => max(0, (float) ($lp->monto_ajustado ?? $lp->monto_catalogo ?? 0) - (float) $lp->monto_abonado),
+                    'motivo_ajuste' => $lp->motivo_ajuste,
+                    'estado' => $lp->estado,
+                ];
+            }
+        }
+
         return response()->json([
             'datos' => [
                 'id' => $t->id,
+                'grupo_pago_id' => $t->grupo_pago_id,
+                'recibo_codigo' => $t->grupo_pago_id
+                    ? 'REC-' . strtoupper(substr($t->grupo_pago_id, 0, 8))
+                    : 'REC-' . strtoupper(substr($t->id, 0, 8)),
                 'group_key' => $groupKey,
                 'count' => $tieneMultiplesModulos ? $hermanas->count() + 1 : 1,
                 'ids' => collect([$t->id])->merge($hermanas->pluck('id'))->values(),
                 'monto' => $montoTotal,
-                'metodo_pago' => $t->metodo_pago,
+                'metodo_pago' => $esMixto ? 'mixto' : (string) $t->metodo_pago,
+                'es_mixto' => $esMixto,
+                'desglose_metodos' => $desgloseMetodos,
                 'referencia_pago' => $t->referencia_pago,
                 'fecha_pago' => $t->fecha_pago?->format('Y-m-d H:i'),
                 'estado_verificacion' => $t->estado_verificacion,
                 'comprobante_url' => $t->comprobante_url,
+                'comprobantes' => $todosMiembros->pluck('comprobante_url')->filter()->unique()->values()->all(),
                 'comprobante_purgado' => $comprobantePurgado,
                 'observaciones' => $t->observaciones,
                 'motivo_rechazo' => $t->motivo_rechazo,
                 'fecha_verificacion' => $t->fecha_verificacion?->format('Y-m-d H:i'),
                 'estudiante_nombre' => $estudiante ? ($estudiante->nombre_mostrado ?? trim(($estudiante->nombres ?? '') . ' ' . ($estudiante->apellidos ?? ''))) : null,
                 'curso_nombre' => $cursoNombre,
+                'catalogo_nombre' => $catalogoNombre,
                 'modulo_nombre' => $moduloNombre,
                 'taller_nombre' => $tallerNombre,
                 'tiene_multiples_modulos' => $tieneMultiplesModulos,
                 'modulos' => $modulosDetalle,
                 'detalle_conceptos' => $modulosDetalle,
+                'lineas_matricula' => $lineasMatricula,
                 'cuenta_por_cobrar' => $t->cuentaPorCobrar,
                 'linea_pago_modulo' => $lineaData,
                 'registrado_por' => $t->registrador ? trim(($t->registrador->nombres ?? '') . ' ' . ($t->registrador->apellidos ?? '')) : null,
@@ -2102,6 +2536,7 @@ class FinanceController extends Controller
             ->get()
             ->map(fn($t) => [
                 'id' => $t->id,
+                'grupo_pago_id' => $t->grupo_pago_id,
                 'monto' => (float) $t->monto,
                 'metodo_pago' => $t->metodo_pago,
                 'fecha_pago' => $t->fecha_pago?->format('Y-m-d H:i'),
@@ -2486,8 +2921,22 @@ class FinanceController extends Controller
               ->keyBy(fn($i) => "i_{$i->id}");
         }
 
-        // ── Agrupar pagos de módulos por referencia (una aprobación = un pago) ──
-        $grupoRefs = $ingresos->filter(fn($m) => $m->referencia_pago && $m->linea_pago_modulo_id)
+        // ── Agrupar pagos por grupo_pago_id (nuevos) o por referencia (históricos) ──
+        $grupoPagoIds = $ingresos->pluck('grupo_pago_id')->filter()->unique()->values();
+        $gruposPorPagoId = collect();
+        if ($grupoPagoIds->isNotEmpty()) {
+            $gruposPorPagoId = TransaccionIngreso::with([
+                'lineaPagoModulo.modulo',
+                'lineaPagoModulo.matricula.estudiante',
+                'lineaPagoModulo.matricula.solicitudInscripcion.estudiante',
+                'lineaPagoModulo.matricula.solicitudInscripcion.participanteExterno',
+                'lineaPagoModulo.matricula.cursoAbierto.catalogo',
+            ])->whereIn('grupo_pago_id', $grupoPagoIds)
+              ->get()
+              ->groupBy('grupo_pago_id');
+        }
+
+        $grupoRefs = $ingresos->filter(fn($m) => !$m->grupo_pago_id && $m->referencia_pago && $m->linea_pago_modulo_id)
             ->map(fn($m) => preg_replace('/-insc$/', '', $m->referencia_pago))
             ->unique()
             ->values();
@@ -2515,28 +2964,38 @@ class FinanceController extends Controller
                 ->groupBy(fn($m) => preg_replace('/-insc$/', '', $m->referencia_pago));
         }
 
-        $mapIngreso = function ($t) use ($grupos) {
-            $grupoKey = ($t->referencia_pago && $t->linea_pago_modulo_id)
-                ? preg_replace('/-insc$/', '', $t->referencia_pago)
-                : null;
+        $mapIngreso = function ($t) use ($grupos, $gruposPorPagoId) {
+            $grupo = null;
+            if ($t->grupo_pago_id && $gruposPorPagoId->has($t->grupo_pago_id)) {
+                $grupo = $gruposPorPagoId->get($t->grupo_pago_id);
+            } elseif ($t->referencia_pago && $t->linea_pago_modulo_id) {
+                $refKey = preg_replace('/-insc$/', '', $t->referencia_pago);
+                if ($grupos->has($refKey)) {
+                    $grupo = $grupos->get($refKey);
+                }
+            }
 
             $rep = $t;
             $monto = (float) $t->monto;
             $modulosCount = 0;
             $modulosDetalle = [];
 
-            if ($grupoKey && $grupos->has($grupoKey)) {
-                $grupo = $grupos->get($grupoKey);
+            if ($grupo) {
                 $rep = $grupo->sortByDesc(fn($x) => [$x->created_at?->format('Y-m-d H:i:s.u') ?? '', $x->id])
                     ->first() ?? $t;
                 $monto = round((float) $grupo->sum('monto'), 2);
-                $modulosDetalle = $grupo->filter(fn($x) => $x->lineaPagoModulo?->modulo?->nombre_modulo)
-                    ->map(fn($x) => [
-                        'id' => $x->id,
-                        'modulo_nombre' => $x->lineaPagoModulo->modulo->nombre_modulo,
-                        'monto' => (float) $x->monto,
-                    ])->values();
-                $modulosCount = $modulosDetalle->count();
+                $modulosAgrupados = $grupo->filter(fn($x) => $x->lineaPagoModulo?->modulo?->nombre_modulo)
+                    ->groupBy(fn($x) => $x->lineaPagoModulo->modulo_id);
+                $modulosDetalle = $modulosAgrupados->map(function ($itemsModulo) {
+                    $first = $itemsModulo->first();
+                    return [
+                        'id' => $first->id,
+                        'modulo_id' => $first->lineaPagoModulo->modulo_id,
+                        'modulo_nombre' => $first->lineaPagoModulo->modulo->nombre_modulo,
+                        'monto' => round((float) $itemsModulo->sum('monto'), 2),
+                    ];
+                })->values()->all();
+                $modulosCount = count($modulosDetalle);
             }
 
             $cp = $rep->cuentaPorCobrar;
@@ -2596,8 +3055,17 @@ class FinanceController extends Controller
                 ?? $cp?->edicionVideo?->titulo
                 ?? $rep->lineaPagoModulo?->matricula?->cursoAbierto?->catalogo?->nombre;
 
+            $esMixto = $grupo && $grupo->pluck('metodo_pago')->unique()->count() > 1;
+            $desgloseMetodos = $esMixto
+                ? $grupo->groupBy('metodo_pago')->map(fn($g, $m) => [
+                    'metodo' => $m,
+                    'monto' => round((float) $g->sum('monto'), 2),
+                ])->values()->all()
+                : null;
+
             $item = [
                 'id' => $rep->id,
+                'grupo_pago_id' => $rep->grupo_pago_id,
                 'tipo_movimiento' => 'ingreso',
                 'fecha_pago' => $rep->fecha_pago?->format('Y-m-d'),
                 'created_at' => $rep->fecha_verificacion?->toISOString(),
@@ -2606,12 +3074,15 @@ class FinanceController extends Controller
                 'estudiante_nombre' => $estudiante ? trim(($estudiante->nombres ?? '') . ' ' . ($estudiante->apellidos ?? '')) : null,
                 'categoria' => $cat,
                 'monto' => $monto,
-                'metodo_pago' => $rep->metodo_pago,
+                'metodo_pago' => $esMixto ? 'mixto' : (string) $rep->metodo_pago,
+                'es_mixto' => $esMixto,
+                'desglose_metodos' => $desgloseMetodos,
                 'comprobante_url' => $rep->comprobante_url,
+                'comprobantes' => $grupo ? $grupo->pluck('comprobante_url')->filter()->unique()->values()->all() : ($rep->comprobante_url ? [$rep->comprobante_url] : []),
                 'estado_verificacion' => $rep->estado_verificacion,
             ];
 
-            if ($grupoKey && $grupos->has($grupoKey)) {
+            if ($grupo) {
                 $item['modulos_count'] = $modulosCount;
                 $item['modulos_detalle'] = $modulosDetalle;
             }
@@ -2621,9 +3092,18 @@ class FinanceController extends Controller
 
         $pageKeys = $unionIds->map(fn($item) => "i_{$item->id}");
 
-        $data = $pageKeys->map(function ($key) use ($ingresos, $mapIngreso, $grupos) {
+        $data = $pageKeys->map(function ($key) use ($ingresos, $mapIngreso, $grupos, $gruposPorPagoId) {
             $m = $ingresos[$key] ?? null;
             if (! $m) return null;
+
+            if ($m->grupo_pago_id && $gruposPorPagoId->has($m->grupo_pago_id)) {
+                $rep = $gruposPorPagoId->get($m->grupo_pago_id)
+                    ->sortByDesc(fn($x) => [$x->created_at?->format('Y-m-d H:i:s.u') ?? '', $x->id])
+                    ->first();
+                if (! $rep || $rep->id !== $m->id) {
+                    return null;
+                }
+            }
 
             $grupoKey = ($m->referencia_pago && $m->linea_pago_modulo_id)
                 ? preg_replace('/-insc$/', '', $m->referencia_pago)

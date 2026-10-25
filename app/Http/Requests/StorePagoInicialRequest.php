@@ -52,9 +52,25 @@ class StorePagoInicialRequest extends FormRequest
             ],
             'pagos.*.monto_ajustado' => 'nullable|numeric|min:0',
             'pagos.*.motivo_ajuste' => 'required_with:pagos.*.monto_ajustado|nullable|string|max:255',
-            'pagos.*.metodo_pago' => 'required|string|in:efectivo,transferencia',
+            'pagos.*.metodo_pago' => 'nullable|string|in:efectivo,transferencia,deposito,tarjeta,otro',
             'pagos.*.fecha_pago' => 'nullable|date',
             'pagos.*.comprobante_url' => 'nullable|string',
+            'grupo_pago_id' => 'nullable|uuid',
+            'metodos_pago' => 'nullable|array|max:20',
+            'metodos_pago.*.linea_pago_modulo_id' => [
+                'nullable',
+                'string',
+                function ($attribute, $value, $fail) {
+                    if ($value !== 'inscripcion' && !\Illuminate\Support\Str::isUuid($value)) {
+                        $fail("El campo {$attribute} debe ser un UUID válido o 'inscripcion'.");
+                    }
+                },
+            ],
+            'metodos_pago.*.metodo_pago' => 'required_with:metodos_pago|string|in:efectivo,transferencia,deposito,tarjeta,otro',
+            'metodos_pago.*.monto' => 'required_with:metodos_pago|numeric|min:0.01',
+            'metodos_pago.*.referencia_pago' => 'nullable|string|max:100',
+            'metodos_pago.*.comprobante_url' => 'nullable|string|max:500',
+            'metodos_pago.*.fecha_pago' => 'nullable|date',
             'pago_unificado' => 'nullable|boolean',
         ];
     }

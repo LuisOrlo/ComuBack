@@ -18,6 +18,7 @@ class TransaccionIngreso extends Model
     protected $fillable = [
         'cuenta_cobrar_id',
         'linea_pago_modulo_id',
+        'grupo_pago_id',
         'referencia_pago',
         'monto',
         'metodo_pago',
