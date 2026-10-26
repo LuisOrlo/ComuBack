@@ -48,7 +48,7 @@ class StaffRegistrationController extends Controller
         ])->with([
             'estudiante:id,nombres,apellidos,correo',
             'participanteExterno:id,nombres,apellidos,correo,ciudad',
-            'cursoAbierto:id,catalogo_curso_id,es_personalizado,nombre_instancia,precio_base,precio_matricula,modalidad,ciudad_id',
+            'cursoAbierto:id,catalogo_curso_id,es_personalizado,nombre_instancia,precio_base,precio_matricula,modalidad,ciudad_id,fecha_inicio',
             'cursoAbierto.catalogo:id,nombre,categoria,color',
             'cursoAbierto.ciudad:id,nombre',
             'validador:id,nombres,apellidos',
@@ -811,6 +811,7 @@ class StaffRegistrationController extends Controller
 
         $validated = $request->validate([
             'curso_abierto_id' => 'required|uuid|exists:cursos_abiertos,id',
+            'permitir_sobrecupo' => 'nullable|boolean',
             'lineas' => 'required|array|min:1',
             'lineas.*.modulo_id' => 'nullable|uuid|exists:modulos,id',
             'lineas.*.tipo' => 'required|string|in:modulo,inscripcion',
@@ -819,51 +820,141 @@ class StaffRegistrationController extends Controller
         ]);
 
         $nuevoCurso = \App\Models\CursoAbierto::findOrFail($validated['curso_abierto_id']);
+        $permitirSobrecupo = $request->boolean('permitir_sobrecupo', true);
         $cupo = ($nuevoCurso->capacidad_maxima ?? 0) - $nuevoCurso->matriculas()->count();
-        if ($cupo <= 0 && $nuevoCurso->id !== $solicitud->curso_abierto_id) {
+        if (! $permitirSobrecupo && $cupo <= 0 && $nuevoCurso->id !== $solicitud->curso_abierto_id) {
             return response()->json([
                 'mensaje' => 'El curso seleccionado no tiene cupo disponible',
             ], Response::HTTP_UNPROCESSABLE_ENTITY);
         }
 
         DB::transaction(function () use ($matricula, $solicitud, $validated) {
-            // 1. Guardar IDs de transacciones viejas (ordenadas por fecha)
-            $viejosTxIds = \App\Models\TransaccionIngreso::whereHas('lineaPagoModulo', function ($q) use ($matricula) {
+            // 1. Obtener todas las transacciones reales existentes ordenadas por fecha
+            $transacciones = \App\Models\TransaccionIngreso::whereHas('lineaPagoModulo', function ($q) use ($matricula) {
                 $q->where('matricula_id', $matricula->id);
-            })->orderBy('fecha_pago')->pluck('id');
+            })->orderBy('fecha_pago')->orderBy('created_at')->get();
 
-            // 2. Desvincular y eliminar líneas de pago viejas
-            \App\Models\TransaccionIngreso::whereIn('id', $viejosTxIds)
+            // 2. Desvincular transacciones de las líneas viejas y eliminar líneas viejas
+            \App\Models\TransaccionIngreso::whereIn('id', $transacciones->pluck('id'))
                 ->update(['linea_pago_modulo_id' => null]);
             $matricula->lineasPago()->delete();
 
-            // 3. Crear nuevas líneas de pago (con orden explícito)
+            // 3. Crear nuevas líneas de pago con orden explícito
             $nuevasLineas = [];
             foreach ($validated['lineas'] as $orden => $linea) {
+                $montoAbonado = (float) $linea['monto_abonado'];
+                $montoAjustado = (float) $linea['monto_ajustado'];
                 $lp = $matricula->lineasPago()->create([
                     'modulo_id' => $linea['modulo_id'],
                     'tipo' => $linea['tipo'],
-                    'monto_original' => $linea['monto_ajustado'],
-                    'monto_ajustado' => $linea['monto_ajustado'],
-                    'monto_abonado' => $linea['monto_abonado'],
+                    'monto_original' => $montoAjustado,
+                    'monto_ajustado' => $montoAjustado,
+                    'monto_abonado' => $montoAbonado,
                     'orden' => $orden,
                     'estado' => match(true) {
-                        $linea['monto_abonado'] >= $linea['monto_ajustado'] => 'pagado',
-                        $linea['monto_abonado'] > 0 => 'abonado',
+                        $montoAbonado >= $montoAjustado && $montoAjustado > 0 => 'pagado',
+                        $montoAbonado > 0 => 'abonado',
                         default => 'pendiente',
                     },
                 ]);
                 $nuevasLineas[] = $lp;
             }
 
-            // 4. Re-asignar transacciones viejas a nuevas líneas (en orden)
-            foreach ($viejosTxIds as $i => $txId) {
-                if (! isset($nuevasLineas[$i])) break;
-                $linea = $nuevasLineas[$i];
-                \App\Models\TransaccionIngreso::where('id', $txId)->update([
-                    'linea_pago_modulo_id' => $linea->id,
-                    'monto' => $linea->monto_abonado,
-                ]);
+            // 4. Re-asignar transacciones reales a las nuevas líneas preservando pagos mixtos,
+            // métodos de pago, comprobantes_url, referencias y grupos de pago intactos.
+            $colaTx = [];
+            foreach ($transacciones as $tx) {
+                $colaTx[] = [
+                    'modelo' => $tx,
+                    'monto_restante' => (float) $tx->monto,
+                ];
+            }
+
+            $txIndex = 0;
+            foreach ($nuevasLineas as $linea) {
+                $necesita = (float) $linea->monto_abonado;
+                while ($necesita > 0.0001 && $txIndex < count($colaTx)) {
+                    $actual = &$colaTx[$txIndex];
+                    $disponible = $actual['monto_restante'];
+
+                    if ($disponible <= 0.0001) {
+                        $txIndex++;
+                        continue;
+                    }
+
+                    if ($disponible <= $necesita + 0.0001) {
+                        // Transacción cabe completa en esta línea
+                        if (! $actual['modelo']->linea_pago_modulo_id) {
+                            $actual['modelo']->update(['linea_pago_modulo_id' => $linea->id]);
+                        } else {
+                            \App\Models\TransaccionIngreso::create([
+                                'linea_pago_modulo_id' => $linea->id,
+                                'monto' => $disponible,
+                                'metodo_pago' => $actual['modelo']->metodo_pago,
+                                'referencia_pago' => $actual['modelo']->referencia_pago,
+                                'comprobante_url' => $actual['modelo']->comprobante_url,
+                                'fecha_pago' => $actual['modelo']->fecha_pago,
+                                'estado_verificacion' => $actual['modelo']->estado_verificacion,
+                                'grupo_pago_id' => $actual['modelo']->grupo_pago_id,
+                            ]);
+                        }
+                        $necesita -= $disponible;
+                        $actual['monto_restante'] = 0;
+                        $txIndex++;
+                    } else {
+                        // La transacción es mayor que el saldo que requiere la línea:
+                        // Asignar porción a esta línea y dejar el resto para la siguiente
+                        $montoAsignar = $necesita;
+                        if (! $actual['modelo']->linea_pago_modulo_id) {
+                            $actual['modelo']->update([
+                                'linea_pago_modulo_id' => $linea->id,
+                                'monto' => $montoAsignar,
+                            ]);
+                        } else {
+                            \App\Models\TransaccionIngreso::create([
+                                'linea_pago_modulo_id' => $linea->id,
+                                'monto' => $montoAsignar,
+                                'metodo_pago' => $actual['modelo']->metodo_pago,
+                                'referencia_pago' => $actual['modelo']->referencia_pago,
+                                'comprobante_url' => $actual['modelo']->comprobante_url,
+                                'fecha_pago' => $actual['modelo']->fecha_pago,
+                                'estado_verificacion' => $actual['modelo']->estado_verificacion,
+                                'grupo_pago_id' => $actual['modelo']->grupo_pago_id,
+                            ]);
+                        }
+                        $actual['monto_restante'] -= $montoAsignar;
+                        $necesita = 0;
+                    }
+                }
+            }
+
+            // Si quedaron transacciones con remanente (ej. si el nuevo curso es de menor valor),
+            // vincularlas a la última línea de pago para que ningún pago quede huérfano.
+            if ($txIndex < count($colaTx) && count($nuevasLineas) > 0) {
+                $ultimaLinea = end($nuevasLineas);
+                while ($txIndex < count($colaTx)) {
+                    $actual = &$colaTx[$txIndex];
+                    if ($actual['monto_restante'] > 0.0001) {
+                        if (! $actual['modelo']->linea_pago_modulo_id) {
+                            $actual['modelo']->update([
+                                'linea_pago_modulo_id' => $ultimaLinea->id,
+                                'monto' => $actual['monto_restante'],
+                            ]);
+                        } else {
+                            \App\Models\TransaccionIngreso::create([
+                                'linea_pago_modulo_id' => $ultimaLinea->id,
+                                'monto' => $actual['monto_restante'],
+                                'metodo_pago' => $actual['modelo']->metodo_pago,
+                                'referencia_pago' => $actual['modelo']->referencia_pago,
+                                'comprobante_url' => $actual['modelo']->comprobante_url,
+                                'fecha_pago' => $actual['modelo']->fecha_pago,
+                                'estado_verificacion' => $actual['modelo']->estado_verificacion,
+                                'grupo_pago_id' => $actual['modelo']->grupo_pago_id,
+                            ]);
+                        }
+                    }
+                    $txIndex++;
+                }
             }
 
             // 5. Actualizar curso en solicitud y matrícula

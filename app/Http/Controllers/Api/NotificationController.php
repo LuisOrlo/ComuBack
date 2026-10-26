@@ -8,23 +8,31 @@ use App\Models\InscripcionTaller;
 use App\Models\Matricula;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 
 class NotificationController extends Controller
 {
-    public function index(): JsonResponse
+    public function index(Request $request): JsonResponse
     {
         $user = auth()->user();
         $isDocenteOnly = $user && $user->hasRole('Docente') && !$user->hasAnyRole(['Administrador', 'Super Admin', 'Secretaria', 'Coordinador']);
+        $soloPendientes = $request->boolean('solo_pendientes', false);
 
         // 1. Solicitudes de inscripción pendientes (para el contador y notificaciones de aprobación)
-        $solicitudesQuery = SolicitudInscripcion::where('estado', 'pendiente_validacion')
+        $solicitudesQuery = SolicitudInscripcion::whereIn('estado', ['pendiente_validacion', 'registrado'])
             ->where('created_at', '>=', Carbon::now()->subDays(30));
 
-        // 2. Inscripciones a talleres recientes
+        // 2. Inscripciones a talleres recientes (si es solo_pendientes, filtrar pago no verificado)
         $inscripcionesQuery = InscripcionTaller::where('fecha_inscripcion', '>=', Carbon::now()->subDays(30));
+        if ($soloPendientes) {
+            $inscripcionesQuery->where('pago_verificado', false)->where('estado', '!=', 'retirado');
+        }
 
-        // 3. Matrículas confirmadas recientes
-        $matriculasQuery = Matricula::where('fecha_inscripcion', '>=', Carbon::now()->subDays(30));
+        // 3. Matrículas confirmadas recientes (solo para historial general, no cuando se piden solo_pendientes)
+        $matriculasQuery = null;
+        if (! $soloPendientes) {
+            $matriculasQuery = Matricula::where('fecha_inscripcion', '>=', Carbon::now()->subDays(30));
+        }
 
         if ($isDocenteOnly) {
             $solicitudesQuery->whereHas('cursoAbierto', function ($q) use ($user) {
@@ -33,9 +41,11 @@ class NotificationController extends Controller
             $inscripcionesQuery->whereHas('taller', function ($q) use ($user) {
                 $q->where('instructor_id', $user->persona_id);
             });
-            $matriculasQuery->whereHas('cursoAbierto', function ($q) use ($user) {
-                $q->where('docente_id', $user->persona_id);
-            });
+            if ($matriculasQuery) {
+                $matriculasQuery->whereHas('cursoAbierto', function ($q) use ($user) {
+                    $q->where('docente_id', $user->persona_id);
+                });
+            }
         }
 
         $solicitudes = $solicitudesQuery->with([
@@ -66,10 +76,12 @@ class NotificationController extends Controller
                 'metodo_pago' => $s->tipo_comprobante,
                 'fecha_creacion' => $s->created_at,
                 'hora' => Carbon::parse($s->created_at)->timezone('America/Guayaquil')->format('H:i'),
+                'estado' => $s->estado,
+                'aprobado' => false,
             ];
         });
 
-        $matriculas = $matriculasQuery->with([
+        $matriculas = $matriculasQuery ? $matriculasQuery->with([
             'estudiante:id,nombres,apellidos',
             'cursoAbierto:id,catalogo_curso_id,precio_base,docente_id',
             'cursoAbierto.catalogo:id,nombre,color',
@@ -90,8 +102,10 @@ class NotificationController extends Controller
                 'metodo_pago' => $m->tipo_pago,
                 'fecha_creacion' => $m->fecha_inscripcion,
                 'hora' => Carbon::parse($m->fecha_inscripcion)->timezone('America/Guayaquil')->format('H:i'),
+                'estado' => 'matricula_creada',
+                'aprobado' => true,
             ];
-        });
+        }) : collect([]);
 
         $inscripciones = $inscripcionesQuery->with('taller:id,nombre')
         ->orderByDesc('fecha_inscripcion')
@@ -110,6 +124,8 @@ class NotificationController extends Controller
                 'metodo_pago' => $i->metodo_pago,
                 'fecha_creacion' => $i->fecha_inscripcion,
                 'hora' => Carbon::parse($i->fecha_inscripcion)->timezone('America/Guayaquil')->format('H:i'),
+                'estado' => $i->pago_verificado ? 'matricula_creada' : 'pendiente_validacion',
+                'aprobado' => (bool) $i->pago_verificado,
             ];
         });
 
@@ -144,6 +160,8 @@ class NotificationController extends Controller
                         'monto' => $item['monto'],
                         'metodo_pago' => $item['metodo_pago'],
                         'hora' => $item['hora'],
+                        'estado' => $item['estado'] ?? null,
+                        'aprobado' => $item['aprobado'] ?? false,
                     ];
                 })->values()->all(),
             ];
