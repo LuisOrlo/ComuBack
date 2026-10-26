@@ -53,6 +53,8 @@ use App\Http\Controllers\Api\SecretariaDashboardController;
 use App\Http\Controllers\Api\SecretariaFinanceController;
 use App\Http\Controllers\Api\AgendaController;
 use App\Http\Controllers\Api\NotificationController;
+use App\Http\Controllers\Api\InteresadosController;
+use App\Http\Controllers\Api\DocumentoArchivoController;
 use App\Http\Controllers\Api\TareaStaffController;
 use App\Http\Controllers\Imports\StudentImportController;
 use Illuminate\Support\Facades\Route;
@@ -137,6 +139,14 @@ use Illuminate\Support\Facades\Route;
         Route::get('/', [AgendaController::class, 'index'])->name('public.agenda.index');
         Route::get('{tipo_evento}/{referencia_id}', [AgendaController::class, 'show'])->name('public.agenda.show');
     });
+
+    // ========================================================================
+    // PUBLIC ROUTES - DOCUMENTOS Y ARCHIVOS (READ ONLY & DOWNLOAD)
+    // ========================================================================
+    Route::get('public/documentos', [DocumentoArchivoController::class, 'indexPublico'])
+        ->name('public.documentos.index');
+    Route::get('public/documentos/{id}/descargar', [DocumentoArchivoController::class, 'descargar'])
+        ->name('public.documentos.descargar');
 
     // ========================================================================
     // PUBLIC ROUTES - CIUDADES (READ ONLY)
@@ -935,5 +945,33 @@ Route::prefix('reports')->group(function () {
             Route::post('buscar-cedula', [ClienteExternoController::class, 'buscarCedula'])->name('secretaria.clientes-externos.buscar-cedula');
             Route::get('{id}/reservas', [ClienteExternoController::class, 'reservas'])->name('secretaria.clientes-externos.reservas');
             Route::get('{id}/financial', [ClienteExternoController::class, 'financial'])->name('secretaria.clientes-externos.financial');
+        });
+    });
+
+    // ========================================================================
+    // LISTA DE INTERESADOS / PROSPECTOS (CURSOS, TALLERES, PERSONALIZADOS)
+    // Accesible para Administrador y Secretaria
+    // ========================================================================
+    Route::middleware(['auth:sanctum', 'role:Administrador|Secretaria'])->group(function () {
+        Route::prefix('interesados')->group(function () {
+            Route::post('upload-comprobante', [InteresadosController::class, 'uploadComprobante'])->name('interesados.upload-comprobante');
+            Route::put('{id}', [InteresadosController::class, 'update'])->name('interesados.update');
+            Route::delete('{id}', [InteresadosController::class, 'destroy'])->name('interesados.destroy');
+        });
+        Route::get('cursos/{id}/interesados', [InteresadosController::class, 'indexCurso'])->name('cursos.interesados.index');
+        Route::post('cursos/{id}/interesados', [InteresadosController::class, 'storeCurso'])->name('cursos.interesados.store');
+        Route::get('talleres/{id}/interesados', [InteresadosController::class, 'indexTaller'])->name('talleres.interesados.index');
+        Route::post('talleres/{id}/interesados', [InteresadosController::class, 'storeTaller'])->name('talleres.interesados.store');
+
+        // ========================================================================
+        // GESTIÓN DE ARCHIVOS Y DOCUMENTOS PDF (MÓDULO AISLADO)
+        // ========================================================================
+        Route::prefix('documentos')->group(function () {
+            Route::get('/', [DocumentoArchivoController::class, 'index'])->name('documentos.index');
+            Route::post('/', [DocumentoArchivoController::class, 'store'])->name('documentos.store');
+            Route::get('{id}', [DocumentoArchivoController::class, 'show'])->name('documentos.show');
+            Route::post('{id}', [DocumentoArchivoController::class, 'update'])->name('documentos.update');
+            Route::patch('{id}/toggle-visibilidad', [DocumentoArchivoController::class, 'toggleVisibilidad'])->name('documentos.toggle-visibilidad');
+            Route::delete('{id}', [DocumentoArchivoController::class, 'destroy'])->name('documentos.destroy');
         });
     });
