@@ -23,7 +23,8 @@ class InteresadosController extends Controller
     {
         $curso = CursoAbierto::findOrFail($cursoId);
         $interesados = CursoInteresado::where('curso_abierto_id', $cursoId)
-            ->orderBy('created_at', 'desc')
+            ->orderBy('apellidos', 'asc')
+            ->orderBy('nombres', 'asc')
             ->get();
 
         $data = $interesados->map(function ($lead) use ($cursoId) {
@@ -61,7 +62,8 @@ class InteresadosController extends Controller
     {
         $taller = Taller::findOrFail($tallerId);
         $interesados = CursoInteresado::where('taller_id', $tallerId)
-            ->orderBy('created_at', 'desc')
+            ->orderBy('apellidos', 'asc')
+            ->orderBy('nombres', 'asc')
             ->get();
 
         $data = $interesados->map(function ($lead) use ($tallerId) {

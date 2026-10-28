@@ -521,6 +521,11 @@ class CursoAbiertoController extends Controller
         $curso = CursoAbierto::findOrFail($id);
         $buscar = trim((string) request('buscar', ''));
         $matriculas = $curso->matriculas()
+            ->select('academic.matriculas.*')
+            ->leftJoin('people.personas as p', 'academic.matriculas.estudiante_id', '=', 'p.id')
+            ->leftJoin('academic.solicitudes_inscripcion as sol', 'academic.matriculas.solicitud_inscripcion_id', '=', 'sol.id')
+            ->leftJoin('people.personas as sol_p', 'sol.persona_id', '=', 'sol_p.id')
+            ->leftJoin('academic.participantes_externos as part_ext', 'sol.participante_externo_id', '=', 'part_ext.id')
             ->with(['estudiante.perfilEstudiante', 'solicitudInscripcion.estudiante.perfilEstudiante', 'solicitudInscripcion.participanteExterno', 'notas.modulo'])
             ->when($buscar !== '', function ($query) use ($buscar) {
                 $like = "%{$buscar}%";
@@ -539,7 +544,8 @@ class CursoAbiertoController extends Controller
                         ->orWhere('cedula', 'ilike', $like));
                 });
             })
-            ->orderByDesc('fecha_inscripcion')
+            ->orderByRaw('COALESCE(NULLIF(p.apellidos, \'\'), NULLIF(sol_p.apellidos, \'\'), NULLIF(part_ext.nombre, \'\'), \'zzzz\') ASC')
+            ->orderByRaw('COALESCE(NULLIF(p.nombres, \'\'), NULLIF(sol_p.nombres, \'\'), \'zzzz\') ASC')
             ->paginate(min(100, max(10, (int) request('per_page', 15))));
         return response()->json(['data' => $matriculas->items(), 'meta' => [
             'total' => $matriculas->total(),
