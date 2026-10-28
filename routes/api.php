@@ -701,6 +701,7 @@ Route::prefix('reports')->group(function () {
     Route::middleware(['auth:sanctum', 'role:Administrador|Instructor|Secretaria'])->prefix('instructor')->group(function () {
         Route::get('dashboard', [InstructorPortalController::class, 'dashboard'])->name('instructor.dashboard');
         Route::get('mis-cursos', [InstructorPortalController::class, 'misCursos'])->name('instructor.mis-cursos');
+        Route::get('horario', [InstructorPortalController::class, 'horario'])->name('instructor.horario');
         Route::get('cursos/{id}', [InstructorPortalController::class, 'detalleCurso'])->name('instructor.detalle-curso');
         Route::get('cursos/{id}/estudiantes', [InstructorPortalController::class, 'estudiantesCurso'])->name('instructor.estudiantes-curso');
         Route::get('estudiantes/{id}', [InstructorPortalController::class, 'detalleEstudiante'])->name('instructor.detalle-estudiante');

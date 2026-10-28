@@ -335,7 +335,76 @@ class InstructorPortalController extends Controller
     }
 
     /**
-     * Detalle de una clase específica
+     * Obtener el horario de clases del instructor con filtros opcionales
+     */
+    public function horario(Request $request): JsonResponse
+    {
+        $personaId = auth()->user()->persona_id;
+
+        $fechaInicio = $request->input('fecha_inicio');
+        $fechaFin = $request->input('fecha_fin');
+        $cursoId = $request->input('curso_id');
+
+        $query = Clase::query()
+            ->with([
+                'modulo:id,curso_abierto_id,nombre_modulo,numero_orden',
+                'modulo.cursoAbierto:id,nombre_instancia,modalidad,ciudad_id,catalogo_curso_id',
+                'modulo.cursoAbierto.ciudad:id,nombre',
+                'modulo.cursoAbierto.catalogo:id,nombre,color',
+            ]);
+
+        if (!$this->isAdmin()) {
+            $query->where(function ($q) use ($personaId) {
+                $q->where('instructor_id', $personaId)
+                  ->orWhereHas('modulo.cursoAbierto', fn($sub) => $sub->where('docente_id', $personaId));
+            });
+        }
+
+        if ($fechaInicio) {
+            $query->whereDate('fecha_clase', '>=', $fechaInicio);
+        }
+        if ($fechaFin) {
+            $query->whereDate('fecha_clase', '<=', $fechaFin);
+        }
+        if ($cursoId) {
+            $query->whereHas('modulo', fn($sub) => $sub->where('curso_abierto_id', $cursoId));
+        }
+
+        $clases = $query->orderBy('fecha_clase', 'asc')->orderBy('hora_inicio', 'asc')->get();
+
+        $claseIds = $clases->pluck('id')->all();
+        $clasesConAsistencia = empty($claseIds)
+            ? collect()
+            : Asistencia::whereIn('clase_id', $claseIds)->distinct()->pluck('clase_id');
+
+        $datos = $clases->map(function ($cl) use ($clasesConAsistencia) {
+            $curso = $cl->modulo?->cursoAbierto;
+            return [
+                'id' => $cl->id,
+                'modulo_id' => $cl->modulo_id,
+                'modulo_nombre' => $cl->modulo?->nombre_modulo ?? '',
+                'modulo_numero' => $cl->modulo?->numero_orden ?? 1,
+                'curso_id' => $curso?->id,
+                'curso_nombre' => $curso?->nombre_instancia ?? 'Clase',
+                'catalogo_nombre' => $curso?->catalogo?->nombre ?? '',
+                'color' => $curso?->catalogo?->color ?? '#fd761a',
+                'ciudad' => $curso?->ciudad?->nombre ?? '',
+                'modalidad' => $curso?->modalidad ?? 'Presencial',
+                'fecha_clase' => $cl->fecha_clase ? substr((string) $cl->fecha_clase, 0, 10) : null,
+                'hora_inicio' => $cl->hora_inicio,
+                'hora_fin' => $cl->hora_fin,
+                'asistencia_registrada' => $clasesConAsistencia->contains($cl->id),
+                'observaciones' => $cl->observaciones,
+            ];
+        });
+
+        return response()->json([
+            'datos' => $datos
+        ]);
+    }
+
+    /**
+     * Detalle específico de una clase para el modal/drawer del horario
      */
     public function detalleClase($claseId): JsonResponse
     {
@@ -344,13 +413,44 @@ class InstructorPortalController extends Controller
         $query = Clase::where('id', $claseId);
 
         if (!$this->isAdmin()) {
-            $query->whereHas('modulo.cursoAbierto', fn($q) => $q->where('docente_id', $personaId));
+            $query->where(function ($q) use ($personaId) {
+                $q->where('instructor_id', $personaId)
+                  ->orWhereHas('modulo.cursoAbierto', fn($sub) => $sub->where('docente_id', $personaId));
+            });
         }
 
-        $clase = $query->firstOrFail();
+        $clase = $query->with([
+            'modulo:id,curso_abierto_id,nombre_modulo,numero_orden',
+            'modulo.cursoAbierto:id,nombre_instancia,modalidad,ciudad_id,catalogo_curso_id',
+            'modulo.cursoAbierto.ciudad:id,nombre',
+            'modulo.cursoAbierto.catalogo:id,nombre,color',
+        ])->firstOrFail();
+
+        $curso = $clase->modulo?->cursoAbierto;
+        $totalEstudiantes = $curso ? Matricula::where('curso_abierto_id', $curso->id)->count() : 0;
+        $asistenciasPresentes = Asistencia::where('clase_id', $claseId)->where('asistio', true)->count();
+        $asistenciaRegistrada = Asistencia::where('clase_id', $claseId)->exists();
 
         return response()->json([
-            'datos' => $clase
+            'datos' => [
+                'id' => $clase->id,
+                'fecha_clase' => $clase->fecha_clase ? substr((string) $clase->fecha_clase, 0, 10) : null,
+                'hora_inicio' => $clase->hora_inicio,
+                'hora_fin' => $clase->hora_fin,
+                'observaciones' => $clase->observaciones,
+                'modulo_id' => $clase->modulo_id,
+                'modulo_nombre' => $clase->modulo?->nombre_modulo,
+                'modulo_numero' => $clase->modulo?->numero_orden,
+                'curso_id' => $curso?->id,
+                'curso_nombre' => $curso?->nombre_instancia,
+                'modalidad' => $curso?->modalidad,
+                'ciudad' => $curso?->ciudad?->nombre,
+                'catalogo_nombre' => $curso?->catalogo?->nombre,
+                'color' => $curso?->catalogo?->color,
+                'asistencia_registrada' => $asistenciaRegistrada,
+                'asistencias_presentes' => $asistenciasPresentes,
+                'total_estudiantes' => $totalEstudiantes,
+            ]
         ]);
     }
 
