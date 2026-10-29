@@ -68,7 +68,7 @@ class StoreRegistrationRequest extends FormRequest
             'archivo_comprobante_url' => 'nullable|string|max:500',
             'archivo_comprobante' => 'nullable|file|image|max:5120',
             'archivo_cedula_url' => 'required_without:archivo_cedula|nullable|string|max:500',
-            'archivo_cedula' => 'required_without:archivo_cedula_url|nullable|file|image|max:2048',
+            'archivo_cedula' => 'required_without:archivo_cedula_url|nullable|file|image',
             'tipo_comprobante' => 'required|in:transferencia,deposito,efectivo,otro',
             'fecha_pago_declarada' => 'required|date|before_or_equal:today',
         ];
@@ -120,7 +120,6 @@ class StoreRegistrationRequest extends FormRequest
             'archivo_comprobante.image' => 'El comprobante debe ser una imagen',
             'archivo_comprobante.file' => 'El comprobante debe ser un archivo válido',
             'archivo_cedula_url.max' => 'La URL de la cédula es demasiado larga',
-            'archivo_cedula.max' => 'La foto de cédula no debe superar los 2 MB',
             'archivo_cedula.image' => 'La foto de cédula debe ser una imagen',
             'archivo_cedula.file' => 'La foto de cédula debe ser un archivo válido',
             'tipo_comprobante.required' => 'Debe especificar el tipo de comprobante',

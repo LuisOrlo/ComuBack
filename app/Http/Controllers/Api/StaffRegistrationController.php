@@ -582,7 +582,7 @@ class StaffRegistrationController extends Controller
      */
     public function uploadCedula(string $id, Request $request)
     {
-        $request->validate(['archivo' => 'required|file|image|max:2048']);
+        $request->validate(['archivo' => 'required|file|image']);
         $solicitud = SolicitudInscripcion::findOrFail($id);
         $service = app(StorageCleanupService::class);
 

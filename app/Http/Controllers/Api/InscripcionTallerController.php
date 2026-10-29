@@ -156,7 +156,7 @@ class InscripcionTallerController extends Controller
             'metodo_pago' => 'nullable|string|max:50',
             'fecha_pago' => 'nullable|date',
             'comprobante' => 'nullable|file|image|max:5120',
-            'archivo_cedula' => 'nullable|file|image|max:2048',
+            'archivo_cedula' => 'nullable|file|image',
         ]);
 
         $taller = Taller::findOrFail($validated['taller_id']);
