@@ -33,6 +33,12 @@ class UpdateCursoAbiertoRequest extends FormRequest
             'modulos' => 'sometimes|array',
             'modulos.*.fecha_inicio' => 'nullable|date',
             'modulos.*.fecha_fin' => 'nullable|date',
+            'clases' => 'nullable|array',
+            'clases.*.id' => 'nullable|uuid',
+            'clases.*.fecha_clase' => 'required|date',
+            'clases.*.hora_inicio' => 'nullable|string',
+            'clases.*.hora_fin' => 'nullable|string',
+            'clases.*.modulo_id' => 'nullable|uuid',
         ];
     }
 

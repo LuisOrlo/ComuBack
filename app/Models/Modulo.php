@@ -68,6 +68,14 @@ class Modulo extends Model
         return $this->hasMany(Nota::class, 'modulo_id', 'id');
     }
 
+    /**
+     * Clases programadas en este módulo
+     */
+    public function clases(): HasMany
+    {
+        return $this->hasMany(Clase::class, 'modulo_id', 'id')->orderBy('fecha_clase')->orderBy('hora_inicio');
+    }
+
     // ========================================================================
     // SCOPES
     // ========================================================================

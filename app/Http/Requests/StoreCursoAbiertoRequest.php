@@ -35,6 +35,12 @@ class StoreCursoAbiertoRequest extends FormRequest
             'modulos.*.fecha_fin' => 'nullable|date',
             'dias_semana' => 'nullable|array|min:1|max:7',
             'dias_semana.*' => 'integer|min:1|max:7',
+            'clases' => 'nullable|array',
+            'clases.*.id' => 'nullable|uuid',
+            'clases.*.fecha_clase' => 'required|date',
+            'clases.*.hora_inicio' => 'nullable|string',
+            'clases.*.hora_fin' => 'nullable|string',
+            'clases.*.modulo_id' => 'nullable|uuid',
         ];
     }
 

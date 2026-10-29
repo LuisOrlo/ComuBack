@@ -291,13 +291,14 @@ class CursoAbiertoController extends Controller
                 }
             }
 
-            // Generar clases automáticamente si hay módulos con fechas y días
+            // Generar clases personalizadas o automáticamente si hay módulos con fechas y días
+            $clasesCustom = $request->input('clases');
             $diasSemana = $request->input('dias_semana', []);
             $horaInicio = $request->input('hora_inicio');
             $horaFin = $request->input('hora_fin');
-            if (!empty($diasSemana) && $horaInicio && $horaFin) {
+            if (!empty($clasesCustom) || (!empty($diasSemana) && $horaInicio && $horaFin)) {
                 $curso->refresh()->load('modulos');
-                $this->generarClasesParaCurso($curso, $diasSemana, $horaInicio, $horaFin);
+                $this->generarClasesParaCurso($curso, $diasSemana, (string) ($horaInicio ?? '00:00'), (string) ($horaFin ?? '00:00'), $clasesCustom);
             }
 
             return $curso;
@@ -308,7 +309,16 @@ class CursoAbiertoController extends Controller
 
     public function show($id)
     {
-        $curso = CursoAbierto::with(['catalogo', 'docente', 'ciudad', 'horario.diasSemana', 'matriculas', 'modulos'])->findOrFail($id);
+        $curso = CursoAbierto::with([
+            'catalogo',
+            'docente',
+            'ciudad',
+            'horario.diasSemana',
+            'matriculas',
+            'modulos.clases' => function ($q) {
+                $q->withCount('asistencias')->orderBy('fecha_clase')->orderBy('hora_inicio');
+            }
+        ])->findOrFail($id);
         return response()->json(['data' => $curso]);
     }
 
@@ -329,7 +339,8 @@ class CursoAbiertoController extends Controller
 
         $hasScheduleChange = $request->has('docente_id') || $request->has('fecha_inicio')
             || $request->has('fecha_fin') || $request->has('dias_semana')
-            || $request->has('hora_inicio') || $request->has('hora_fin');
+            || $request->has('hora_inicio') || $request->has('hora_fin')
+            || $request->has('clases');
 
         // Regenerar clases elimina sesiones existentes; nunca debe borrar asistencia sin confirmación explícita.
         if ($hasScheduleChange && !$request->boolean('confirmar_regeneracion_clases')) {
@@ -457,24 +468,105 @@ class CursoAbiertoController extends Controller
                 }
             }
 
-            // Regenerar clases si hay módulos con fechas y días definidos
+            // Regenerar clases si se enviaron clases personalizadas o días y horas
+            $clasesCustom = $request->input('clases');
             $diasSemana = $request->input('dias_semana', []);
-            $horaInicio = $request->input('hora_inicio');
-            $horaFin = $request->input('hora_fin');
-            if (!empty($diasSemana) && $horaInicio && $horaFin) {
-                $this->generarClasesParaCurso($curso, $diasSemana, $horaInicio, $horaFin);
+            $horaInicioFinal = $horaInicio ?? $request->input('hora_inicio');
+            $horaFinFinal = $horaFin ?? $request->input('hora_fin');
+            if (!empty($clasesCustom) || (!empty($diasSemana) && $horaInicioFinal && $horaFinFinal)) {
+                $this->generarClasesParaCurso($curso, $diasSemana, (string) ($horaInicioFinal ?? '00:00'), (string) ($horaFinFinal ?? '00:00'), $clasesCustom);
             }
         });
 
         return response()->json(['data' => $curso->fresh(), 'message' => 'Actualizado exitosamente']);
     }
 
-    private function generarClasesParaCurso(CursoAbierto $curso, array $diasSemana, string $horaInicio, string $horaFin): void
+    private function generarClasesParaCurso(CursoAbierto $curso, array $diasSemana, string $horaInicio, string $horaFin, ?array $clasesCustom = null): void
     {
         $modulos = $curso->modulos()->orderBy('numero_orden')->get();
+        if ($modulos->isEmpty()) {
+            return;
+        }
 
+        // Si se enviaron clases explícitas personalizadas
+        if (is_array($clasesCustom)) {
+            $modulosIds = $modulos->pluck('id')->toArray();
+            Clase::whereIn('modulo_id', $modulosIds)->delete();
+
+            $primerModulo = $modulos->first();
+            $ultimoModulo = $modulos->last();
+
+            // Ordenar las clases por fecha_clase
+            usort($clasesCustom, function ($a, $b) {
+                return strcmp($a['fecha_clase'] ?? '', $b['fecha_clase'] ?? '');
+            });
+
+            foreach ($clasesCustom as $c) {
+                if (empty($c['fecha_clase'])) {
+                    continue;
+                }
+
+                $fechaClase = \Carbon\Carbon::parse($c['fecha_clase'])->format('Y-m-d');
+                $hInicio = !empty($c['hora_inicio']) ? substr($c['hora_inicio'], 0, 5) : $horaInicio;
+                $hFin = !empty($c['hora_fin']) ? substr($c['hora_fin'], 0, 5) : $horaFin;
+
+                // Determinar el modulo_id correspondiente
+                $moduloId = null;
+
+                // 1. Si viene un modulo_id explícito y pertenece a este curso
+                if (!empty($c['modulo_id']) && in_array($c['modulo_id'], $modulosIds)) {
+                    $moduloId = $c['modulo_id'];
+                }
+
+                // 2. Si no, mapear según el rango de fechas de los módulos
+                if (!$moduloId) {
+                    foreach ($modulos as $mod) {
+                        if ($mod->fecha_inicio && $mod->fecha_fin) {
+                            $mIni = \Carbon\Carbon::parse($mod->fecha_inicio)->format('Y-m-d');
+                            $mFin = \Carbon\Carbon::parse($mod->fecha_fin)->format('Y-m-d');
+                            if ($fechaClase >= $mIni && $fechaClase <= $mFin) {
+                                $moduloId = $mod->id;
+                                break;
+                            }
+                        }
+                    }
+
+                    // 3. Si la fecha es anterior al primer módulo
+                    if (!$moduloId && $primerModulo->fecha_inicio) {
+                        $mIni = \Carbon\Carbon::parse($primerModulo->fecha_inicio)->format('Y-m-d');
+                        if ($fechaClase < $mIni) {
+                            $moduloId = $primerModulo->id;
+                        }
+                    }
+
+                    // 4. Si la fecha es posterior al último módulo
+                    if (!$moduloId && $ultimoModulo->fecha_fin) {
+                        $mFin = \Carbon\Carbon::parse($ultimoModulo->fecha_fin)->format('Y-m-d');
+                        if ($fechaClase > $mFin) {
+                            $moduloId = $ultimoModulo->id;
+                        }
+                    }
+
+                    // 5. Fallback por defecto al primer módulo
+                    if (!$moduloId) {
+                        $moduloId = $primerModulo->id;
+                    }
+                }
+
+                Clase::create([
+                    'modulo_id' => $moduloId,
+                    'instructor_id' => $curso->docente_id,
+                    'fecha_clase' => $fechaClase,
+                    'hora_inicio' => $hInicio,
+                    'hora_fin' => $hFin,
+                ]);
+            }
+
+            return;
+        }
+
+        // Modo automático por días de semana (fallback)
         foreach ($modulos as $modulo) {
-            // Eliminar clases existentes de este modulo para regenerarlas
             Clase::where('modulo_id', $modulo->id)->delete();
 
             if (!$modulo->fecha_inicio || !$modulo->fecha_fin) {
@@ -484,7 +576,6 @@ class CursoAbiertoController extends Controller
             $inicio = \Carbon\Carbon::parse($modulo->fecha_inicio);
             $fin = \Carbon\Carbon::parse($modulo->fecha_fin);
 
-            // Generar clase para cada dia de la semana seleccionado dentro del rango del modulo
             $fecha = $inicio->copy();
             while ($fecha->lte($fin)) {
                 $diaSemana = (int) $fecha->format('N'); // 1=Lun, 7=Dom

@@ -52,12 +52,7 @@ class AgendaService
                 if ($tipos) {
                     $courseEvents = $courseEvents->filter(fn (array $event) => in_array($event['tipo_evento'], $tipos, true));
                 }
-                $classKeys = $clases->map(fn (array $event) => ($event['curso_id'] ?? '') . '|' . ($event['fecha'] ?? ''));
-                $allEvents = $allEvents->concat(
-                    $courseEvents->reject(fn (array $event) => $classKeys->contains(
-                        ($event['curso_id'] ?? '') . '|' . ($event['fecha'] ?? '')
-                    ))
-                );
+                $allEvents = $allEvents->concat($courseEvents);
             }
         }
 
@@ -146,7 +141,7 @@ class AgendaService
                 'c.id as referencia_id',
                 'ca.id as curso_abierto_id',
                 DB::raw("'CLASE_CURSO' as tipo_evento"),
-                DB::raw("('Clase: ' || cc.nombre) as titulo"),
+                DB::raw("('Clase: ' || COALESCE(ca.nombre_instancia, cc.nombre)) as titulo"),
                 'c.fecha_clase as fecha',
                 'c.hora_inicio',
                 'c.hora_fin',
@@ -173,6 +168,15 @@ class AgendaService
      */
     private function getCursosProgramados(string $fechaInicio, string $fechaFin): Collection
     {
+        // Si un curso ya tiene clases generadas en academic.clases, su agenda
+        // proviene exclusivamente de dichas clases (respetando días eliminados/modificados).
+        $cursosConClases = DB::connection('pgsql')
+            ->table('academic.clases as c')
+            ->join('academic.modulos as m', 'c.modulo_id', '=', 'm.id')
+            ->distinct()
+            ->pluck('m.curso_abierto_id')
+            ->toArray();
+
         $cursos = DB::connection('pgsql')
             ->table('academic.cursos_abiertos as ca')
             ->join('academic.horarios as h', 'ca.horario_id', '=', 'h.id')
@@ -182,6 +186,7 @@ class AgendaService
             ->leftJoin('core.ciudades as ciu', 'ca.ciudad_id', '=', 'ciu.id')
             ->whereNull('ca.deleted_at')
             ->where('ca.es_activo', true)
+            ->whereNotIn('ca.id', $cursosConClases)
             ->whereDate('ca.fecha_inicio', '<=', $fechaFin)
             ->whereDate('ca.fecha_fin', '>=', $fechaInicio)
             ->select(
@@ -215,9 +220,8 @@ class AgendaService
 
                 $events->push($this->normalizeEvent([
                     'referencia_id' => $curso->curso_id . ':' . $fecha->toDateString(),
-                    'titulo' => $curso->es_personalizado
-                        ? $curso->nombre_instancia
-                        : ($curso->catalogo_nombre ?: $curso->nombre_instancia),
+                    'titulo' => $curso->nombre_instancia
+                        ?: ($curso->catalogo_nombre ?: 'Curso'),
                     'fecha' => $fecha->toDateString(),
                     'hora_inicio' => $curso->hora_inicio,
                     'hora_fin' => $curso->hora_fin,
@@ -240,22 +244,66 @@ class AgendaService
 
     private function getCursoProgramadoDetail(string $referenciaId, string $tipoEvento): ?array
     {
-        $cursoId = explode(':', $referenciaId, 2)[0];
-        $curso = $this->getCursosProgramados(
-            Carbon::now()->subYears(100)->toDateString(),
-            Carbon::now()->addYears(100)->toDateString()
-        )->first(fn (array $event) => $event['curso_id'] === $cursoId && $event['tipo_evento'] === $tipoEvento);
+        $parts = explode(':', $referenciaId, 2);
+        $cursoId = $parts[0];
+        $fechaEsperada = $parts[1] ?? null;
+
+        $curso = DB::connection('pgsql')
+            ->table('academic.cursos_abiertos as ca')
+            ->join('academic.horarios as h', 'ca.horario_id', '=', 'h.id')
+            ->leftJoin('academic.catalogo_cursos as cc', 'ca.catalogo_curso_id', '=', 'cc.id')
+            ->leftJoin('people.personas as doc', 'ca.docente_id', '=', 'doc.id')
+            ->leftJoin('core.ciudades as ciu', 'ca.ciudad_id', '=', 'ciu.id')
+            ->whereNull('ca.deleted_at')
+            ->where('ca.id', $cursoId)
+            ->select(
+                'ca.id as curso_id',
+                'ca.es_personalizado',
+                'ca.nombre_instancia',
+                'ca.fecha_inicio',
+                'ca.fecha_fin',
+                'ca.docente_id as instructor_id',
+                DB::raw("doc.nombres || ' ' || doc.apellidos as instructor_nombre"),
+                'ca.modalidad',
+                'ca.capacidad_maxima',
+                'ca.estado',
+                'ciu.nombre as ciudad_nombre',
+                'cc.nombre as catalogo_nombre',
+                'h.hora_inicio',
+                'h.hora_fin',
+                DB::raw("(SELECT COUNT(*) FROM academic.matriculas mat WHERE mat.curso_abierto_id = ca.id AND mat.estado IN ('activo', 'completado') AND mat.deleted_at IS NULL) as participantes_count")
+            )
+            ->first();
 
         if (!$curso) return null;
 
-        $curso['referencia_id'] = $cursoId;
-        $curso['detalle'] = [
-            'fecha_inicio' => $curso['fecha_inicio'] ?? null,
-            'fecha_fin' => $curso['fecha_fin'] ?? null,
-            'catalogo' => $curso['catalogo_nombre'] ?? null,
+        $event = $this->normalizeEvent([
+            'referencia_id' => $referenciaId,
+            'titulo' => $curso->nombre_instancia
+                ?: ($curso->catalogo_nombre ?: 'Curso'),
+            'fecha' => $fechaEsperada ?: $curso->fecha_inicio,
+            'hora_inicio' => $curso->hora_inicio,
+            'hora_fin' => $curso->hora_fin,
+            'instructor_id' => $curso->instructor_id,
+            'instructor_nombre' => $curso->instructor_nombre,
+            'estado' => $curso->estado,
+            'modalidad' => $curso->modalidad,
+            'participantes_count' => (int) $curso->participantes_count,
+            'capacidad_maxima' => $curso->capacidad_maxima,
+            'ciudad_nombre' => $curso->ciudad_nombre,
+            'catalogo_nombre' => $curso->catalogo_nombre,
+            'nombre_instancia' => $curso->nombre_instancia,
+            'curso_abierto_id' => $curso->curso_id,
+        ], $tipoEvento);
+
+        $event['detalle'] = [
+            'fecha_inicio' => $curso->fecha_inicio,
+            'fecha_fin' => $curso->fecha_fin,
+            'catalogo' => $curso->catalogo_nombre,
+            'nombre_instancia' => $curso->nombre_instancia,
         ];
 
-        return $curso;
+        return $event;
     }
 
     private function getClaseDetail(string $id): ?array
@@ -273,7 +321,7 @@ class AgendaService
             ->select(
                 'c.id as referencia_id',
                 DB::raw("'CLASE_CURSO' as tipo_evento"),
-                DB::raw("('Clase: ' || cc.nombre) as titulo"),
+                DB::raw("('Clase: ' || COALESCE(ca.nombre_instancia, cc.nombre)) as titulo"),
                 'c.fecha_clase as fecha',
                 'c.hora_inicio',
                 'c.hora_fin',
@@ -299,6 +347,8 @@ class AgendaService
         $event = $this->normalizeEvent($clase, 'CLASE_CURSO');
         $event['detalle'] = [
             'modulo' => $clase['modulo_nombre'] ?? null,
+            'catalogo' => $clase['catalogo_nombre'] ?? null,
+            'nombre_instancia' => $clase['nombre_instancia'] ?? null,
             'observaciones' => $clase['observaciones'] ?? null,
         ];
 
