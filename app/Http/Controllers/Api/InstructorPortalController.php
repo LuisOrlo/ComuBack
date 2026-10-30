@@ -268,6 +268,7 @@ class InstructorPortalController extends Controller
                         'direccion' => $cliente->direccion,
                         'estado_civil' => $cliente->estado_civil,
                         'edad' => $cliente->edad,
+                        'nivel_educativo' => $cliente->nivel_educativo,
                     ],
                 ]
             ]);
