@@ -203,18 +203,22 @@ class SolicitudInscripcion extends Model
     }
 
     /**
-     * Búsqueda en nombre/email del solicitante
+     * Búsqueda en nombre/cedula/email del solicitante
      */
     public function scopeSearch($query, $term)
     {
-        return $query->whereHas('estudiante', function ($q) use ($term) {
-            $q->where('nombres', 'ilike', "%{$term}%")
-              ->orWhere('apellidos', 'ilike', "%{$term}%")
-              ->orWhere('correo', 'ilike', "%{$term}%");
-        })->orWhereHas('participanteExterno', function ($q) use ($term) {
-            $q->personas()->where('nombres', 'ilike', "%{$term}%")
-              ->orWhere('apellidos', 'ilike', "%{$term}%")
-              ->orWhere('correo', 'ilike', "%{$term}%");
+        return $query->where(function ($sub) use ($term) {
+            $sub->whereHas('estudiante', function ($q) use ($term) {
+                $q->where('nombres', 'ilike', "%{$term}%")
+                  ->orWhere('apellidos', 'ilike', "%{$term}%")
+                  ->orWhere('cedula', 'ilike', "%{$term}%")
+                  ->orWhere('correo', 'ilike', "%{$term}%");
+            })->orWhereHas('participanteExterno', function ($q) use ($term) {
+                $q->where('nombres', 'ilike', "%{$term}%")
+                  ->orWhere('apellidos', 'ilike', "%{$term}%")
+                  ->orWhere('cedula', 'ilike', "%{$term}%")
+                  ->orWhere('correo', 'ilike', "%{$term}%");
+            });
         });
     }
 

@@ -109,8 +109,25 @@ class InteresadosController extends Controller
             'correo' => 'nullable|email|max:150',
             'monto_pago_anticipo' => 'nullable|numeric|min:0',
             'comprobante_url' => 'nullable|string',
+            'descuento' => 'nullable|numeric|min:0',
+            'motivo_descuento' => 'nullable|string|max:255',
+            'precio_final' => 'nullable|numeric|min:0',
+            'pagos' => 'nullable|array',
             'observaciones' => 'nullable|string|max:1000',
         ]);
+
+        $pagos = $validated['pagos'] ?? [];
+        $totalPagos = 0;
+        $primerComprobante = null;
+
+        if (!empty($pagos)) {
+            foreach ($pagos as $p) {
+                $totalPagos += (float) ($p['monto'] ?? 0);
+                if (!$primerComprobante && !empty($p['comprobantes']) && is_array($p['comprobantes'])) {
+                    $primerComprobante = $p['comprobantes'][0] ?? null;
+                }
+            }
+        }
 
         $lead = CursoInteresado::create([
             'curso_abierto_id' => $cursoId,
@@ -120,8 +137,12 @@ class InteresadosController extends Controller
             'telefono' => trim($validated['telefono']),
             'cedula' => !empty($validated['cedula']) ? trim($validated['cedula']) : null,
             'correo' => !empty($validated['correo']) ? trim($validated['correo']) : null,
-            'monto_pago_anticipo' => $validated['monto_pago_anticipo'] ?? 0.00,
-            'comprobante_url' => $validated['comprobante_url'] ?? null,
+            'monto_pago_anticipo' => !empty($pagos) ? $totalPagos : ($validated['monto_pago_anticipo'] ?? 0.00),
+            'comprobante_url' => $primerComprobante ?: ($validated['comprobante_url'] ?? null),
+            'descuento' => $validated['descuento'] ?? 0.00,
+            'motivo_descuento' => $validated['motivo_descuento'] ?? null,
+            'precio_final' => $validated['precio_final'] ?? null,
+            'pagos' => !empty($pagos) ? $pagos : null,
             'observaciones' => $validated['observaciones'] ?? null,
             'creado_por_id' => auth()->id(),
         ]);
@@ -151,8 +172,25 @@ class InteresadosController extends Controller
             'correo' => 'nullable|email|max:150',
             'monto_pago_anticipo' => 'nullable|numeric|min:0',
             'comprobante_url' => 'nullable|string',
+            'descuento' => 'nullable|numeric|min:0',
+            'motivo_descuento' => 'nullable|string|max:255',
+            'precio_final' => 'nullable|numeric|min:0',
+            'pagos' => 'nullable|array',
             'observaciones' => 'nullable|string|max:1000',
         ]);
+
+        $pagos = $validated['pagos'] ?? [];
+        $totalPagos = 0;
+        $primerComprobante = null;
+
+        if (!empty($pagos)) {
+            foreach ($pagos as $p) {
+                $totalPagos += (float) ($p['monto'] ?? 0);
+                if (!$primerComprobante && !empty($p['comprobantes']) && is_array($p['comprobantes'])) {
+                    $primerComprobante = $p['comprobantes'][0] ?? null;
+                }
+            }
+        }
 
         $lead = CursoInteresado::create([
             'curso_abierto_id' => null,
@@ -162,8 +200,12 @@ class InteresadosController extends Controller
             'telefono' => trim($validated['telefono']),
             'cedula' => !empty($validated['cedula']) ? trim($validated['cedula']) : null,
             'correo' => !empty($validated['correo']) ? trim($validated['correo']) : null,
-            'monto_pago_anticipo' => $validated['monto_pago_anticipo'] ?? 0.00,
-            'comprobante_url' => $validated['comprobante_url'] ?? null,
+            'monto_pago_anticipo' => !empty($pagos) ? $totalPagos : ($validated['monto_pago_anticipo'] ?? 0.00),
+            'comprobante_url' => $primerComprobante ?: ($validated['comprobante_url'] ?? null),
+            'descuento' => $validated['descuento'] ?? 0.00,
+            'motivo_descuento' => $validated['motivo_descuento'] ?? null,
+            'precio_final' => $validated['precio_final'] ?? null,
+            'pagos' => !empty($pagos) ? $pagos : null,
             'observaciones' => $validated['observaciones'] ?? null,
             'creado_por_id' => auth()->id(),
         ]);
@@ -193,8 +235,29 @@ class InteresadosController extends Controller
             'correo' => 'nullable|email|max:150',
             'monto_pago_anticipo' => 'nullable|numeric|min:0',
             'comprobante_url' => 'nullable|string',
+            'descuento' => 'nullable|numeric|min:0',
+            'motivo_descuento' => 'nullable|string|max:255',
+            'precio_final' => 'nullable|numeric|min:0',
+            'pagos' => 'nullable|array',
             'observaciones' => 'nullable|string|max:1000',
         ]);
+
+        if (array_key_exists('pagos', $validated)) {
+            $pagos = $validated['pagos'] ?? [];
+            $totalPagos = 0;
+            $primerComprobante = null;
+
+            if (!empty($pagos)) {
+                foreach ($pagos as $p) {
+                    $totalPagos += (float) ($p['monto'] ?? 0);
+                    if (!$primerComprobante && !empty($p['comprobantes']) && is_array($p['comprobantes'])) {
+                        $primerComprobante = $p['comprobantes'][0] ?? null;
+                    }
+                }
+            }
+            $validated['monto_pago_anticipo'] = $totalPagos;
+            $validated['comprobante_url'] = $primerComprobante ?: ($validated['comprobante_url'] ?? null);
+        }
 
         $lead->update($validated);
 
@@ -229,6 +292,23 @@ class InteresadosController extends Controller
      */
     public function uploadComprobante(Request $request): JsonResponse
     {
+        $files = $request->file('archivos') ?? $request->file('comprobantes');
+        if (is_array($files) && count($files) > 0) {
+            $urls = [];
+            foreach ($files as $f) {
+                if ($f) {
+                    $filename = Str::uuid() . '.' . $f->getClientOriginalExtension();
+                    $path = $f->storeAs('comprobantes', $filename);
+                    $urls[] = Storage::disk()->url($path);
+                }
+            }
+            return response()->json([
+                'success' => true,
+                'urls' => $urls,
+                'url' => $urls[0] ?? '',
+            ], 201);
+        }
+
         $file = $request->file('comprobante') ?? $request->file('archivo');
         if (!$file) {
             return response()->json(['message' => 'No se subió ningún archivo'], 422);
@@ -241,6 +321,7 @@ class InteresadosController extends Controller
         return response()->json([
             'success' => true,
             'url' => $url,
+            'urls' => [$url],
             'path' => $path,
         ], 201);
     }
@@ -328,6 +409,17 @@ class InteresadosController extends Controller
             }
         }
 
+        $pagosFormateados = $lead->pagos;
+        if (empty($pagosFormateados) && ($lead->monto_pago_anticipo > 0 || !empty($lead->comprobante_url))) {
+            $pagosFormateados = [[
+                'id' => (string) Str::uuid(),
+                'monto' => (float) $lead->monto_pago_anticipo,
+                'metodo_pago' => 'transferencia',
+                'fecha_pago' => $lead->created_at?->format('Y-m-d'),
+                'comprobantes' => !empty($lead->comprobante_url) ? [$lead->comprobante_url] : [],
+            ]];
+        }
+
         return [
             'id' => $lead->id,
             'curso_abierto_id' => $lead->curso_abierto_id,
@@ -340,6 +432,10 @@ class InteresadosController extends Controller
             'correo' => $lead->correo,
             'monto_pago_anticipo' => (float) $lead->monto_pago_anticipo,
             'comprobante_url' => $lead->comprobante_url,
+            'descuento' => (float) ($lead->descuento ?? 0),
+            'motivo_descuento' => $lead->motivo_descuento,
+            'precio_final' => $lead->precio_final !== null ? (float) $lead->precio_final : null,
+            'pagos' => $pagosFormateados ?: [],
             'observaciones' => $lead->observaciones,
             'estado_seguimiento' => $estadoSeguimiento,
             'estado_embudo' => $estadoSeguimiento,
@@ -398,6 +494,17 @@ class InteresadosController extends Controller
             }
         }
 
+        $pagosFormateados = $lead->pagos;
+        if (empty($pagosFormateados) && ($lead->monto_pago_anticipo > 0 || !empty($lead->comprobante_url))) {
+            $pagosFormateados = [[
+                'id' => (string) Str::uuid(),
+                'monto' => (float) $lead->monto_pago_anticipo,
+                'metodo_pago' => 'transferencia',
+                'fecha_pago' => $lead->created_at?->format('Y-m-d'),
+                'comprobantes' => !empty($lead->comprobante_url) ? [$lead->comprobante_url] : [],
+            ]];
+        }
+
         return [
             'id' => $lead->id,
             'curso_abierto_id' => $lead->curso_abierto_id,
@@ -410,6 +517,10 @@ class InteresadosController extends Controller
             'correo' => $lead->correo,
             'monto_pago_anticipo' => (float) $lead->monto_pago_anticipo,
             'comprobante_url' => $lead->comprobante_url,
+            'descuento' => (float) ($lead->descuento ?? 0),
+            'motivo_descuento' => $lead->motivo_descuento,
+            'precio_final' => $lead->precio_final !== null ? (float) $lead->precio_final : null,
+            'pagos' => $pagosFormateados ?: [],
             'observaciones' => $lead->observaciones,
             'estado_seguimiento' => $estadoSeguimiento,
             'estado_embudo' => $estadoSeguimiento,

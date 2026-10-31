@@ -10,7 +10,7 @@ use Illuminate\Validation\ValidationException;
 class PaymentAllocationService
 {
     public const VALID_METHODS = ['efectivo', 'transferencia', 'deposito', 'tarjeta', 'otro'];
-    public const MAX_METHODS = 5;
+    public const MAX_METHODS = 30;
 
     /**
      * Valida y normaliza el arreglo de métodos de pago.

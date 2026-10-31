@@ -56,7 +56,11 @@ class StaffRegistrationController extends Controller
 
         // Filtro por estado
         if ($request->filled('estado') && $request->estado !== 'todos') {
-            $query->where('estado', $request->estado);
+            if (in_array($request->estado, ['matricula_creada', 'aprobado', 'aprobados'])) {
+                $query->whereIn('estado', [SolicitudInscripcion::ESTADO_MATRICULA_CREADA, SolicitudInscripcion::ESTADO_APROBADO]);
+            } else {
+                $query->where('estado', $request->estado);
+            }
         }
 
         // Filtro por curso
@@ -84,22 +88,29 @@ class StaffRegistrationController extends Controller
             }
         }
 
-        // Búsqueda por nombre/email del solicitante
+        // Búsqueda por nombre/cédula/email del solicitante
         if ($request->has('search')) {
             $query->search($request->search);
         }
 
-        // Filtro por fecha
+        // Filtro por fecha (en aprobados filtra por fecha de validación/aprobación)
+        $esAprobados = in_array($request->estado, ['matricula_creada', 'aprobado', 'aprobados']);
+        $columnaFecha = $esAprobados ? 'fecha_validacion' : 'created_at';
+
         if ($request->has('fecha_desde')) {
-            $query->whereDate('created_at', '>=', $request->fecha_desde);
+            $query->whereDate($columnaFecha, '>=', $request->fecha_desde);
         }
 
         if ($request->has('fecha_hasta')) {
-            $query->whereDate('created_at', '<=', $request->fecha_hasta);
+            $query->whereDate($columnaFecha, '<=', $request->fecha_hasta);
         }
 
-        // Ordenar por fecha descendente
-        $query->orderByDesc('created_at');
+        // Ordenar por fecha descendente (en aprobados, los más recientemente validados primero)
+        if ($esAprobados) {
+            $query->orderByRaw('COALESCE(fecha_validacion, created_at) DESC');
+        } else {
+            $query->orderByDesc('created_at');
+        }
 
         $perPage = min(100, max(10, (int) $request->get('per_page', 20)));
         $solicitudes = $query->paginate($perPage);
@@ -1266,17 +1277,24 @@ class StaffRegistrationController extends Controller
         $query = CursoAbierto::query()
             ->whereHas('solicitudesInscripcion', function ($s) use ($request) {
                 if ($request->filled('estado') && $request->estado !== 'todos') {
-                    $s->where('estado', $request->estado);
+                    if (in_array($request->estado, ['matricula_creada', 'aprobado', 'aprobados'])) {
+                        $s->whereIn('estado', [SolicitudInscripcion::ESTADO_MATRICULA_CREADA, SolicitudInscripcion::ESTADO_APROBADO]);
+                    } else {
+                        $s->where('estado', $request->estado);
+                    }
                 }
+                $esAprobados = in_array($request->estado, ['matricula_creada', 'aprobado', 'aprobados']);
+                $columnaFecha = $esAprobados ? 'fecha_validacion' : 'created_at';
+
                 if ($request->filled('fecha_desde')) {
-                    $s->whereDate('created_at', '>=', $request->fecha_desde);
+                    $s->whereDate($columnaFecha, '>=', $request->fecha_desde);
                 }
                 if ($request->filled('fecha_hasta')) {
-                    $s->whereDate('created_at', '<=', $request->fecha_hasta);
+                    $s->whereDate($columnaFecha, '<=', $request->fecha_hasta);
                 }
                 // Si estamos en aprobados (matricula_creada) y no hay fecha_desde, acotar a los últimos 90 días
-                if ($request->estado === 'matricula_creada' && !$request->filled('fecha_desde')) {
-                    $s->where('created_at', '>=', now()->subDays(90));
+                if ($esAprobados && !$request->filled('fecha_desde')) {
+                    $s->whereRaw('COALESCE(fecha_validacion, created_at) >= ?', [now()->subDays(90)]);
                 }
             })
             ->select([
@@ -1355,16 +1373,23 @@ class StaffRegistrationController extends Controller
 
                 $c->whereHas('solicitudesInscripcion', function ($s) use ($request) {
                     if ($request->filled('estado') && $request->estado !== 'todos') {
-                        $s->where('estado', $request->estado);
+                        if (in_array($request->estado, ['matricula_creada', 'aprobado', 'aprobados'])) {
+                            $s->whereIn('estado', [SolicitudInscripcion::ESTADO_MATRICULA_CREADA, SolicitudInscripcion::ESTADO_APROBADO]);
+                        } else {
+                            $s->where('estado', $request->estado);
+                        }
                     }
+                    $esAprobados = in_array($request->estado, ['matricula_creada', 'aprobado', 'aprobados']);
+                    $columnaFecha = $esAprobados ? 'fecha_validacion' : 'created_at';
+
                     if ($request->filled('fecha_desde')) {
-                        $s->whereDate('created_at', '>=', $request->fecha_desde);
+                        $s->whereDate($columnaFecha, '>=', $request->fecha_desde);
                     }
                     if ($request->filled('fecha_hasta')) {
-                        $s->whereDate('created_at', '<=', $request->fecha_hasta);
+                        $s->whereDate($columnaFecha, '<=', $request->fecha_hasta);
                     }
-                    if ($request->estado === 'matricula_creada' && !$request->filled('fecha_desde')) {
-                        $s->where('created_at', '>=', now()->subDays(90));
+                    if ($esAprobados && !$request->filled('fecha_desde')) {
+                        $s->whereRaw('COALESCE(fecha_validacion, created_at) >= ?', [now()->subDays(90)]);
                     }
                 });
             })

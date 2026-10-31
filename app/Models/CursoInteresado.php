@@ -22,12 +22,19 @@ class CursoInteresado extends Model
         'correo',
         'monto_pago_anticipo',
         'comprobante_url',
+        'descuento',
+        'motivo_descuento',
+        'precio_final',
+        'pagos',
         'observaciones',
         'creado_por_id',
     ];
 
     protected $casts = [
         'monto_pago_anticipo' => 'float',
+        'descuento' => 'float',
+        'precio_final' => 'float',
+        'pagos' => 'array',
     ];
 
     public function cursoAbierto(): BelongsTo
