@@ -24,7 +24,19 @@ class EstudianteStoreRequest extends FormRequest
             'celular' => ['nullable'],
             'ciudad_id' => ['nullable'],
             'ciudad' => ['nullable'],
-            'archivo_cedula' => ['nullable', 'file', 'image', 'mimes:jpeg,png,jpg,webp', 'max:5120'],
+            'archivo_cedula' => [
+                'nullable',
+                'file',
+                'mimes:jpeg,png,jpg,webp,pdf',
+                function ($attribute, $value, $fail) {
+                    if ($value instanceof \Illuminate\Http\UploadedFile) {
+                        $isPdf = strtolower($value->getClientOriginalExtension()) === 'pdf' || $value->getMimeType() === 'application/pdf';
+                        if ($isPdf && $value->getSize() > 5 * 1024 * 1024) {
+                            $fail('El documento PDF de la cédula no debe superar los 5 MB.');
+                        }
+                    }
+                },
+            ],
             'notas_internas' => ['nullable'],
             'ocupacion' => ['nullable'],
             'direccion' => ['nullable'],

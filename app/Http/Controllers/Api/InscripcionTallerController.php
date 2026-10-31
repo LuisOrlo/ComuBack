@@ -156,7 +156,19 @@ class InscripcionTallerController extends Controller
             'metodo_pago' => 'nullable|string|max:50',
             'fecha_pago' => 'nullable|date',
             'comprobante' => 'nullable|file|image|max:5120',
-            'archivo_cedula' => 'nullable|file|image',
+            'archivo_cedula' => [
+                'nullable',
+                'file',
+                'mimes:jpeg,png,jpg,webp,pdf',
+                function ($attribute, $value, $fail) {
+                    if ($value instanceof \Illuminate\Http\UploadedFile) {
+                        $isPdf = strtolower($value->getClientOriginalExtension()) === 'pdf' || $value->getMimeType() === 'application/pdf';
+                        if ($isPdf && $value->getSize() > 5 * 1024 * 1024) {
+                            $fail('El documento PDF de la cédula no debe superar los 5 MB.');
+                        }
+                    }
+                },
+            ],
         ]);
 
         $taller = Taller::findOrFail($validated['taller_id']);

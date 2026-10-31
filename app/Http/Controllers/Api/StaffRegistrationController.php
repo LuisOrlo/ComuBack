@@ -593,7 +593,21 @@ class StaffRegistrationController extends Controller
      */
     public function uploadCedula(string $id, Request $request)
     {
-        $request->validate(['archivo' => 'required|file|image']);
+        $request->validate([
+            'archivo' => [
+                'required',
+                'file',
+                'mimes:jpeg,png,jpg,webp,pdf',
+                function ($attribute, $value, $fail) {
+                    if ($value instanceof \Illuminate\Http\UploadedFile) {
+                        $isPdf = strtolower($value->getClientOriginalExtension()) === 'pdf' || $value->getMimeType() === 'application/pdf';
+                        if ($isPdf && $value->getSize() > 5 * 1024 * 1024) {
+                            $fail('El documento PDF de la cédula no debe superar los 5 MB.');
+                        }
+                    }
+                },
+            ],
+        ]);
         $solicitud = SolicitudInscripcion::findOrFail($id);
         $service = app(StorageCleanupService::class);
 

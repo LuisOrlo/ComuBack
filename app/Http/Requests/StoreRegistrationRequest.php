@@ -68,7 +68,20 @@ class StoreRegistrationRequest extends FormRequest
             'archivo_comprobante_url' => 'nullable|string|max:500',
             'archivo_comprobante' => 'nullable|file|image|max:5120',
             'archivo_cedula_url' => 'required_without:archivo_cedula|nullable|string|max:500',
-            'archivo_cedula' => 'required_without:archivo_cedula_url|nullable|file|image',
+            'archivo_cedula' => [
+                'required_without:archivo_cedula_url',
+                'nullable',
+                'file',
+                'mimes:jpeg,png,jpg,webp,pdf',
+                function ($attribute, $value, $fail) {
+                    if ($value instanceof \Illuminate\Http\UploadedFile) {
+                        $isPdf = strtolower($value->getClientOriginalExtension()) === 'pdf' || $value->getMimeType() === 'application/pdf';
+                        if ($isPdf && $value->getSize() > 5 * 1024 * 1024) {
+                            $fail('El documento PDF de la cédula no debe superar los 5 MB.');
+                        }
+                    }
+                },
+            ],
             'tipo_comprobante' => 'required|in:transferencia,deposito,efectivo,otro',
             'fecha_pago_declarada' => 'required|date|before_or_equal:today',
         ];
@@ -120,8 +133,8 @@ class StoreRegistrationRequest extends FormRequest
             'archivo_comprobante.image' => 'El comprobante debe ser una imagen',
             'archivo_comprobante.file' => 'El comprobante debe ser un archivo válido',
             'archivo_cedula_url.max' => 'La URL de la cédula es demasiado larga',
-            'archivo_cedula.image' => 'La foto de cédula debe ser una imagen',
-            'archivo_cedula.file' => 'La foto de cédula debe ser un archivo válido',
+            'archivo_cedula.mimes' => 'La cédula debe ser una imagen (JPG, PNG, WEBP) o un documento PDF',
+            'archivo_cedula.file' => 'El archivo de la cédula debe ser un archivo válido',
             'tipo_comprobante.required' => 'Debe especificar el tipo de comprobante',
             'tipo_comprobante.in' => 'El tipo de comprobante debe ser uno de: transferencia, deposito, efectivo, otro',
             'fecha_pago_declarada.required' => 'Debe especificar la fecha en que realizó el pago',
