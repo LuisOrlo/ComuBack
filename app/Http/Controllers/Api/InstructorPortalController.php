@@ -519,6 +519,7 @@ class InstructorPortalController extends Controller
             'asistencias.*.observaciones' => 'nullable|string',
             'asistencias.*.estado' => 'nullable|string|in:presente,ausente,tardanza,justificado',
             'clase_observaciones' => 'nullable|string|max:500',
+            'tema' => 'nullable|string|max:255',
         ]);
 
         $claseQuery = Clase::where('id', $claseId);
@@ -545,8 +546,15 @@ class InstructorPortalController extends Controller
                 );
             }
 
-            if ($request->filled('clase_observaciones')) {
-                $clase->update(['observaciones' => $request->clase_observaciones]);
+            $claseUpdates = [];
+            if ($request->has('clase_observaciones')) {
+                $claseUpdates['observaciones'] = $request->clase_observaciones;
+            }
+            if ($request->has('tema')) {
+                $claseUpdates['tema'] = $request->tema;
+            }
+            if (!empty($claseUpdates)) {
+                $clase->update($claseUpdates);
             }
 
             DB::commit();

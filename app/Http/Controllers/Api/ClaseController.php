@@ -25,6 +25,8 @@ class ClaseController extends Controller
             'hora_inicio' => 'nullable|date_format:H:i',
             'hora_fin' => 'nullable|date_format:H:i|after:hora_inicio',
             'instructor_id' => 'nullable|uuid|exists:personas,id',
+            'tema' => 'nullable|string|max:255',
+            'observaciones' => 'nullable|string',
         ]);
 
         $clase->update($validated);

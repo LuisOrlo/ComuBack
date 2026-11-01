@@ -22,6 +22,7 @@ class Clase extends Model
         'hora_inicio',
         'hora_fin',
         'observaciones',
+        'tema',
     ];
 
     protected $casts = [
