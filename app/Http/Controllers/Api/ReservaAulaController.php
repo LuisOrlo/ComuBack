@@ -290,11 +290,11 @@ class ReservaAulaController extends Controller
 
         if (isset($data['estado']) && $data['estado'] !== $reserva->estado) {
             $transiciones = [
-                'reservado' => ['confirmado', 'cancelado'],
-                'confirmado' => ['en_progreso', 'cancelado'],
-                'en_progreso' => ['completado', 'cancelado'],
-                'completado' => [],
-                'cancelado' => [],
+                'reservado' => ['confirmado', 'en_progreso', 'completado', 'cancelado'],
+                'confirmado' => ['reservado', 'en_progreso', 'completado', 'cancelado'],
+                'en_progreso' => ['confirmado', 'completado', 'cancelado'],
+                'completado' => ['en_progreso', 'confirmado'],
+                'cancelado' => ['reservado', 'confirmado'],
             ];
             if (!in_array($data['estado'], $transiciones[$reserva->estado] ?? [], true)) {
                 return response()->json(['message' => 'Transición de estado no permitida: '.$reserva->estado.' → '.$data['estado']], 422);
