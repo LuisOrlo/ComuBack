@@ -49,7 +49,13 @@ class InstructorController extends Controller
                 ->whereIn('estado', ['pendiente', 'confirmado'])
                 ->whereDate('fecha', '>', $hoy), 'talleres_proximos_count');
 
-        if ($request->filled('buscar')) $query->buscar($request->buscar);
+        if ($request->filled('buscar')) {
+            $termino = $request->buscar;
+            $query->where(function ($q) use ($termino) {
+                $q->where('nombres', 'ilike', "%{$termino}%")
+                  ->orWhere('apellidos', 'ilike', "%{$termino}%");
+            });
+        }
         if ($request->filled('ciudad_id')) $query->where('ciudad_id', $request->ciudad_id);
         if ($request->has('activos')) $query->where('es_activo', $request->boolean('activos'));
 
