@@ -76,7 +76,7 @@ CREATE EXTENSION IF NOT EXISTS pg_trgm WITH SCHEMA public;
 
 
 --
--- TOC entry 5603 (class 0 OID 0)
+-- TOC entry 5642 (class 0 OID 0)
 -- Dependencies: 2
 -- Name: EXTENSION pg_trgm; Type: COMMENT; Schema: -; Owner: -
 --
@@ -93,7 +93,7 @@ CREATE EXTENSION IF NOT EXISTS unaccent WITH SCHEMA public;
 
 
 --
--- TOC entry 5604 (class 0 OID 0)
+-- TOC entry 5643 (class 0 OID 0)
 -- Dependencies: 3
 -- Name: EXTENSION unaccent; Type: COMMENT; Schema: -; Owner: -
 --
@@ -110,7 +110,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp" WITH SCHEMA public;
 
 
 --
--- TOC entry 5605 (class 0 OID 0)
+-- TOC entry 5644 (class 0 OID 0)
 -- Dependencies: 4
 -- Name: EXTENSION "uuid-ossp"; Type: COMMENT; Schema: -; Owner: -
 --
@@ -119,7 +119,7 @@ COMMENT ON EXTENSION "uuid-ossp" IS 'generate universally unique identifiers (UU
 
 
 --
--- TOC entry 1008 (class 1247 OID 48341)
+-- TOC entry 1010 (class 1247 OID 48341)
 -- Name: t_estado_matricula; Type: TYPE; Schema: academic; Owner: -
 --
 
@@ -132,7 +132,7 @@ CREATE TYPE academic.t_estado_matricula AS ENUM (
 
 
 --
--- TOC entry 1011 (class 1247 OID 48350)
+-- TOC entry 1013 (class 1247 OID 48350)
 -- Name: t_estado_oferta; Type: TYPE; Schema: academic; Owner: -
 --
 
@@ -146,7 +146,7 @@ CREATE TYPE academic.t_estado_oferta AS ENUM (
 
 
 --
--- TOC entry 1014 (class 1247 OID 48362)
+-- TOC entry 1016 (class 1247 OID 48362)
 -- Name: t_estado_pago; Type: TYPE; Schema: finance; Owner: -
 --
 
@@ -159,7 +159,7 @@ CREATE TYPE finance.t_estado_pago AS ENUM (
 
 
 --
--- TOC entry 1017 (class 1247 OID 48372)
+-- TOC entry 1019 (class 1247 OID 48372)
 -- Name: t_estado_verificacion; Type: TYPE; Schema: finance; Owner: -
 --
 
@@ -171,7 +171,7 @@ CREATE TYPE finance.t_estado_verificacion AS ENUM (
 
 
 --
--- TOC entry 1020 (class 1247 OID 48380)
+-- TOC entry 1022 (class 1247 OID 48380)
 -- Name: t_metodo_pago; Type: TYPE; Schema: finance; Owner: -
 --
 
@@ -185,7 +185,7 @@ CREATE TYPE finance.t_metodo_pago AS ENUM (
 
 
 --
--- TOC entry 1023 (class 1247 OID 48392)
+-- TOC entry 1025 (class 1247 OID 48392)
 -- Name: t_estado_reserva; Type: TYPE; Schema: services; Owner: -
 --
 
@@ -199,7 +199,7 @@ CREATE TYPE services.t_estado_reserva AS ENUM (
 
 
 --
--- TOC entry 374 (class 1255 OID 48403)
+-- TOC entry 376 (class 1255 OID 48403)
 -- Name: fn_actualizar_perfil_estudiante(); Type: FUNCTION; Schema: academic; Owner: -
 --
 
@@ -224,7 +224,7 @@ $$;
 
 
 --
--- TOC entry 375 (class 1255 OID 48404)
+-- TOC entry 377 (class 1255 OID 48404)
 -- Name: fn_actualizar_resumen_curso(); Type: FUNCTION; Schema: academic; Owner: -
 --
 
@@ -259,7 +259,7 @@ $$;
 
 
 --
--- TOC entry 387 (class 1255 OID 48405)
+-- TOC entry 391 (class 1255 OID 48405)
 -- Name: fn_validar_capacidad_curso(); Type: FUNCTION; Schema: academic; Owner: -
 --
 
@@ -294,7 +294,7 @@ CREATE FUNCTION academic.fn_validar_capacidad_curso() RETURNS trigger
 
 
 --
--- TOC entry 388 (class 1255 OID 48406)
+-- TOC entry 393 (class 1255 OID 48406)
 -- Name: fn_auditar_cambios_horario(); Type: FUNCTION; Schema: audit; Owner: -
 --
 
@@ -396,7 +396,7 @@ $$;
 
 
 --
--- TOC entry 391 (class 1255 OID 48409)
+-- TOC entry 392 (class 1255 OID 48409)
 -- Name: fn_registrar_movimiento_caja(); Type: FUNCTION; Schema: finance; Owner: -
 --
 
@@ -621,7 +621,8 @@ CREATE TABLE academic.clases (
     fecha_clase date NOT NULL,
     hora_inicio time without time zone NOT NULL,
     hora_fin time without time zone NOT NULL,
-    observaciones text
+    observaciones text,
+    tema character varying(255)
 );
 
 
@@ -689,6 +690,7 @@ CREATE TABLE academic.cursos_abiertos (
     observaciones text,
     updated_at timestamp without time zone,
     es_personalizado boolean DEFAULT false NOT NULL,
+    precio_matricula numeric(10,2) DEFAULT '0'::numeric NOT NULL,
     CONSTRAINT cursos_abiertos_modalidad_check CHECK (((modalidad)::text = ANY (ARRAY[('presencial'::character varying)::text, ('virtual'::character varying)::text])))
 );
 
@@ -721,7 +723,7 @@ CREATE TABLE academic.horarios_dias (
 
 
 --
--- TOC entry 5606 (class 0 OID 0)
+-- TOC entry 5645 (class 0 OID 0)
 -- Dependencies: 237
 -- Name: COLUMN horarios_dias.dia_semana; Type: COMMENT; Schema: academic; Owner: -
 --
@@ -743,7 +745,7 @@ CREATE SEQUENCE academic.horarios_dias_id_seq
 
 
 --
--- TOC entry 5607 (class 0 OID 0)
+-- TOC entry 5646 (class 0 OID 0)
 -- Dependencies: 238
 -- Name: horarios_dias_id_seq; Type: SEQUENCE OWNED BY; Schema: academic; Owner: -
 --
@@ -1112,7 +1114,7 @@ CREATE SEQUENCE audit.cambios_horario_auditoria_id_seq
 
 
 --
--- TOC entry 5608 (class 0 OID 0)
+-- TOC entry 5647 (class 0 OID 0)
 -- Dependencies: 255
 -- Name: cambios_horario_auditoria_id_seq; Type: SEQUENCE OWNED BY; Schema: audit; Owner: -
 --
@@ -1225,12 +1227,57 @@ CREATE SEQUENCE core.ciudades_id_seq
 
 
 --
--- TOC entry 5609 (class 0 OID 0)
+-- TOC entry 5648 (class 0 OID 0)
 -- Dependencies: 262
 -- Name: ciudades_id_seq; Type: SEQUENCE OWNED BY; Schema: core; Owner: -
 --
 
 ALTER SEQUENCE core.ciudades_id_seq OWNED BY core.ciudades.id;
+
+
+--
+-- TOC entry 329 (class 1259 OID 53673)
+-- Name: curso_interesados; Type: TABLE; Schema: core; Owner: -
+--
+
+CREATE TABLE core.curso_interesados (
+    id uuid NOT NULL,
+    curso_abierto_id uuid,
+    taller_id uuid,
+    nombres character varying(100) NOT NULL,
+    apellidos character varying(100) NOT NULL,
+    telefono character varying(30) NOT NULL,
+    cedula character varying(20),
+    correo character varying(150),
+    monto_pago_anticipo numeric(10,2) DEFAULT '0'::numeric NOT NULL,
+    comprobante_url text,
+    observaciones text,
+    creado_por_id uuid,
+    created_at timestamp(0) without time zone,
+    updated_at timestamp(0) without time zone,
+    descuento numeric(10,2) DEFAULT '0'::numeric NOT NULL,
+    motivo_descuento character varying(255),
+    precio_final numeric(10,2),
+    pagos jsonb
+);
+
+
+--
+-- TOC entry 330 (class 1259 OID 53712)
+-- Name: documentos_archivos; Type: TABLE; Schema: core; Owner: -
+--
+
+CREATE TABLE core.documentos_archivos (
+    id uuid NOT NULL,
+    nombre character varying(255) NOT NULL,
+    descripcion text,
+    archivo_path character varying(500) NOT NULL,
+    archivo_nombre_original character varying(255) NOT NULL,
+    es_publico boolean DEFAULT true NOT NULL,
+    created_at timestamp(0) without time zone,
+    updated_at timestamp(0) without time zone,
+    descargas_count integer DEFAULT 0 NOT NULL
+);
 
 
 --
@@ -1278,7 +1325,7 @@ CREATE SEQUENCE core.failed_jobs_id_seq
 
 
 --
--- TOC entry 5610 (class 0 OID 0)
+-- TOC entry 5649 (class 0 OID 0)
 -- Dependencies: 265
 -- Name: failed_jobs_id_seq; Type: SEQUENCE OWNED BY; Schema: core; Owner: -
 --
@@ -1335,7 +1382,7 @@ CREATE SEQUENCE core.jobs_id_seq
 
 
 --
--- TOC entry 5611 (class 0 OID 0)
+-- TOC entry 5650 (class 0 OID 0)
 -- Dependencies: 268
 -- Name: jobs_id_seq; Type: SEQUENCE OWNED BY; Schema: core; Owner: -
 --
@@ -1370,7 +1417,7 @@ CREATE SEQUENCE core.migrations_id_seq
 
 
 --
--- TOC entry 5612 (class 0 OID 0)
+-- TOC entry 5651 (class 0 OID 0)
 -- Dependencies: 270
 -- Name: migrations_id_seq; Type: SEQUENCE OWNED BY; Schema: core; Owner: -
 --
@@ -1442,7 +1489,7 @@ CREATE SEQUENCE core.permissions_id_seq
 
 
 --
--- TOC entry 5613 (class 0 OID 0)
+-- TOC entry 5652 (class 0 OID 0)
 -- Dependencies: 275
 -- Name: permissions_id_seq; Type: SEQUENCE OWNED BY; Schema: core; Owner: -
 --
@@ -1489,7 +1536,7 @@ CREATE SEQUENCE core.roles_id_seq
 
 
 --
--- TOC entry 5614 (class 0 OID 0)
+-- TOC entry 5653 (class 0 OID 0)
 -- Dependencies: 278
 -- Name: roles_id_seq; Type: SEQUENCE OWNED BY; Schema: core; Owner: -
 --
@@ -1543,7 +1590,7 @@ CREATE SEQUENCE core.users_id_seq
 
 
 --
--- TOC entry 5615 (class 0 OID 0)
+-- TOC entry 5654 (class 0 OID 0)
 -- Dependencies: 281
 -- Name: users_id_seq; Type: SEQUENCE OWNED BY; Schema: core; Owner: -
 --
@@ -1657,6 +1704,7 @@ CREATE TABLE finance.transacciones_ingreso (
     motivo_rechazo text,
     linea_pago_modulo_id uuid,
     referencia_pago character varying(100),
+    grupo_pago_id uuid,
     CONSTRAINT transacciones_ingreso_monto_check CHECK ((monto > (0)::numeric))
 );
 
@@ -1803,6 +1851,7 @@ CREATE TABLE people.clientes_externos (
     nivel_educativo character varying(100),
     tipo_cliente character varying(20) DEFAULT 'persona'::character varying NOT NULL,
     nombre_empresa character varying(150),
+    ruc character varying(20),
     CONSTRAINT clientes_externos_tipo_cliente_check CHECK (((tipo_cliente)::text = ANY ((ARRAY['persona'::character varying, 'empresa'::character varying])::text[])))
 );
 
@@ -1853,6 +1902,8 @@ CREATE TABLE services.reservas_aulas (
     precio_original numeric(10,2),
     monto_descuento numeric(10,2) DEFAULT '0'::numeric NOT NULL,
     motivo_descuento character varying(255),
+    monto_recargo numeric(10,2) DEFAULT '0'::numeric NOT NULL,
+    motivo_recargo character varying(255),
     CONSTRAINT chk_cliente_aula CHECK ((num_nonnulls(persona_id, cliente_externo_id) = 1))
 );
 
@@ -1877,6 +1928,8 @@ CREATE TABLE services.reservas_podcast (
     precio_original numeric(10,2),
     monto_descuento numeric(10,2) DEFAULT '0'::numeric NOT NULL,
     motivo_descuento character varying(255),
+    monto_recargo numeric(10,2) DEFAULT '0'::numeric NOT NULL,
+    motivo_recargo character varying(255),
     CONSTRAINT chk_cliente_podcast CHECK ((num_nonnulls(persona_id, cliente_externo_id) = 1))
 );
 
@@ -1898,6 +1951,18 @@ CREATE TABLE services.servicios_streaming (
     precio_total numeric(10,2) NOT NULL,
     estado services.t_estado_reserva DEFAULT 'reservado'::services.t_estado_reserva,
     created_at timestamp with time zone DEFAULT now(),
+    ciudad_id bigint,
+    titulo character varying(255),
+    direccion character varying(500),
+    referencias_ubicacion text,
+    equipos_detalle text,
+    observaciones text,
+    precio_original numeric(10,2),
+    monto_descuento numeric(10,2) DEFAULT '0'::numeric NOT NULL,
+    motivo_descuento character varying(255),
+    monto_recargo numeric(10,2) DEFAULT '0'::numeric NOT NULL,
+    motivo_recargo character varying(255),
+    updated_at timestamp(0) with time zone DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT chk_cliente_streaming CHECK ((num_nonnulls(persona_id, cliente_externo_id) = 1))
 );
 
@@ -2122,7 +2187,7 @@ CREATE SEQUENCE public.failed_jobs_id_seq
 
 
 --
--- TOC entry 5616 (class 0 OID 0)
+-- TOC entry 5655 (class 0 OID 0)
 -- Dependencies: 307
 -- Name: failed_jobs_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
 --
@@ -2179,7 +2244,7 @@ CREATE SEQUENCE public.jobs_id_seq
 
 
 --
--- TOC entry 5617 (class 0 OID 0)
+-- TOC entry 5656 (class 0 OID 0)
 -- Dependencies: 310
 -- Name: jobs_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
 --
@@ -2214,7 +2279,7 @@ CREATE SEQUENCE public.migrations_id_seq
 
 
 --
--- TOC entry 5618 (class 0 OID 0)
+-- TOC entry 5657 (class 0 OID 0)
 -- Dependencies: 312
 -- Name: migrations_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
 --
@@ -2255,7 +2320,7 @@ CREATE SEQUENCE public.personal_access_tokens_id_seq
 
 
 --
--- TOC entry 5619 (class 0 OID 0)
+-- TOC entry 5658 (class 0 OID 0)
 -- Dependencies: 314
 -- Name: personal_access_tokens_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
 --
@@ -2301,6 +2366,8 @@ CREATE TABLE services.alquiler_equipos (
     precio_original numeric(10,2),
     monto_descuento numeric(10,2) DEFAULT '0'::numeric NOT NULL,
     motivo_descuento character varying(255),
+    monto_recargo numeric(10,2) DEFAULT '0'::numeric NOT NULL,
+    motivo_recargo character varying(255),
     CONSTRAINT alquiler_equipos_cliente_check CHECK ((num_nonnulls(persona_id, cliente_externo_id) = 1)),
     CONSTRAINT alquiler_equipos_estado_check CHECK (((estado)::text = ANY (ARRAY[('activo'::character varying)::text, ('devuelto'::character varying)::text, ('vencido'::character varying)::text, ('pendiente'::character varying)::text, ('entregado'::character varying)::text])))
 );
@@ -2388,7 +2455,7 @@ CREATE SEQUENCE services.items_paquete_podcast_id_seq
 
 
 --
--- TOC entry 5620 (class 0 OID 0)
+-- TOC entry 5659 (class 0 OID 0)
 -- Dependencies: 321
 -- Name: items_paquete_podcast_id_seq; Type: SEQUENCE OWNED BY; Schema: services; Owner: -
 --
@@ -2411,7 +2478,7 @@ CREATE SEQUENCE services.paquetes_podcast_id_seq
 
 
 --
--- TOC entry 5621 (class 0 OID 0)
+-- TOC entry 5660 (class 0 OID 0)
 -- Dependencies: 322
 -- Name: paquetes_podcast_id_seq; Type: SEQUENCE OWNED BY; Schema: services; Owner: -
 --
@@ -2442,6 +2509,8 @@ CREATE TABLE services.reservas_radio (
     precio_original numeric(10,2),
     monto_descuento numeric(10,2) DEFAULT '0'::numeric NOT NULL,
     motivo_descuento character varying(255),
+    monto_recargo numeric(10,2) DEFAULT '0'::numeric NOT NULL,
+    motivo_recargo character varying(255),
     CONSTRAINT reservas_radio_cliente_check CHECK ((num_nonnulls(persona_id, cliente_externo_id) = 1)),
     CONSTRAINT reservas_radio_estado_check CHECK (((estado)::text = ANY (ARRAY[('reservado'::character varying)::text, ('confirmado'::character varying)::text, ('en_progreso'::character varying)::text, ('completado'::character varying)::text, ('cancelado'::character varying)::text])))
 );
@@ -2497,7 +2566,7 @@ CREATE SEQUENCE services.tarifas_radio_id_seq
 
 
 --
--- TOC entry 5622 (class 0 OID 0)
+-- TOC entry 5661 (class 0 OID 0)
 -- Dependencies: 326
 -- Name: tarifas_radio_id_seq; Type: SEQUENCE OWNED BY; Schema: services; Owner: -
 --
@@ -2531,13 +2600,15 @@ CREATE TABLE services.trabajos_edicion (
     precio_original numeric(10,2),
     monto_descuento numeric(10,2) DEFAULT '0'::numeric NOT NULL,
     motivo_descuento character varying(255),
+    monto_recargo numeric(10,2) DEFAULT '0'::numeric NOT NULL,
+    motivo_recargo character varying(255),
     CONSTRAINT trabajos_edicion_estado_check CHECK (((estado)::text = ANY (ARRAY[('recibido'::character varying)::text, ('en_proceso'::character varying)::text, ('revision'::character varying)::text, ('entregado'::character varying)::text]))),
     CONSTRAINT trabajos_edicion_nivel_check CHECK (((nivel)::text = ANY (ARRAY[('basica'::character varying)::text, ('estandar'::character varying)::text, ('premium'::character varying)::text])))
 );
 
 
 --
--- TOC entry 4793 (class 2604 OID 49016)
+-- TOC entry 4802 (class 2604 OID 49016)
 -- Name: horarios_dias id; Type: DEFAULT; Schema: academic; Owner: -
 --
 
@@ -2545,7 +2616,7 @@ ALTER TABLE ONLY academic.horarios_dias ALTER COLUMN id SET DEFAULT nextval('aca
 
 
 --
--- TOC entry 4823 (class 2604 OID 49017)
+-- TOC entry 4832 (class 2604 OID 49017)
 -- Name: cambios_horario_auditoria id; Type: DEFAULT; Schema: audit; Owner: -
 --
 
@@ -2553,7 +2624,7 @@ ALTER TABLE ONLY audit.cambios_horario_auditoria ALTER COLUMN id SET DEFAULT nex
 
 
 --
--- TOC entry 4833 (class 2604 OID 49018)
+-- TOC entry 4842 (class 2604 OID 49018)
 -- Name: ciudades id; Type: DEFAULT; Schema: core; Owner: -
 --
 
@@ -2561,7 +2632,7 @@ ALTER TABLE ONLY core.ciudades ALTER COLUMN id SET DEFAULT nextval('core.ciudade
 
 
 --
--- TOC entry 4834 (class 2604 OID 49019)
+-- TOC entry 4843 (class 2604 OID 49019)
 -- Name: failed_jobs id; Type: DEFAULT; Schema: core; Owner: -
 --
 
@@ -2569,7 +2640,7 @@ ALTER TABLE ONLY core.failed_jobs ALTER COLUMN id SET DEFAULT nextval('core.fail
 
 
 --
--- TOC entry 4836 (class 2604 OID 49020)
+-- TOC entry 4845 (class 2604 OID 49020)
 -- Name: jobs id; Type: DEFAULT; Schema: core; Owner: -
 --
 
@@ -2577,7 +2648,7 @@ ALTER TABLE ONLY core.jobs ALTER COLUMN id SET DEFAULT nextval('core.jobs_id_seq
 
 
 --
--- TOC entry 4837 (class 2604 OID 49021)
+-- TOC entry 4846 (class 2604 OID 49021)
 -- Name: migrations id; Type: DEFAULT; Schema: core; Owner: -
 --
 
@@ -2585,7 +2656,7 @@ ALTER TABLE ONLY core.migrations ALTER COLUMN id SET DEFAULT nextval('core.migra
 
 
 --
--- TOC entry 4838 (class 2604 OID 49022)
+-- TOC entry 4847 (class 2604 OID 49022)
 -- Name: permissions id; Type: DEFAULT; Schema: core; Owner: -
 --
 
@@ -2593,7 +2664,7 @@ ALTER TABLE ONLY core.permissions ALTER COLUMN id SET DEFAULT nextval('core.perm
 
 
 --
--- TOC entry 4839 (class 2604 OID 49023)
+-- TOC entry 4848 (class 2604 OID 49023)
 -- Name: roles id; Type: DEFAULT; Schema: core; Owner: -
 --
 
@@ -2601,7 +2672,7 @@ ALTER TABLE ONLY core.roles ALTER COLUMN id SET DEFAULT nextval('core.roles_id_s
 
 
 --
--- TOC entry 4840 (class 2604 OID 49024)
+-- TOC entry 4849 (class 2604 OID 49024)
 -- Name: users id; Type: DEFAULT; Schema: core; Owner: -
 --
 
@@ -2609,7 +2680,7 @@ ALTER TABLE ONLY core.users ALTER COLUMN id SET DEFAULT nextval('core.users_id_s
 
 
 --
--- TOC entry 4895 (class 2604 OID 49025)
+-- TOC entry 4909 (class 2604 OID 49025)
 -- Name: failed_jobs id; Type: DEFAULT; Schema: public; Owner: -
 --
 
@@ -2617,7 +2688,7 @@ ALTER TABLE ONLY public.failed_jobs ALTER COLUMN id SET DEFAULT nextval('public.
 
 
 --
--- TOC entry 4897 (class 2604 OID 49026)
+-- TOC entry 4911 (class 2604 OID 49026)
 -- Name: jobs id; Type: DEFAULT; Schema: public; Owner: -
 --
 
@@ -2625,7 +2696,7 @@ ALTER TABLE ONLY public.jobs ALTER COLUMN id SET DEFAULT nextval('public.jobs_id
 
 
 --
--- TOC entry 4898 (class 2604 OID 49027)
+-- TOC entry 4912 (class 2604 OID 49027)
 -- Name: migrations id; Type: DEFAULT; Schema: public; Owner: -
 --
 
@@ -2633,7 +2704,7 @@ ALTER TABLE ONLY public.migrations ALTER COLUMN id SET DEFAULT nextval('public.m
 
 
 --
--- TOC entry 4899 (class 2604 OID 49028)
+-- TOC entry 4913 (class 2604 OID 49028)
 -- Name: personal_access_tokens id; Type: DEFAULT; Schema: public; Owner: -
 --
 
@@ -2641,7 +2712,7 @@ ALTER TABLE ONLY public.personal_access_tokens ALTER COLUMN id SET DEFAULT nextv
 
 
 --
--- TOC entry 4910 (class 2604 OID 49029)
+-- TOC entry 4925 (class 2604 OID 49029)
 -- Name: items_paquete_podcast id; Type: DEFAULT; Schema: services; Owner: -
 --
 
@@ -2649,7 +2720,7 @@ ALTER TABLE ONLY services.items_paquete_podcast ALTER COLUMN id SET DEFAULT next
 
 
 --
--- TOC entry 4877 (class 2604 OID 49030)
+-- TOC entry 4886 (class 2604 OID 49030)
 -- Name: paquetes_podcast id; Type: DEFAULT; Schema: services; Owner: -
 --
 
@@ -2657,7 +2728,7 @@ ALTER TABLE ONLY services.paquetes_podcast ALTER COLUMN id SET DEFAULT nextval('
 
 
 --
--- TOC entry 4919 (class 2604 OID 49031)
+-- TOC entry 4935 (class 2604 OID 49031)
 -- Name: tarifas_radio id; Type: DEFAULT; Schema: services; Owner: -
 --
 
@@ -2665,7 +2736,7 @@ ALTER TABLE ONLY services.tarifas_radio ALTER COLUMN id SET DEFAULT nextval('ser
 
 
 --
--- TOC entry 4988 (class 2606 OID 49033)
+-- TOC entry 5009 (class 2606 OID 49033)
 -- Name: asistencias_talleres academic_asistencias_talleres_taller_id_fecha_sesion_unique; Type: CONSTRAINT; Schema: academic; Owner: -
 --
 
@@ -2674,7 +2745,7 @@ ALTER TABLE ONLY academic.asistencias_talleres
 
 
 --
--- TOC entry 4997 (class 2606 OID 49035)
+-- TOC entry 5018 (class 2606 OID 49035)
 -- Name: catalogo_cursos academic_catalogo_cursos_codigo_unique; Type: CONSTRAINT; Schema: academic; Owner: -
 --
 
@@ -2683,7 +2754,7 @@ ALTER TABLE ONLY academic.catalogo_cursos
 
 
 --
--- TOC entry 5032 (class 2606 OID 49037)
+-- TOC entry 5053 (class 2606 OID 49037)
 -- Name: horarios_dias academic_horarios_dias_horario_id_dia_semana_unique; Type: CONSTRAINT; Schema: academic; Owner: -
 --
 
@@ -2692,7 +2763,7 @@ ALTER TABLE ONLY academic.horarios_dias
 
 
 --
--- TOC entry 5045 (class 2606 OID 49039)
+-- TOC entry 5066 (class 2606 OID 49039)
 -- Name: inscripciones_externos_talleres academic_inscripciones_externos_talleres_taller_id_participante; Type: CONSTRAINT; Schema: academic; Owner: -
 --
 
@@ -2701,7 +2772,7 @@ ALTER TABLE ONLY academic.inscripciones_externos_talleres
 
 
 --
--- TOC entry 5057 (class 2606 OID 49041)
+-- TOC entry 5078 (class 2606 OID 49041)
 -- Name: inscripciones_talleres academic_inscripciones_talleres_taller_id_estudiante_id_unique; Type: CONSTRAINT; Schema: academic; Owner: -
 --
 
@@ -2710,7 +2781,7 @@ ALTER TABLE ONLY academic.inscripciones_talleres
 
 
 --
--- TOC entry 4971 (class 2606 OID 49043)
+-- TOC entry 4992 (class 2606 OID 49043)
 -- Name: asesorias asesorias_pkey; Type: CONSTRAINT; Schema: academic; Owner: -
 --
 
@@ -2719,7 +2790,7 @@ ALTER TABLE ONLY academic.asesorias
 
 
 --
--- TOC entry 4974 (class 2606 OID 49045)
+-- TOC entry 4995 (class 2606 OID 49045)
 -- Name: asistencia_taller_estudiantes asistencia_taller_estudiantes_pkey; Type: CONSTRAINT; Schema: academic; Owner: -
 --
 
@@ -2728,7 +2799,7 @@ ALTER TABLE ONLY academic.asistencia_taller_estudiantes
 
 
 --
--- TOC entry 4980 (class 2606 OID 49047)
+-- TOC entry 5001 (class 2606 OID 49047)
 -- Name: asistencias asistencias_pkey; Type: CONSTRAINT; Schema: academic; Owner: -
 --
 
@@ -2737,7 +2808,7 @@ ALTER TABLE ONLY academic.asistencias
 
 
 --
--- TOC entry 4991 (class 2606 OID 49049)
+-- TOC entry 5012 (class 2606 OID 49049)
 -- Name: asistencias_talleres asistencias_talleres_pkey; Type: CONSTRAINT; Schema: academic; Owner: -
 --
 
@@ -2746,7 +2817,7 @@ ALTER TABLE ONLY academic.asistencias_talleres
 
 
 --
--- TOC entry 4976 (class 2606 OID 49051)
+-- TOC entry 4997 (class 2606 OID 49051)
 -- Name: asistencia_taller_estudiantes at_est_externo_unique; Type: CONSTRAINT; Schema: academic; Owner: -
 --
 
@@ -2755,7 +2826,7 @@ ALTER TABLE ONLY academic.asistencia_taller_estudiantes
 
 
 --
--- TOC entry 4978 (class 2606 OID 49053)
+-- TOC entry 4999 (class 2606 OID 49053)
 -- Name: asistencia_taller_estudiantes at_est_inscripcion_unique; Type: CONSTRAINT; Schema: academic; Owner: -
 --
 
@@ -2764,7 +2835,7 @@ ALTER TABLE ONLY academic.asistencia_taller_estudiantes
 
 
 --
--- TOC entry 4993 (class 2606 OID 49055)
+-- TOC entry 5014 (class 2606 OID 49055)
 -- Name: cambios_horario cambios_horario_pkey; Type: CONSTRAINT; Schema: academic; Owner: -
 --
 
@@ -2773,7 +2844,7 @@ ALTER TABLE ONLY academic.cambios_horario
 
 
 --
--- TOC entry 4999 (class 2606 OID 49057)
+-- TOC entry 5020 (class 2606 OID 49057)
 -- Name: catalogo_cursos catalogo_cursos_pkey; Type: CONSTRAINT; Schema: academic; Owner: -
 --
 
@@ -2782,7 +2853,7 @@ ALTER TABLE ONLY academic.catalogo_cursos
 
 
 --
--- TOC entry 5005 (class 2606 OID 49059)
+-- TOC entry 5026 (class 2606 OID 49059)
 -- Name: certificados certificados_codigo_certificado_key; Type: CONSTRAINT; Schema: academic; Owner: -
 --
 
@@ -2791,7 +2862,7 @@ ALTER TABLE ONLY academic.certificados
 
 
 --
--- TOC entry 5007 (class 2606 OID 49061)
+-- TOC entry 5028 (class 2606 OID 49061)
 -- Name: certificados certificados_pkey; Type: CONSTRAINT; Schema: academic; Owner: -
 --
 
@@ -2800,7 +2871,7 @@ ALTER TABLE ONLY academic.certificados
 
 
 --
--- TOC entry 5018 (class 2606 OID 49063)
+-- TOC entry 5039 (class 2606 OID 49063)
 -- Name: clases_extras clases_extras_pkey; Type: CONSTRAINT; Schema: academic; Owner: -
 --
 
@@ -2809,7 +2880,7 @@ ALTER TABLE ONLY academic.clases_extras
 
 
 --
--- TOC entry 5014 (class 2606 OID 49065)
+-- TOC entry 5035 (class 2606 OID 49065)
 -- Name: clases clases_pkey; Type: CONSTRAINT; Schema: academic; Owner: -
 --
 
@@ -2818,7 +2889,7 @@ ALTER TABLE ONLY academic.clases
 
 
 --
--- TOC entry 5020 (class 2606 OID 49067)
+-- TOC entry 5041 (class 2606 OID 49067)
 -- Name: comentarios_curso comentarios_curso_pkey; Type: CONSTRAINT; Schema: academic; Owner: -
 --
 
@@ -2827,7 +2898,7 @@ ALTER TABLE ONLY academic.comentarios_curso
 
 
 --
--- TOC entry 5022 (class 2606 OID 49069)
+-- TOC entry 5043 (class 2606 OID 49069)
 -- Name: cursos_abiertos cursos_abiertos_pkey; Type: CONSTRAINT; Schema: academic; Owner: -
 --
 
@@ -2836,7 +2907,7 @@ ALTER TABLE ONLY academic.cursos_abiertos
 
 
 --
--- TOC entry 5035 (class 2606 OID 49071)
+-- TOC entry 5056 (class 2606 OID 49071)
 -- Name: horarios_dias horarios_dias_pkey; Type: CONSTRAINT; Schema: academic; Owner: -
 --
 
@@ -2845,7 +2916,7 @@ ALTER TABLE ONLY academic.horarios_dias
 
 
 --
--- TOC entry 5029 (class 2606 OID 49073)
+-- TOC entry 5050 (class 2606 OID 49073)
 -- Name: horarios horarios_pkey; Type: CONSTRAINT; Schema: academic; Owner: -
 --
 
@@ -2854,7 +2925,7 @@ ALTER TABLE ONLY academic.horarios
 
 
 --
--- TOC entry 5041 (class 2606 OID 49075)
+-- TOC entry 5062 (class 2606 OID 49075)
 -- Name: horarios_talleres horarios_talleres_pkey; Type: CONSTRAINT; Schema: academic; Owner: -
 --
 
@@ -2863,7 +2934,7 @@ ALTER TABLE ONLY academic.horarios_talleres
 
 
 --
--- TOC entry 5047 (class 2606 OID 49077)
+-- TOC entry 5068 (class 2606 OID 49077)
 -- Name: inscripciones_externos_talleres inscripciones_externos_talleres_pkey; Type: CONSTRAINT; Schema: academic; Owner: -
 --
 
@@ -2872,7 +2943,7 @@ ALTER TABLE ONLY academic.inscripciones_externos_talleres
 
 
 --
--- TOC entry 5054 (class 2606 OID 49079)
+-- TOC entry 5075 (class 2606 OID 49079)
 -- Name: inscripciones_taller inscripciones_taller_pkey; Type: CONSTRAINT; Schema: academic; Owner: -
 --
 
@@ -2881,7 +2952,7 @@ ALTER TABLE ONLY academic.inscripciones_taller
 
 
 --
--- TOC entry 5060 (class 2606 OID 49081)
+-- TOC entry 5081 (class 2606 OID 49081)
 -- Name: inscripciones_talleres inscripciones_talleres_pkey; Type: CONSTRAINT; Schema: academic; Owner: -
 --
 
@@ -2890,7 +2961,7 @@ ALTER TABLE ONLY academic.inscripciones_talleres
 
 
 --
--- TOC entry 5072 (class 2606 OID 49083)
+-- TOC entry 5093 (class 2606 OID 49083)
 -- Name: matriculas matriculas_pkey; Type: CONSTRAINT; Schema: academic; Owner: -
 --
 
@@ -2899,7 +2970,7 @@ ALTER TABLE ONLY academic.matriculas
 
 
 --
--- TOC entry 5074 (class 2606 OID 49085)
+-- TOC entry 5095 (class 2606 OID 49085)
 -- Name: modulos modulos_pkey; Type: CONSTRAINT; Schema: academic; Owner: -
 --
 
@@ -2908,7 +2979,7 @@ ALTER TABLE ONLY academic.modulos
 
 
 --
--- TOC entry 5079 (class 2606 OID 49087)
+-- TOC entry 5100 (class 2606 OID 49087)
 -- Name: notas notas_pkey; Type: CONSTRAINT; Schema: academic; Owner: -
 --
 
@@ -2917,7 +2988,7 @@ ALTER TABLE ONLY academic.notas
 
 
 --
--- TOC entry 5085 (class 2606 OID 49089)
+-- TOC entry 5106 (class 2606 OID 49089)
 -- Name: participantes_cursos_personalizados participantes_cursos_personalizados_pkey; Type: CONSTRAINT; Schema: academic; Owner: -
 --
 
@@ -2926,7 +2997,7 @@ ALTER TABLE ONLY academic.participantes_cursos_personalizados
 
 
 --
--- TOC entry 5091 (class 2606 OID 49091)
+-- TOC entry 5112 (class 2606 OID 49091)
 -- Name: participantes_externos participantes_externos_pkey; Type: CONSTRAINT; Schema: academic; Owner: -
 --
 
@@ -2935,7 +3006,7 @@ ALTER TABLE ONLY academic.participantes_externos
 
 
 --
--- TOC entry 5087 (class 2606 OID 49093)
+-- TOC entry 5108 (class 2606 OID 49093)
 -- Name: participantes_cursos_personalizados pcp_curso_part_unique; Type: CONSTRAINT; Schema: academic; Owner: -
 --
 
@@ -2944,7 +3015,7 @@ ALTER TABLE ONLY academic.participantes_cursos_personalizados
 
 
 --
--- TOC entry 5100 (class 2606 OID 49095)
+-- TOC entry 5121 (class 2606 OID 49095)
 -- Name: solicitudes_inscripcion solicitudes_inscripcion_pkey; Type: CONSTRAINT; Schema: academic; Owner: -
 --
 
@@ -2953,7 +3024,7 @@ ALTER TABLE ONLY academic.solicitudes_inscripcion
 
 
 --
--- TOC entry 5102 (class 2606 OID 49097)
+-- TOC entry 5123 (class 2606 OID 49097)
 -- Name: talleres talleres_pkey; Type: CONSTRAINT; Schema: academic; Owner: -
 --
 
@@ -2962,7 +3033,7 @@ ALTER TABLE ONLY academic.talleres
 
 
 --
--- TOC entry 5104 (class 2606 OID 49099)
+-- TOC entry 5125 (class 2606 OID 49099)
 -- Name: traslados_modulo traslados_modulo_pkey; Type: CONSTRAINT; Schema: academic; Owner: -
 --
 
@@ -2971,7 +3042,7 @@ ALTER TABLE ONLY academic.traslados_modulo
 
 
 --
--- TOC entry 4985 (class 2606 OID 49101)
+-- TOC entry 5006 (class 2606 OID 49101)
 -- Name: asistencias uq_asistencia; Type: CONSTRAINT; Schema: academic; Owner: -
 --
 
@@ -2980,7 +3051,7 @@ ALTER TABLE ONLY academic.asistencias
 
 
 --
--- TOC entry 5081 (class 2606 OID 49103)
+-- TOC entry 5102 (class 2606 OID 49103)
 -- Name: notas uq_nota_modulo; Type: CONSTRAINT; Schema: academic; Owner: -
 --
 
@@ -2989,7 +3060,7 @@ ALTER TABLE ONLY academic.notas
 
 
 --
--- TOC entry 5113 (class 2606 OID 49105)
+-- TOC entry 5134 (class 2606 OID 49105)
 -- Name: cambios_horario_auditoria cambios_horario_auditoria_pkey; Type: CONSTRAINT; Schema: audit; Owner: -
 --
 
@@ -2998,7 +3069,7 @@ ALTER TABLE ONLY audit.cambios_horario_auditoria
 
 
 --
--- TOC entry 5115 (class 2606 OID 49107)
+-- TOC entry 5136 (class 2606 OID 49107)
 -- Name: eventos_financieros eventos_financieros_pkey; Type: CONSTRAINT; Schema: audit; Owner: -
 --
 
@@ -3007,7 +3078,7 @@ ALTER TABLE ONLY audit.eventos_financieros
 
 
 --
--- TOC entry 5119 (class 2606 OID 49109)
+-- TOC entry 5140 (class 2606 OID 49109)
 -- Name: inicios_sesion inicios_sesion_pkey; Type: CONSTRAINT; Schema: audit; Owner: -
 --
 
@@ -3016,7 +3087,7 @@ ALTER TABLE ONLY audit.inicios_sesion
 
 
 --
--- TOC entry 5124 (class 2606 OID 49111)
+-- TOC entry 5145 (class 2606 OID 49111)
 -- Name: archivos_eliminados archivos_eliminados_pkey; Type: CONSTRAINT; Schema: core; Owner: -
 --
 
@@ -3025,7 +3096,7 @@ ALTER TABLE ONLY core.archivos_eliminados
 
 
 --
--- TOC entry 5131 (class 2606 OID 49113)
+-- TOC entry 5152 (class 2606 OID 49113)
 -- Name: cache_locks cache_locks_pkey; Type: CONSTRAINT; Schema: core; Owner: -
 --
 
@@ -3034,7 +3105,7 @@ ALTER TABLE ONLY core.cache_locks
 
 
 --
--- TOC entry 5128 (class 2606 OID 49115)
+-- TOC entry 5149 (class 2606 OID 49115)
 -- Name: cache cache_pkey; Type: CONSTRAINT; Schema: core; Owner: -
 --
 
@@ -3043,7 +3114,7 @@ ALTER TABLE ONLY core.cache
 
 
 --
--- TOC entry 5133 (class 2606 OID 49117)
+-- TOC entry 5154 (class 2606 OID 49117)
 -- Name: ciudades ciudades_nombre_key; Type: CONSTRAINT; Schema: core; Owner: -
 --
 
@@ -3052,7 +3123,7 @@ ALTER TABLE ONLY core.ciudades
 
 
 --
--- TOC entry 5135 (class 2606 OID 49119)
+-- TOC entry 5156 (class 2606 OID 49119)
 -- Name: ciudades ciudades_pkey; Type: CONSTRAINT; Schema: core; Owner: -
 --
 
@@ -3061,7 +3132,7 @@ ALTER TABLE ONLY core.ciudades
 
 
 --
--- TOC entry 5159 (class 2606 OID 49121)
+-- TOC entry 5180 (class 2606 OID 49121)
 -- Name: permissions core_permissions_name_guard_name_unique; Type: CONSTRAINT; Schema: core; Owner: -
 --
 
@@ -3070,7 +3141,7 @@ ALTER TABLE ONLY core.permissions
 
 
 --
--- TOC entry 5165 (class 2606 OID 49123)
+-- TOC entry 5186 (class 2606 OID 49123)
 -- Name: roles core_roles_name_guard_name_unique; Type: CONSTRAINT; Schema: core; Owner: -
 --
 
@@ -3079,7 +3150,25 @@ ALTER TABLE ONLY core.roles
 
 
 --
--- TOC entry 5137 (class 2606 OID 49125)
+-- TOC entry 5344 (class 2606 OID 53699)
+-- Name: curso_interesados curso_interesados_pkey; Type: CONSTRAINT; Schema: core; Owner: -
+--
+
+ALTER TABLE ONLY core.curso_interesados
+    ADD CONSTRAINT curso_interesados_pkey PRIMARY KEY (id);
+
+
+--
+-- TOC entry 5351 (class 2606 OID 53720)
+-- Name: documentos_archivos documentos_archivos_pkey; Type: CONSTRAINT; Schema: core; Owner: -
+--
+
+ALTER TABLE ONLY core.documentos_archivos
+    ADD CONSTRAINT documentos_archivos_pkey PRIMARY KEY (id);
+
+
+--
+-- TOC entry 5158 (class 2606 OID 49125)
 -- Name: estudiante_segmentos estudiante_segmentos_pkey; Type: CONSTRAINT; Schema: core; Owner: -
 --
 
@@ -3088,7 +3177,7 @@ ALTER TABLE ONLY core.estudiante_segmentos
 
 
 --
--- TOC entry 5140 (class 2606 OID 49127)
+-- TOC entry 5161 (class 2606 OID 49127)
 -- Name: failed_jobs failed_jobs_pkey; Type: CONSTRAINT; Schema: core; Owner: -
 --
 
@@ -3097,7 +3186,7 @@ ALTER TABLE ONLY core.failed_jobs
 
 
 --
--- TOC entry 5142 (class 2606 OID 49129)
+-- TOC entry 5163 (class 2606 OID 49129)
 -- Name: failed_jobs failed_jobs_uuid_unique; Type: CONSTRAINT; Schema: core; Owner: -
 --
 
@@ -3106,7 +3195,7 @@ ALTER TABLE ONLY core.failed_jobs
 
 
 --
--- TOC entry 5144 (class 2606 OID 49131)
+-- TOC entry 5165 (class 2606 OID 49131)
 -- Name: job_batches job_batches_pkey; Type: CONSTRAINT; Schema: core; Owner: -
 --
 
@@ -3115,7 +3204,7 @@ ALTER TABLE ONLY core.job_batches
 
 
 --
--- TOC entry 5146 (class 2606 OID 49133)
+-- TOC entry 5167 (class 2606 OID 49133)
 -- Name: jobs jobs_pkey; Type: CONSTRAINT; Schema: core; Owner: -
 --
 
@@ -3124,7 +3213,7 @@ ALTER TABLE ONLY core.jobs
 
 
 --
--- TOC entry 5149 (class 2606 OID 49135)
+-- TOC entry 5170 (class 2606 OID 49135)
 -- Name: migrations migrations_pkey; Type: CONSTRAINT; Schema: core; Owner: -
 --
 
@@ -3133,7 +3222,7 @@ ALTER TABLE ONLY core.migrations
 
 
 --
--- TOC entry 5152 (class 2606 OID 49137)
+-- TOC entry 5173 (class 2606 OID 49137)
 -- Name: model_has_permissions model_has_permissions_pkey; Type: CONSTRAINT; Schema: core; Owner: -
 --
 
@@ -3142,7 +3231,7 @@ ALTER TABLE ONLY core.model_has_permissions
 
 
 --
--- TOC entry 5155 (class 2606 OID 49139)
+-- TOC entry 5176 (class 2606 OID 49139)
 -- Name: model_has_roles model_has_roles_pkey; Type: CONSTRAINT; Schema: core; Owner: -
 --
 
@@ -3151,7 +3240,7 @@ ALTER TABLE ONLY core.model_has_roles
 
 
 --
--- TOC entry 5157 (class 2606 OID 49141)
+-- TOC entry 5178 (class 2606 OID 49141)
 -- Name: password_reset_tokens password_reset_tokens_pkey; Type: CONSTRAINT; Schema: core; Owner: -
 --
 
@@ -3160,7 +3249,7 @@ ALTER TABLE ONLY core.password_reset_tokens
 
 
 --
--- TOC entry 5161 (class 2606 OID 49143)
+-- TOC entry 5182 (class 2606 OID 49143)
 -- Name: permissions permissions_pkey; Type: CONSTRAINT; Schema: core; Owner: -
 --
 
@@ -3169,7 +3258,7 @@ ALTER TABLE ONLY core.permissions
 
 
 --
--- TOC entry 5163 (class 2606 OID 49145)
+-- TOC entry 5184 (class 2606 OID 49145)
 -- Name: role_has_permissions role_has_permissions_pkey; Type: CONSTRAINT; Schema: core; Owner: -
 --
 
@@ -3178,7 +3267,7 @@ ALTER TABLE ONLY core.role_has_permissions
 
 
 --
--- TOC entry 5167 (class 2606 OID 49147)
+-- TOC entry 5188 (class 2606 OID 49147)
 -- Name: roles roles_pkey; Type: CONSTRAINT; Schema: core; Owner: -
 --
 
@@ -3187,7 +3276,7 @@ ALTER TABLE ONLY core.roles
 
 
 --
--- TOC entry 5170 (class 2606 OID 49149)
+-- TOC entry 5191 (class 2606 OID 49149)
 -- Name: sessions sessions_pkey; Type: CONSTRAINT; Schema: core; Owner: -
 --
 
@@ -3196,7 +3285,7 @@ ALTER TABLE ONLY core.sessions
 
 
 --
--- TOC entry 5173 (class 2606 OID 49151)
+-- TOC entry 5194 (class 2606 OID 49151)
 -- Name: users users_email_unique; Type: CONSTRAINT; Schema: core; Owner: -
 --
 
@@ -3205,7 +3294,7 @@ ALTER TABLE ONLY core.users
 
 
 --
--- TOC entry 5175 (class 2606 OID 49153)
+-- TOC entry 5196 (class 2606 OID 49153)
 -- Name: users users_pkey; Type: CONSTRAINT; Schema: core; Owner: -
 --
 
@@ -3214,7 +3303,7 @@ ALTER TABLE ONLY core.users
 
 
 --
--- TOC entry 5177 (class 2606 OID 49155)
+-- TOC entry 5198 (class 2606 OID 49155)
 -- Name: cuentas_por_cobrar cuentas_por_cobrar_pkey; Type: CONSTRAINT; Schema: finance; Owner: -
 --
 
@@ -3223,7 +3312,7 @@ ALTER TABLE ONLY finance.cuentas_por_cobrar
 
 
 --
--- TOC entry 5194 (class 2606 OID 49157)
+-- TOC entry 5215 (class 2606 OID 49157)
 -- Name: horas_instructor horas_instructor_pkey; Type: CONSTRAINT; Schema: finance; Owner: -
 --
 
@@ -3232,7 +3321,7 @@ ALTER TABLE ONLY finance.horas_instructor
 
 
 --
--- TOC entry 5108 (class 2606 OID 49159)
+-- TOC entry 5129 (class 2606 OID 49159)
 -- Name: lineas_pago_modulo lineas_pago_modulo_pkey; Type: CONSTRAINT; Schema: finance; Owner: -
 --
 
@@ -3241,7 +3330,7 @@ ALTER TABLE ONLY finance.lineas_pago_modulo
 
 
 --
--- TOC entry 5197 (class 2606 OID 49161)
+-- TOC entry 5218 (class 2606 OID 49161)
 -- Name: resumen_caja resumen_caja_pkey; Type: CONSTRAINT; Schema: finance; Owner: -
 --
 
@@ -3250,7 +3339,7 @@ ALTER TABLE ONLY finance.resumen_caja
 
 
 --
--- TOC entry 5200 (class 2606 OID 49163)
+-- TOC entry 5221 (class 2606 OID 49163)
 -- Name: transacciones_egreso transacciones_egreso_pkey; Type: CONSTRAINT; Schema: finance; Owner: -
 --
 
@@ -3259,7 +3348,7 @@ ALTER TABLE ONLY finance.transacciones_egreso
 
 
 --
--- TOC entry 5203 (class 2606 OID 49165)
+-- TOC entry 5225 (class 2606 OID 49165)
 -- Name: transacciones_ingreso transacciones_ingreso_pkey; Type: CONSTRAINT; Schema: finance; Owner: -
 --
 
@@ -3268,7 +3357,7 @@ ALTER TABLE ONLY finance.transacciones_ingreso
 
 
 --
--- TOC entry 5215 (class 2606 OID 49167)
+-- TOC entry 5237 (class 2606 OID 49167)
 -- Name: registro_asistencia_staff registro_asistencia_staff_pkey; Type: CONSTRAINT; Schema: ops; Owner: -
 --
 
@@ -3277,7 +3366,7 @@ ALTER TABLE ONLY ops.registro_asistencia_staff
 
 
 --
--- TOC entry 5217 (class 2606 OID 49169)
+-- TOC entry 5239 (class 2606 OID 49169)
 -- Name: registro_asistencia_staff uq_staff_dia; Type: CONSTRAINT; Schema: ops; Owner: -
 --
 
@@ -3286,7 +3375,7 @@ ALTER TABLE ONLY ops.registro_asistencia_staff
 
 
 --
--- TOC entry 5315 (class 2606 OID 51823)
+-- TOC entry 5339 (class 2606 OID 51823)
 -- Name: clientes_externos_contactos clientes_externos_contactos_pkey; Type: CONSTRAINT; Schema: people; Owner: -
 --
 
@@ -3295,7 +3384,7 @@ ALTER TABLE ONLY people.clientes_externos_contactos
 
 
 --
--- TOC entry 5221 (class 2606 OID 49171)
+-- TOC entry 5243 (class 2606 OID 49171)
 -- Name: clientes_externos clientes_externos_pkey; Type: CONSTRAINT; Schema: people; Owner: -
 --
 
@@ -3304,7 +3393,7 @@ ALTER TABLE ONLY people.clientes_externos
 
 
 --
--- TOC entry 5244 (class 2606 OID 49173)
+-- TOC entry 5268 (class 2606 OID 49173)
 -- Name: cuentas_sistema cuentas_sistema_persona_id_key; Type: CONSTRAINT; Schema: people; Owner: -
 --
 
@@ -3313,7 +3402,7 @@ ALTER TABLE ONLY people.cuentas_sistema
 
 
 --
--- TOC entry 5246 (class 2606 OID 49175)
+-- TOC entry 5270 (class 2606 OID 49175)
 -- Name: cuentas_sistema cuentas_sistema_pkey; Type: CONSTRAINT; Schema: people; Owner: -
 --
 
@@ -3322,7 +3411,7 @@ ALTER TABLE ONLY people.cuentas_sistema
 
 
 --
--- TOC entry 5248 (class 2606 OID 49177)
+-- TOC entry 5272 (class 2606 OID 49177)
 -- Name: cuentas_sistema cuentas_sistema_username_key; Type: CONSTRAINT; Schema: people; Owner: -
 --
 
@@ -3331,7 +3420,7 @@ ALTER TABLE ONLY people.cuentas_sistema
 
 
 --
--- TOC entry 5250 (class 2606 OID 49179)
+-- TOC entry 5274 (class 2606 OID 49179)
 -- Name: perfil_estudiante perfil_estudiante_persona_id_key; Type: CONSTRAINT; Schema: people; Owner: -
 --
 
@@ -3340,7 +3429,7 @@ ALTER TABLE ONLY people.perfil_estudiante
 
 
 --
--- TOC entry 5252 (class 2606 OID 49181)
+-- TOC entry 5276 (class 2606 OID 49181)
 -- Name: perfil_estudiante perfil_estudiante_pkey; Type: CONSTRAINT; Schema: people; Owner: -
 --
 
@@ -3349,7 +3438,7 @@ ALTER TABLE ONLY people.perfil_estudiante
 
 
 --
--- TOC entry 5254 (class 2606 OID 49183)
+-- TOC entry 5278 (class 2606 OID 49183)
 -- Name: perfil_instructor perfil_instructor_persona_id_key; Type: CONSTRAINT; Schema: people; Owner: -
 --
 
@@ -3358,7 +3447,7 @@ ALTER TABLE ONLY people.perfil_instructor
 
 
 --
--- TOC entry 5256 (class 2606 OID 49185)
+-- TOC entry 5280 (class 2606 OID 49185)
 -- Name: perfil_instructor perfil_instructor_pkey; Type: CONSTRAINT; Schema: people; Owner: -
 --
 
@@ -3367,7 +3456,7 @@ ALTER TABLE ONLY people.perfil_instructor
 
 
 --
--- TOC entry 5258 (class 2606 OID 49187)
+-- TOC entry 5282 (class 2606 OID 49187)
 -- Name: perfil_staff perfil_staff_persona_id_key; Type: CONSTRAINT; Schema: people; Owner: -
 --
 
@@ -3376,7 +3465,7 @@ ALTER TABLE ONLY people.perfil_staff
 
 
 --
--- TOC entry 5260 (class 2606 OID 49189)
+-- TOC entry 5284 (class 2606 OID 49189)
 -- Name: perfil_staff perfil_staff_pkey; Type: CONSTRAINT; Schema: people; Owner: -
 --
 
@@ -3385,7 +3474,7 @@ ALTER TABLE ONLY people.perfil_staff
 
 
 --
--- TOC entry 5210 (class 2606 OID 49191)
+-- TOC entry 5232 (class 2606 OID 49191)
 -- Name: personas personas_cedula_key; Type: CONSTRAINT; Schema: people; Owner: -
 --
 
@@ -3394,7 +3483,7 @@ ALTER TABLE ONLY people.personas
 
 
 --
--- TOC entry 5212 (class 2606 OID 49193)
+-- TOC entry 5234 (class 2606 OID 49193)
 -- Name: personas personas_pkey; Type: CONSTRAINT; Schema: people; Owner: -
 --
 
@@ -3403,7 +3492,7 @@ ALTER TABLE ONLY people.personas
 
 
 --
--- TOC entry 5264 (class 2606 OID 49195)
+-- TOC entry 5288 (class 2606 OID 49195)
 -- Name: cache_locks cache_locks_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -3412,7 +3501,7 @@ ALTER TABLE ONLY public.cache_locks
 
 
 --
--- TOC entry 5262 (class 2606 OID 49197)
+-- TOC entry 5286 (class 2606 OID 49197)
 -- Name: cache cache_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -3421,7 +3510,7 @@ ALTER TABLE ONLY public.cache
 
 
 --
--- TOC entry 5266 (class 2606 OID 49199)
+-- TOC entry 5290 (class 2606 OID 49199)
 -- Name: failed_jobs failed_jobs_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -3430,7 +3519,7 @@ ALTER TABLE ONLY public.failed_jobs
 
 
 --
--- TOC entry 5268 (class 2606 OID 49201)
+-- TOC entry 5292 (class 2606 OID 49201)
 -- Name: failed_jobs failed_jobs_uuid_key; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -3439,7 +3528,7 @@ ALTER TABLE ONLY public.failed_jobs
 
 
 --
--- TOC entry 5270 (class 2606 OID 49203)
+-- TOC entry 5294 (class 2606 OID 49203)
 -- Name: job_batches job_batches_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -3448,7 +3537,7 @@ ALTER TABLE ONLY public.job_batches
 
 
 --
--- TOC entry 5272 (class 2606 OID 49205)
+-- TOC entry 5296 (class 2606 OID 49205)
 -- Name: jobs jobs_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -3457,7 +3546,7 @@ ALTER TABLE ONLY public.jobs
 
 
 --
--- TOC entry 5274 (class 2606 OID 49207)
+-- TOC entry 5298 (class 2606 OID 49207)
 -- Name: migrations migrations_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -3466,7 +3555,7 @@ ALTER TABLE ONLY public.migrations
 
 
 --
--- TOC entry 5276 (class 2606 OID 49209)
+-- TOC entry 5300 (class 2606 OID 49209)
 -- Name: personal_access_tokens personal_access_tokens_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -3475,7 +3564,7 @@ ALTER TABLE ONLY public.personal_access_tokens
 
 
 --
--- TOC entry 5278 (class 2606 OID 49211)
+-- TOC entry 5302 (class 2606 OID 49211)
 -- Name: personal_access_tokens personal_access_tokens_token_key; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -3484,7 +3573,7 @@ ALTER TABLE ONLY public.personal_access_tokens
 
 
 --
--- TOC entry 5280 (class 2606 OID 49213)
+-- TOC entry 5304 (class 2606 OID 49213)
 -- Name: sessions sessions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -3493,7 +3582,7 @@ ALTER TABLE ONLY public.sessions
 
 
 --
--- TOC entry 5282 (class 2606 OID 49215)
+-- TOC entry 5306 (class 2606 OID 49215)
 -- Name: alquiler_equipos alquiler_equipos_pkey; Type: CONSTRAINT; Schema: services; Owner: -
 --
 
@@ -3502,7 +3591,7 @@ ALTER TABLE ONLY services.alquiler_equipos
 
 
 --
--- TOC entry 5288 (class 2606 OID 49217)
+-- TOC entry 5312 (class 2606 OID 49217)
 -- Name: asignaciones_personal asignaciones_personal_pkey; Type: CONSTRAINT; Schema: services; Owner: -
 --
 
@@ -3511,7 +3600,7 @@ ALTER TABLE ONLY services.asignaciones_personal
 
 
 --
--- TOC entry 5227 (class 2606 OID 49219)
+-- TOC entry 5249 (class 2606 OID 49219)
 -- Name: aulas aulas_nombre_key; Type: CONSTRAINT; Schema: services; Owner: -
 --
 
@@ -3520,7 +3609,7 @@ ALTER TABLE ONLY services.aulas
 
 
 --
--- TOC entry 5229 (class 2606 OID 49221)
+-- TOC entry 5251 (class 2606 OID 49221)
 -- Name: aulas aulas_pkey; Type: CONSTRAINT; Schema: services; Owner: -
 --
 
@@ -3529,7 +3618,7 @@ ALTER TABLE ONLY services.aulas
 
 
 --
--- TOC entry 5290 (class 2606 OID 49223)
+-- TOC entry 5314 (class 2606 OID 49223)
 -- Name: edicion_videos edicion_videos_pkey; Type: CONSTRAINT; Schema: services; Owner: -
 --
 
@@ -3538,7 +3627,7 @@ ALTER TABLE ONLY services.edicion_videos
 
 
 --
--- TOC entry 5292 (class 2606 OID 49225)
+-- TOC entry 5316 (class 2606 OID 49225)
 -- Name: equipos equipos_pkey; Type: CONSTRAINT; Schema: services; Owner: -
 --
 
@@ -3547,7 +3636,7 @@ ALTER TABLE ONLY services.equipos
 
 
 --
--- TOC entry 5294 (class 2606 OID 49227)
+-- TOC entry 5318 (class 2606 OID 49227)
 -- Name: items_paquete_podcast items_paquete_podcast_pkey; Type: CONSTRAINT; Schema: services; Owner: -
 --
 
@@ -3556,7 +3645,7 @@ ALTER TABLE ONLY services.items_paquete_podcast
 
 
 --
--- TOC entry 5231 (class 2606 OID 49229)
+-- TOC entry 5253 (class 2606 OID 49229)
 -- Name: paquetes_podcast paquetes_podcast_nombre_key; Type: CONSTRAINT; Schema: services; Owner: -
 --
 
@@ -3565,7 +3654,7 @@ ALTER TABLE ONLY services.paquetes_podcast
 
 
 --
--- TOC entry 5233 (class 2606 OID 49231)
+-- TOC entry 5255 (class 2606 OID 49231)
 -- Name: paquetes_podcast paquetes_podcast_pkey; Type: CONSTRAINT; Schema: services; Owner: -
 --
 
@@ -3574,7 +3663,7 @@ ALTER TABLE ONLY services.paquetes_podcast
 
 
 --
--- TOC entry 5237 (class 2606 OID 49233)
+-- TOC entry 5259 (class 2606 OID 49233)
 -- Name: reservas_aulas reservas_aulas_pkey; Type: CONSTRAINT; Schema: services; Owner: -
 --
 
@@ -3583,7 +3672,7 @@ ALTER TABLE ONLY services.reservas_aulas
 
 
 --
--- TOC entry 5240 (class 2606 OID 49235)
+-- TOC entry 5262 (class 2606 OID 49235)
 -- Name: reservas_podcast reservas_podcast_pkey; Type: CONSTRAINT; Schema: services; Owner: -
 --
 
@@ -3592,7 +3681,7 @@ ALTER TABLE ONLY services.reservas_podcast
 
 
 --
--- TOC entry 5297 (class 2606 OID 49237)
+-- TOC entry 5321 (class 2606 OID 49237)
 -- Name: reservas_radio reservas_radio_pkey; Type: CONSTRAINT; Schema: services; Owner: -
 --
 
@@ -3601,7 +3690,7 @@ ALTER TABLE ONLY services.reservas_radio
 
 
 --
--- TOC entry 5302 (class 2606 OID 49239)
+-- TOC entry 5326 (class 2606 OID 49239)
 -- Name: servicios_produccion servicios_produccion_pkey; Type: CONSTRAINT; Schema: services; Owner: -
 --
 
@@ -3610,7 +3699,7 @@ ALTER TABLE ONLY services.servicios_produccion
 
 
 --
--- TOC entry 5242 (class 2606 OID 49241)
+-- TOC entry 5266 (class 2606 OID 49241)
 -- Name: servicios_streaming servicios_streaming_pkey; Type: CONSTRAINT; Schema: services; Owner: -
 --
 
@@ -3619,7 +3708,7 @@ ALTER TABLE ONLY services.servicios_streaming
 
 
 --
--- TOC entry 5304 (class 2606 OID 49243)
+-- TOC entry 5328 (class 2606 OID 49243)
 -- Name: tarifas_radio tarifas_radio_pkey; Type: CONSTRAINT; Schema: services; Owner: -
 --
 
@@ -3628,7 +3717,7 @@ ALTER TABLE ONLY services.tarifas_radio
 
 
 --
--- TOC entry 5311 (class 2606 OID 49245)
+-- TOC entry 5335 (class 2606 OID 49245)
 -- Name: trabajos_edicion trabajos_edicion_pkey; Type: CONSTRAINT; Schema: services; Owner: -
 --
 
@@ -3637,7 +3726,7 @@ ALTER TABLE ONLY services.trabajos_edicion
 
 
 --
--- TOC entry 4972 (class 1259 OID 49246)
+-- TOC entry 4993 (class 1259 OID 49246)
 -- Name: academic_asistencia_taller_estudiantes_asistencia_taller_id_ind; Type: INDEX; Schema: academic; Owner: -
 --
 
@@ -3645,7 +3734,7 @@ CREATE INDEX academic_asistencia_taller_estudiantes_asistencia_taller_id_ind ON 
 
 
 --
--- TOC entry 4986 (class 1259 OID 49247)
+-- TOC entry 5007 (class 1259 OID 49247)
 -- Name: academic_asistencias_talleres_fecha_sesion_index; Type: INDEX; Schema: academic; Owner: -
 --
 
@@ -3653,7 +3742,7 @@ CREATE INDEX academic_asistencias_talleres_fecha_sesion_index ON academic.asiste
 
 
 --
--- TOC entry 4989 (class 1259 OID 49248)
+-- TOC entry 5010 (class 1259 OID 49248)
 -- Name: academic_asistencias_talleres_taller_id_index; Type: INDEX; Schema: academic; Owner: -
 --
 
@@ -3661,7 +3750,7 @@ CREATE INDEX academic_asistencias_talleres_taller_id_index ON academic.asistenci
 
 
 --
--- TOC entry 4995 (class 1259 OID 49249)
+-- TOC entry 5016 (class 1259 OID 49249)
 -- Name: academic_catalogo_cursos_categoria_index; Type: INDEX; Schema: academic; Owner: -
 --
 
@@ -3669,7 +3758,7 @@ CREATE INDEX academic_catalogo_cursos_categoria_index ON academic.catalogo_curso
 
 
 --
--- TOC entry 5002 (class 1259 OID 49250)
+-- TOC entry 5023 (class 1259 OID 49250)
 -- Name: academic_certificados_cedula_impresa_index; Type: INDEX; Schema: academic; Owner: -
 --
 
@@ -3677,7 +3766,7 @@ CREATE INDEX academic_certificados_cedula_impresa_index ON academic.certificados
 
 
 --
--- TOC entry 5003 (class 1259 OID 49251)
+-- TOC entry 5024 (class 1259 OID 49251)
 -- Name: academic_certificados_estado_index; Type: INDEX; Schema: academic; Owner: -
 --
 
@@ -3685,7 +3774,7 @@ CREATE INDEX academic_certificados_estado_index ON academic.certificados USING b
 
 
 --
--- TOC entry 5030 (class 1259 OID 49252)
+-- TOC entry 5051 (class 1259 OID 49252)
 -- Name: academic_horarios_dias_dia_semana_index; Type: INDEX; Schema: academic; Owner: -
 --
 
@@ -3693,7 +3782,7 @@ CREATE INDEX academic_horarios_dias_dia_semana_index ON academic.horarios_dias U
 
 
 --
--- TOC entry 5033 (class 1259 OID 49253)
+-- TOC entry 5054 (class 1259 OID 49253)
 -- Name: academic_horarios_dias_horario_id_index; Type: INDEX; Schema: academic; Owner: -
 --
 
@@ -3701,7 +3790,7 @@ CREATE INDEX academic_horarios_dias_horario_id_index ON academic.horarios_dias U
 
 
 --
--- TOC entry 5038 (class 1259 OID 49254)
+-- TOC entry 5059 (class 1259 OID 49254)
 -- Name: academic_horarios_talleres_dia_semana_index; Type: INDEX; Schema: academic; Owner: -
 --
 
@@ -3709,7 +3798,7 @@ CREATE INDEX academic_horarios_talleres_dia_semana_index ON academic.horarios_ta
 
 
 --
--- TOC entry 5039 (class 1259 OID 49255)
+-- TOC entry 5060 (class 1259 OID 49255)
 -- Name: academic_horarios_talleres_taller_id_index; Type: INDEX; Schema: academic; Owner: -
 --
 
@@ -3717,7 +3806,7 @@ CREATE INDEX academic_horarios_talleres_taller_id_index ON academic.horarios_tal
 
 
 --
--- TOC entry 5042 (class 1259 OID 49256)
+-- TOC entry 5063 (class 1259 OID 49256)
 -- Name: academic_inscripciones_externos_talleres_participante_externo_i; Type: INDEX; Schema: academic; Owner: -
 --
 
@@ -3725,7 +3814,7 @@ CREATE INDEX academic_inscripciones_externos_talleres_participante_externo_i ON 
 
 
 --
--- TOC entry 5043 (class 1259 OID 49257)
+-- TOC entry 5064 (class 1259 OID 49257)
 -- Name: academic_inscripciones_externos_talleres_taller_id_index; Type: INDEX; Schema: academic; Owner: -
 --
 
@@ -3733,7 +3822,7 @@ CREATE INDEX academic_inscripciones_externos_talleres_taller_id_index ON academi
 
 
 --
--- TOC entry 5055 (class 1259 OID 49258)
+-- TOC entry 5076 (class 1259 OID 49258)
 -- Name: academic_inscripciones_talleres_estudiante_id_index; Type: INDEX; Schema: academic; Owner: -
 --
 
@@ -3741,7 +3830,7 @@ CREATE INDEX academic_inscripciones_talleres_estudiante_id_index ON academic.ins
 
 
 --
--- TOC entry 5058 (class 1259 OID 49259)
+-- TOC entry 5079 (class 1259 OID 49259)
 -- Name: academic_inscripciones_talleres_taller_id_index; Type: INDEX; Schema: academic; Owner: -
 --
 
@@ -3749,7 +3838,7 @@ CREATE INDEX academic_inscripciones_talleres_taller_id_index ON academic.inscrip
 
 
 --
--- TOC entry 5082 (class 1259 OID 49260)
+-- TOC entry 5103 (class 1259 OID 49260)
 -- Name: academic_participantes_cursos_personalizados_curso_personalizad; Type: INDEX; Schema: academic; Owner: -
 --
 
@@ -3757,7 +3846,7 @@ CREATE INDEX academic_participantes_cursos_personalizados_curso_personalizad ON 
 
 
 --
--- TOC entry 5083 (class 1259 OID 49261)
+-- TOC entry 5104 (class 1259 OID 49261)
 -- Name: academic_participantes_cursos_personalizados_participante_exter; Type: INDEX; Schema: academic; Owner: -
 --
 
@@ -3765,7 +3854,7 @@ CREATE INDEX academic_participantes_cursos_personalizados_participante_exter ON 
 
 
 --
--- TOC entry 5088 (class 1259 OID 49262)
+-- TOC entry 5109 (class 1259 OID 49262)
 -- Name: academic_participantes_externos_email_index; Type: INDEX; Schema: academic; Owner: -
 --
 
@@ -3773,7 +3862,7 @@ CREATE INDEX academic_participantes_externos_email_index ON academic.participant
 
 
 --
--- TOC entry 5089 (class 1259 OID 49263)
+-- TOC entry 5110 (class 1259 OID 49263)
 -- Name: academic_participantes_externos_tipo_index; Type: INDEX; Schema: academic; Owner: -
 --
 
@@ -3781,7 +3870,7 @@ CREATE INDEX academic_participantes_externos_tipo_index ON academic.participante
 
 
 --
--- TOC entry 5092 (class 1259 OID 49264)
+-- TOC entry 5113 (class 1259 OID 49264)
 -- Name: academic_solicitudes_inscripcion_created_at_index; Type: INDEX; Schema: academic; Owner: -
 --
 
@@ -3789,7 +3878,7 @@ CREATE INDEX academic_solicitudes_inscripcion_created_at_index ON academic.solic
 
 
 --
--- TOC entry 5093 (class 1259 OID 49265)
+-- TOC entry 5114 (class 1259 OID 49265)
 -- Name: academic_solicitudes_inscripcion_curso_abierto_id_estado_index; Type: INDEX; Schema: academic; Owner: -
 --
 
@@ -3797,7 +3886,7 @@ CREATE INDEX academic_solicitudes_inscripcion_curso_abierto_id_estado_index ON a
 
 
 --
--- TOC entry 5094 (class 1259 OID 49266)
+-- TOC entry 5115 (class 1259 OID 49266)
 -- Name: academic_solicitudes_inscripcion_curso_abierto_id_index; Type: INDEX; Schema: academic; Owner: -
 --
 
@@ -3805,7 +3894,7 @@ CREATE INDEX academic_solicitudes_inscripcion_curso_abierto_id_index ON academic
 
 
 --
--- TOC entry 5095 (class 1259 OID 49267)
+-- TOC entry 5116 (class 1259 OID 49267)
 -- Name: academic_solicitudes_inscripcion_estado_index; Type: INDEX; Schema: academic; Owner: -
 --
 
@@ -3813,7 +3902,7 @@ CREATE INDEX academic_solicitudes_inscripcion_estado_index ON academic.solicitud
 
 
 --
--- TOC entry 5096 (class 1259 OID 49268)
+-- TOC entry 5117 (class 1259 OID 49268)
 -- Name: academic_solicitudes_inscripcion_persona_id_estado_index; Type: INDEX; Schema: academic; Owner: -
 --
 
@@ -3821,7 +3910,7 @@ CREATE INDEX academic_solicitudes_inscripcion_persona_id_estado_index ON academi
 
 
 --
--- TOC entry 5097 (class 1259 OID 49269)
+-- TOC entry 5118 (class 1259 OID 49269)
 -- Name: academic_solicitudes_inscripcion_persona_id_index; Type: INDEX; Schema: academic; Owner: -
 --
 
@@ -3829,7 +3918,7 @@ CREATE INDEX academic_solicitudes_inscripcion_persona_id_index ON academic.solic
 
 
 --
--- TOC entry 4981 (class 1259 OID 49270)
+-- TOC entry 5002 (class 1259 OID 49270)
 -- Name: idx_asistencias_clase; Type: INDEX; Schema: academic; Owner: -
 --
 
@@ -3837,7 +3926,7 @@ CREATE INDEX idx_asistencias_clase ON academic.asistencias USING btree (clase_id
 
 
 --
--- TOC entry 4982 (class 1259 OID 49271)
+-- TOC entry 5003 (class 1259 OID 49271)
 -- Name: idx_asistencias_clase_id; Type: INDEX; Schema: academic; Owner: -
 --
 
@@ -3845,7 +3934,7 @@ CREATE INDEX idx_asistencias_clase_id ON academic.asistencias USING btree (clase
 
 
 --
--- TOC entry 4983 (class 1259 OID 49272)
+-- TOC entry 5004 (class 1259 OID 49272)
 -- Name: idx_asistencias_matricula_id; Type: INDEX; Schema: academic; Owner: -
 --
 
@@ -3853,7 +3942,7 @@ CREATE INDEX idx_asistencias_matricula_id ON academic.asistencias USING btree (m
 
 
 --
--- TOC entry 4994 (class 1259 OID 49273)
+-- TOC entry 5015 (class 1259 OID 49273)
 -- Name: idx_cambios_horario_matricula_origen; Type: INDEX; Schema: academic; Owner: -
 --
 
@@ -3861,7 +3950,7 @@ CREATE INDEX idx_cambios_horario_matricula_origen ON academic.cambios_horario US
 
 
 --
--- TOC entry 5000 (class 1259 OID 49274)
+-- TOC entry 5021 (class 1259 OID 49274)
 -- Name: idx_catalogo_cursos_codigo; Type: INDEX; Schema: academic; Owner: -
 --
 
@@ -3869,7 +3958,7 @@ CREATE INDEX idx_catalogo_cursos_codigo ON academic.catalogo_cursos USING btree 
 
 
 --
--- TOC entry 5001 (class 1259 OID 49275)
+-- TOC entry 5022 (class 1259 OID 49275)
 -- Name: idx_catalogo_cursos_programa_id; Type: INDEX; Schema: academic; Owner: -
 --
 
@@ -3877,7 +3966,7 @@ CREATE INDEX idx_catalogo_cursos_programa_id ON academic.catalogo_cursos USING b
 
 
 --
--- TOC entry 5008 (class 1259 OID 49276)
+-- TOC entry 5029 (class 1259 OID 49276)
 -- Name: idx_certificados_codigo_trgm; Type: INDEX; Schema: academic; Owner: -
 --
 
@@ -3885,7 +3974,7 @@ CREATE INDEX idx_certificados_codigo_trgm ON academic.certificados USING gin (co
 
 
 --
--- TOC entry 5009 (class 1259 OID 49277)
+-- TOC entry 5030 (class 1259 OID 49277)
 -- Name: idx_certificados_codigo_unique; Type: INDEX; Schema: academic; Owner: -
 --
 
@@ -3893,7 +3982,7 @@ CREATE UNIQUE INDEX idx_certificados_codigo_unique ON academic.certificados USIN
 
 
 --
--- TOC entry 5010 (class 1259 OID 49278)
+-- TOC entry 5031 (class 1259 OID 49278)
 -- Name: idx_certificados_created_at; Type: INDEX; Schema: academic; Owner: -
 --
 
@@ -3901,7 +3990,7 @@ CREATE INDEX idx_certificados_created_at ON academic.certificados USING btree (c
 
 
 --
--- TOC entry 5011 (class 1259 OID 49279)
+-- TOC entry 5032 (class 1259 OID 49279)
 -- Name: idx_certificados_curso_abierto_id; Type: INDEX; Schema: academic; Owner: -
 --
 
@@ -3909,7 +3998,7 @@ CREATE INDEX idx_certificados_curso_abierto_id ON academic.certificados USING bt
 
 
 --
--- TOC entry 5012 (class 1259 OID 49280)
+-- TOC entry 5033 (class 1259 OID 49280)
 -- Name: idx_certificados_estudiante_id; Type: INDEX; Schema: academic; Owner: -
 --
 
@@ -3917,7 +4006,7 @@ CREATE INDEX idx_certificados_estudiante_id ON academic.certificados USING btree
 
 
 --
--- TOC entry 5015 (class 1259 OID 49281)
+-- TOC entry 5036 (class 1259 OID 49281)
 -- Name: idx_clases_fecha; Type: INDEX; Schema: academic; Owner: -
 --
 
@@ -3925,7 +4014,7 @@ CREATE INDEX idx_clases_fecha ON academic.clases USING btree (fecha_clase);
 
 
 --
--- TOC entry 5016 (class 1259 OID 49282)
+-- TOC entry 5037 (class 1259 OID 49282)
 -- Name: idx_clases_modulo_id; Type: INDEX; Schema: academic; Owner: -
 --
 
@@ -3933,7 +4022,7 @@ CREATE INDEX idx_clases_modulo_id ON academic.clases USING btree (modulo_id);
 
 
 --
--- TOC entry 5023 (class 1259 OID 49283)
+-- TOC entry 5044 (class 1259 OID 49283)
 -- Name: idx_cursos_abiertos_catalogo_id; Type: INDEX; Schema: academic; Owner: -
 --
 
@@ -3941,7 +4030,7 @@ CREATE INDEX idx_cursos_abiertos_catalogo_id ON academic.cursos_abiertos USING b
 
 
 --
--- TOC entry 5024 (class 1259 OID 49284)
+-- TOC entry 5045 (class 1259 OID 49284)
 -- Name: idx_cursos_abiertos_es_personalizado; Type: INDEX; Schema: academic; Owner: -
 --
 
@@ -3949,7 +4038,7 @@ CREATE INDEX idx_cursos_abiertos_es_personalizado ON academic.cursos_abiertos US
 
 
 --
--- TOC entry 5025 (class 1259 OID 49285)
+-- TOC entry 5046 (class 1259 OID 49285)
 -- Name: idx_cursos_abiertos_estado; Type: INDEX; Schema: academic; Owner: -
 --
 
@@ -3957,7 +4046,7 @@ CREATE INDEX idx_cursos_abiertos_estado ON academic.cursos_abiertos USING btree 
 
 
 --
--- TOC entry 5026 (class 1259 OID 49286)
+-- TOC entry 5047 (class 1259 OID 49286)
 -- Name: idx_cursos_abiertos_resumen; Type: INDEX; Schema: academic; Owner: -
 --
 
@@ -3965,7 +4054,7 @@ CREATE INDEX idx_cursos_abiertos_resumen ON academic.cursos_abiertos USING btree
 
 
 --
--- TOC entry 5027 (class 1259 OID 49287)
+-- TOC entry 5048 (class 1259 OID 49287)
 -- Name: idx_cursos_estado; Type: INDEX; Schema: academic; Owner: -
 --
 
@@ -3973,7 +4062,7 @@ CREATE INDEX idx_cursos_estado ON academic.cursos_abiertos USING btree (estado) 
 
 
 --
--- TOC entry 5036 (class 1259 OID 49288)
+-- TOC entry 5057 (class 1259 OID 49288)
 -- Name: idx_horarios_dias_dia_semana; Type: INDEX; Schema: academic; Owner: -
 --
 
@@ -3981,7 +4070,7 @@ CREATE INDEX idx_horarios_dias_dia_semana ON academic.horarios_dias USING btree 
 
 
 --
--- TOC entry 5037 (class 1259 OID 49289)
+-- TOC entry 5058 (class 1259 OID 49289)
 -- Name: idx_horarios_dias_horario_id; Type: INDEX; Schema: academic; Owner: -
 --
 
@@ -3989,7 +4078,7 @@ CREATE INDEX idx_horarios_dias_horario_id ON academic.horarios_dias USING btree 
 
 
 --
--- TOC entry 5048 (class 1259 OID 49290)
+-- TOC entry 5069 (class 1259 OID 49290)
 -- Name: idx_inscripciones_taller_apellidos_trgm; Type: INDEX; Schema: academic; Owner: -
 --
 
@@ -3997,7 +4086,7 @@ CREATE INDEX idx_inscripciones_taller_apellidos_trgm ON academic.inscripciones_t
 
 
 --
--- TOC entry 5049 (class 1259 OID 49291)
+-- TOC entry 5070 (class 1259 OID 49291)
 -- Name: idx_inscripciones_taller_cedula; Type: INDEX; Schema: academic; Owner: -
 --
 
@@ -4005,7 +4094,7 @@ CREATE INDEX idx_inscripciones_taller_cedula ON academic.inscripciones_taller US
 
 
 --
--- TOC entry 5050 (class 1259 OID 49292)
+-- TOC entry 5071 (class 1259 OID 49292)
 -- Name: idx_inscripciones_taller_estado; Type: INDEX; Schema: academic; Owner: -
 --
 
@@ -4013,7 +4102,7 @@ CREATE INDEX idx_inscripciones_taller_estado ON academic.inscripciones_taller US
 
 
 --
--- TOC entry 5051 (class 1259 OID 49293)
+-- TOC entry 5072 (class 1259 OID 49293)
 -- Name: idx_inscripciones_taller_nombres; Type: INDEX; Schema: academic; Owner: -
 --
 
@@ -4021,7 +4110,7 @@ CREATE INDEX idx_inscripciones_taller_nombres ON academic.inscripciones_taller U
 
 
 --
--- TOC entry 5052 (class 1259 OID 49294)
+-- TOC entry 5073 (class 1259 OID 49294)
 -- Name: idx_inscripciones_taller_nombres_trgm; Type: INDEX; Schema: academic; Owner: -
 --
 
@@ -4029,7 +4118,7 @@ CREATE INDEX idx_inscripciones_taller_nombres_trgm ON academic.inscripciones_tal
 
 
 --
--- TOC entry 5061 (class 1259 OID 49295)
+-- TOC entry 5082 (class 1259 OID 49295)
 -- Name: idx_matriculas_composite; Type: INDEX; Schema: academic; Owner: -
 --
 
@@ -4037,7 +4126,7 @@ CREATE INDEX idx_matriculas_composite ON academic.matriculas USING btree (curso_
 
 
 --
--- TOC entry 5062 (class 1259 OID 49296)
+-- TOC entry 5083 (class 1259 OID 49296)
 -- Name: idx_matriculas_curso; Type: INDEX; Schema: academic; Owner: -
 --
 
@@ -4045,7 +4134,7 @@ CREATE INDEX idx_matriculas_curso ON academic.matriculas USING btree (curso_abie
 
 
 --
--- TOC entry 5063 (class 1259 OID 49297)
+-- TOC entry 5084 (class 1259 OID 49297)
 -- Name: idx_matriculas_curso_abierto_id; Type: INDEX; Schema: academic; Owner: -
 --
 
@@ -4053,7 +4142,7 @@ CREATE INDEX idx_matriculas_curso_abierto_id ON academic.matriculas USING btree 
 
 
 --
--- TOC entry 5064 (class 1259 OID 49298)
+-- TOC entry 5085 (class 1259 OID 49298)
 -- Name: idx_matriculas_deleted_at; Type: INDEX; Schema: academic; Owner: -
 --
 
@@ -4061,7 +4150,7 @@ CREATE INDEX idx_matriculas_deleted_at ON academic.matriculas USING btree (delet
 
 
 --
--- TOC entry 5065 (class 1259 OID 49299)
+-- TOC entry 5086 (class 1259 OID 49299)
 -- Name: idx_matriculas_estado; Type: INDEX; Schema: academic; Owner: -
 --
 
@@ -4069,7 +4158,7 @@ CREATE INDEX idx_matriculas_estado ON academic.matriculas USING btree (estado);
 
 
 --
--- TOC entry 5066 (class 1259 OID 49300)
+-- TOC entry 5087 (class 1259 OID 49300)
 -- Name: idx_matriculas_estudiante; Type: INDEX; Schema: academic; Owner: -
 --
 
@@ -4077,7 +4166,7 @@ CREATE INDEX idx_matriculas_estudiante ON academic.matriculas USING btree (estud
 
 
 --
--- TOC entry 5067 (class 1259 OID 49301)
+-- TOC entry 5088 (class 1259 OID 49301)
 -- Name: idx_matriculas_estudiante_curso; Type: INDEX; Schema: academic; Owner: -
 --
 
@@ -4085,7 +4174,7 @@ CREATE INDEX idx_matriculas_estudiante_curso ON academic.matriculas USING btree 
 
 
 --
--- TOC entry 5068 (class 1259 OID 49302)
+-- TOC entry 5089 (class 1259 OID 49302)
 -- Name: idx_matriculas_estudiante_estado; Type: INDEX; Schema: academic; Owner: -
 --
 
@@ -4093,7 +4182,7 @@ CREATE INDEX idx_matriculas_estudiante_estado ON academic.matriculas USING btree
 
 
 --
--- TOC entry 5069 (class 1259 OID 49303)
+-- TOC entry 5090 (class 1259 OID 49303)
 -- Name: idx_matriculas_estudiante_id; Type: INDEX; Schema: academic; Owner: -
 --
 
@@ -4101,7 +4190,7 @@ CREATE INDEX idx_matriculas_estudiante_id ON academic.matriculas USING btree (es
 
 
 --
--- TOC entry 5070 (class 1259 OID 49304)
+-- TOC entry 5091 (class 1259 OID 49304)
 -- Name: idx_matriculas_solicitud_id; Type: INDEX; Schema: academic; Owner: -
 --
 
@@ -4109,7 +4198,7 @@ CREATE INDEX idx_matriculas_solicitud_id ON academic.matriculas USING btree (sol
 
 
 --
--- TOC entry 5075 (class 1259 OID 49305)
+-- TOC entry 5096 (class 1259 OID 49305)
 -- Name: idx_notas_composite; Type: INDEX; Schema: academic; Owner: -
 --
 
@@ -4117,7 +4206,7 @@ CREATE INDEX idx_notas_composite ON academic.notas USING btree (matricula_id, mo
 
 
 --
--- TOC entry 5076 (class 1259 OID 49306)
+-- TOC entry 5097 (class 1259 OID 49306)
 -- Name: idx_notas_matricula_id; Type: INDEX; Schema: academic; Owner: -
 --
 
@@ -4125,7 +4214,7 @@ CREATE INDEX idx_notas_matricula_id ON academic.notas USING btree (matricula_id)
 
 
 --
--- TOC entry 5077 (class 1259 OID 49307)
+-- TOC entry 5098 (class 1259 OID 49307)
 -- Name: idx_notas_modulo_id; Type: INDEX; Schema: academic; Owner: -
 --
 
@@ -4133,7 +4222,7 @@ CREATE INDEX idx_notas_modulo_id ON academic.notas USING btree (modulo_id);
 
 
 --
--- TOC entry 5098 (class 1259 OID 49308)
+-- TOC entry 5119 (class 1259 OID 49308)
 -- Name: idx_solicitudes_inscripcion_participante_externo_id; Type: INDEX; Schema: academic; Owner: -
 --
 
@@ -4141,7 +4230,7 @@ CREATE INDEX idx_solicitudes_inscripcion_participante_externo_id ON academic.sol
 
 
 --
--- TOC entry 5109 (class 1259 OID 49309)
+-- TOC entry 5130 (class 1259 OID 49309)
 -- Name: audit_cambios_horario_auditoria_cambio_horario_id_index; Type: INDEX; Schema: audit; Owner: -
 --
 
@@ -4149,7 +4238,7 @@ CREATE INDEX audit_cambios_horario_auditoria_cambio_horario_id_index ON audit.ca
 
 
 --
--- TOC entry 5110 (class 1259 OID 49310)
+-- TOC entry 5131 (class 1259 OID 49310)
 -- Name: audit_cambios_horario_auditoria_fecha_cambio_index; Type: INDEX; Schema: audit; Owner: -
 --
 
@@ -4157,7 +4246,7 @@ CREATE INDEX audit_cambios_horario_auditoria_fecha_cambio_index ON audit.cambios
 
 
 --
--- TOC entry 5111 (class 1259 OID 49311)
+-- TOC entry 5132 (class 1259 OID 49311)
 -- Name: audit_cambios_horario_auditoria_matricula_origen_id_index; Type: INDEX; Schema: audit; Owner: -
 --
 
@@ -4165,7 +4254,7 @@ CREATE INDEX audit_cambios_horario_auditoria_matricula_origen_id_index ON audit.
 
 
 --
--- TOC entry 5116 (class 1259 OID 49312)
+-- TOC entry 5137 (class 1259 OID 49312)
 -- Name: idx_audit_eventos_financieros_fecha; Type: INDEX; Schema: audit; Owner: -
 --
 
@@ -4173,7 +4262,7 @@ CREATE INDEX idx_audit_eventos_financieros_fecha ON audit.eventos_financieros US
 
 
 --
--- TOC entry 5117 (class 1259 OID 49313)
+-- TOC entry 5138 (class 1259 OID 49313)
 -- Name: idx_audit_inicios_sesion_fecha; Type: INDEX; Schema: audit; Owner: -
 --
 
@@ -4181,7 +4270,7 @@ CREATE INDEX idx_audit_inicios_sesion_fecha ON audit.inicios_sesion USING btree 
 
 
 --
--- TOC entry 5120 (class 1259 OID 49314)
+-- TOC entry 5141 (class 1259 OID 49314)
 -- Name: archivos_eliminados_eliminado_por_index; Type: INDEX; Schema: core; Owner: -
 --
 
@@ -4189,7 +4278,7 @@ CREATE INDEX archivos_eliminados_eliminado_por_index ON core.archivos_eliminados
 
 
 --
--- TOC entry 5121 (class 1259 OID 49315)
+-- TOC entry 5142 (class 1259 OID 49315)
 -- Name: archivos_eliminados_field_name_index; Type: INDEX; Schema: core; Owner: -
 --
 
@@ -4197,7 +4286,7 @@ CREATE INDEX archivos_eliminados_field_name_index ON core.archivos_eliminados US
 
 
 --
--- TOC entry 5122 (class 1259 OID 49316)
+-- TOC entry 5143 (class 1259 OID 49316)
 -- Name: archivos_eliminados_model_type_model_id_index; Type: INDEX; Schema: core; Owner: -
 --
 
@@ -4205,7 +4294,7 @@ CREATE INDEX archivos_eliminados_model_type_model_id_index ON core.archivos_elim
 
 
 --
--- TOC entry 5126 (class 1259 OID 49317)
+-- TOC entry 5147 (class 1259 OID 49317)
 -- Name: cache_expiration_index; Type: INDEX; Schema: core; Owner: -
 --
 
@@ -4213,7 +4302,7 @@ CREATE INDEX cache_expiration_index ON core.cache USING btree (expiration);
 
 
 --
--- TOC entry 5129 (class 1259 OID 49318)
+-- TOC entry 5150 (class 1259 OID 49318)
 -- Name: cache_locks_expiration_index; Type: INDEX; Schema: core; Owner: -
 --
 
@@ -4221,7 +4310,71 @@ CREATE INDEX cache_locks_expiration_index ON core.cache_locks USING btree (expir
 
 
 --
--- TOC entry 5138 (class 1259 OID 49319)
+-- TOC entry 5340 (class 1259 OID 53696)
+-- Name: curso_interesados_cedula_index; Type: INDEX; Schema: core; Owner: -
+--
+
+CREATE INDEX curso_interesados_cedula_index ON core.curso_interesados USING btree (cedula);
+
+
+--
+-- TOC entry 5341 (class 1259 OID 53710)
+-- Name: curso_interesados_creado_por_id_idx; Type: INDEX; Schema: core; Owner: -
+--
+
+CREATE INDEX curso_interesados_creado_por_id_idx ON core.curso_interesados USING btree (creado_por_id);
+
+
+--
+-- TOC entry 5342 (class 1259 OID 53694)
+-- Name: curso_interesados_curso_abierto_id_index; Type: INDEX; Schema: core; Owner: -
+--
+
+CREATE INDEX curso_interesados_curso_abierto_id_index ON core.curso_interesados USING btree (curso_abierto_id);
+
+
+--
+-- TOC entry 5345 (class 1259 OID 53695)
+-- Name: curso_interesados_taller_id_index; Type: INDEX; Schema: core; Owner: -
+--
+
+CREATE INDEX curso_interesados_taller_id_index ON core.curso_interesados USING btree (taller_id);
+
+
+--
+-- TOC entry 5346 (class 1259 OID 53697)
+-- Name: curso_interesados_telefono_index; Type: INDEX; Schema: core; Owner: -
+--
+
+CREATE INDEX curso_interesados_telefono_index ON core.curso_interesados USING btree (telefono);
+
+
+--
+-- TOC entry 5347 (class 1259 OID 53718)
+-- Name: documentos_archivos_es_publico_created_at_index; Type: INDEX; Schema: core; Owner: -
+--
+
+CREATE INDEX documentos_archivos_es_publico_created_at_index ON core.documentos_archivos USING btree (es_publico, created_at);
+
+
+--
+-- TOC entry 5348 (class 1259 OID 53722)
+-- Name: documentos_archivos_es_publico_index; Type: INDEX; Schema: core; Owner: -
+--
+
+CREATE INDEX documentos_archivos_es_publico_index ON core.documentos_archivos USING btree (es_publico);
+
+
+--
+-- TOC entry 5349 (class 1259 OID 53721)
+-- Name: documentos_archivos_nombre_index; Type: INDEX; Schema: core; Owner: -
+--
+
+CREATE INDEX documentos_archivos_nombre_index ON core.documentos_archivos USING btree (nombre);
+
+
+--
+-- TOC entry 5159 (class 1259 OID 49319)
 -- Name: failed_jobs_connection_queue_failed_at_index; Type: INDEX; Schema: core; Owner: -
 --
 
@@ -4229,7 +4382,7 @@ CREATE INDEX failed_jobs_connection_queue_failed_at_index ON core.failed_jobs US
 
 
 --
--- TOC entry 5125 (class 1259 OID 49320)
+-- TOC entry 5146 (class 1259 OID 49320)
 -- Name: idx_archivos_eliminados_lookup; Type: INDEX; Schema: core; Owner: -
 --
 
@@ -4237,7 +4390,7 @@ CREATE INDEX idx_archivos_eliminados_lookup ON core.archivos_eliminados USING bt
 
 
 --
--- TOC entry 5147 (class 1259 OID 49321)
+-- TOC entry 5168 (class 1259 OID 49321)
 -- Name: jobs_queue_index; Type: INDEX; Schema: core; Owner: -
 --
 
@@ -4245,7 +4398,7 @@ CREATE INDEX jobs_queue_index ON core.jobs USING btree (queue);
 
 
 --
--- TOC entry 5150 (class 1259 OID 49322)
+-- TOC entry 5171 (class 1259 OID 49322)
 -- Name: model_has_permissions_model_id_model_type_index; Type: INDEX; Schema: core; Owner: -
 --
 
@@ -4253,7 +4406,7 @@ CREATE INDEX model_has_permissions_model_id_model_type_index ON core.model_has_p
 
 
 --
--- TOC entry 5153 (class 1259 OID 49323)
+-- TOC entry 5174 (class 1259 OID 49323)
 -- Name: model_has_roles_model_id_model_type_index; Type: INDEX; Schema: core; Owner: -
 --
 
@@ -4261,7 +4414,7 @@ CREATE INDEX model_has_roles_model_id_model_type_index ON core.model_has_roles U
 
 
 --
--- TOC entry 5168 (class 1259 OID 49324)
+-- TOC entry 5189 (class 1259 OID 49324)
 -- Name: sessions_last_activity_index; Type: INDEX; Schema: core; Owner: -
 --
 
@@ -4269,7 +4422,7 @@ CREATE INDEX sessions_last_activity_index ON core.sessions USING btree (last_act
 
 
 --
--- TOC entry 5171 (class 1259 OID 49325)
+-- TOC entry 5192 (class 1259 OID 49325)
 -- Name: sessions_user_id_index; Type: INDEX; Schema: core; Owner: -
 --
 
@@ -4277,7 +4430,7 @@ CREATE INDEX sessions_user_id_index ON core.sessions USING btree (user_id);
 
 
 --
--- TOC entry 5178 (class 1259 OID 49326)
+-- TOC entry 5199 (class 1259 OID 49326)
 -- Name: finance_cuentas_por_cobrar_reserva_radio_id_index; Type: INDEX; Schema: finance; Owner: -
 --
 
@@ -4285,7 +4438,7 @@ CREATE INDEX finance_cuentas_por_cobrar_reserva_radio_id_index ON finance.cuenta
 
 
 --
--- TOC entry 5105 (class 1259 OID 49327)
+-- TOC entry 5126 (class 1259 OID 49327)
 -- Name: finance_lineas_pago_modulo_matricula_id_index; Type: INDEX; Schema: finance; Owner: -
 --
 
@@ -4293,7 +4446,7 @@ CREATE INDEX finance_lineas_pago_modulo_matricula_id_index ON finance.lineas_pag
 
 
 --
--- TOC entry 5106 (class 1259 OID 49328)
+-- TOC entry 5127 (class 1259 OID 49328)
 -- Name: finance_lineas_pago_modulo_modulo_id_index; Type: INDEX; Schema: finance; Owner: -
 --
 
@@ -4301,7 +4454,15 @@ CREATE INDEX finance_lineas_pago_modulo_modulo_id_index ON finance.lineas_pago_m
 
 
 --
--- TOC entry 5179 (class 1259 OID 49329)
+-- TOC entry 5222 (class 1259 OID 53667)
+-- Name: finance_transacciones_ingreso_grupo_pago_id_index; Type: INDEX; Schema: finance; Owner: -
+--
+
+CREATE INDEX finance_transacciones_ingreso_grupo_pago_id_index ON finance.transacciones_ingreso USING btree (grupo_pago_id);
+
+
+--
+-- TOC entry 5200 (class 1259 OID 49329)
 -- Name: idx_cpc_alquiler_equipo; Type: INDEX; Schema: finance; Owner: -
 --
 
@@ -4309,7 +4470,7 @@ CREATE INDEX idx_cpc_alquiler_equipo ON finance.cuentas_por_cobrar USING btree (
 
 
 --
--- TOC entry 5180 (class 1259 OID 49330)
+-- TOC entry 5201 (class 1259 OID 49330)
 -- Name: idx_cpc_matricula; Type: INDEX; Schema: finance; Owner: -
 --
 
@@ -4317,7 +4478,7 @@ CREATE INDEX idx_cpc_matricula ON finance.cuentas_por_cobrar USING btree (matric
 
 
 --
--- TOC entry 5181 (class 1259 OID 49331)
+-- TOC entry 5202 (class 1259 OID 49331)
 -- Name: idx_cpc_produccion; Type: INDEX; Schema: finance; Owner: -
 --
 
@@ -4325,7 +4486,7 @@ CREATE INDEX idx_cpc_produccion ON finance.cuentas_por_cobrar USING btree (servi
 
 
 --
--- TOC entry 5182 (class 1259 OID 49332)
+-- TOC entry 5203 (class 1259 OID 49332)
 -- Name: idx_cpc_reserva_aula; Type: INDEX; Schema: finance; Owner: -
 --
 
@@ -4333,7 +4494,7 @@ CREATE INDEX idx_cpc_reserva_aula ON finance.cuentas_por_cobrar USING btree (res
 
 
 --
--- TOC entry 5183 (class 1259 OID 49333)
+-- TOC entry 5204 (class 1259 OID 49333)
 -- Name: idx_cpc_reserva_podcast; Type: INDEX; Schema: finance; Owner: -
 --
 
@@ -4341,7 +4502,7 @@ CREATE INDEX idx_cpc_reserva_podcast ON finance.cuentas_por_cobrar USING btree (
 
 
 --
--- TOC entry 5184 (class 1259 OID 49334)
+-- TOC entry 5205 (class 1259 OID 49334)
 -- Name: idx_cpc_streaming; Type: INDEX; Schema: finance; Owner: -
 --
 
@@ -4349,7 +4510,7 @@ CREATE INDEX idx_cpc_streaming ON finance.cuentas_por_cobrar USING btree (servic
 
 
 --
--- TOC entry 5185 (class 1259 OID 49335)
+-- TOC entry 5206 (class 1259 OID 49335)
 -- Name: idx_cuentas_alquiler_equipo_id; Type: INDEX; Schema: finance; Owner: -
 --
 
@@ -4357,7 +4518,7 @@ CREATE INDEX idx_cuentas_alquiler_equipo_id ON finance.cuentas_por_cobrar USING 
 
 
 --
--- TOC entry 5186 (class 1259 OID 49336)
+-- TOC entry 5207 (class 1259 OID 49336)
 -- Name: idx_cuentas_asesoria_id; Type: INDEX; Schema: finance; Owner: -
 --
 
@@ -4365,7 +4526,7 @@ CREATE INDEX idx_cuentas_asesoria_id ON finance.cuentas_por_cobrar USING btree (
 
 
 --
--- TOC entry 5187 (class 1259 OID 49337)
+-- TOC entry 5208 (class 1259 OID 49337)
 -- Name: idx_cuentas_clase_extra_id; Type: INDEX; Schema: finance; Owner: -
 --
 
@@ -4373,7 +4534,7 @@ CREATE INDEX idx_cuentas_clase_extra_id ON finance.cuentas_por_cobrar USING btre
 
 
 --
--- TOC entry 5188 (class 1259 OID 49338)
+-- TOC entry 5209 (class 1259 OID 49338)
 -- Name: idx_cuentas_edicion_video_id; Type: INDEX; Schema: finance; Owner: -
 --
 
@@ -4381,7 +4542,7 @@ CREATE INDEX idx_cuentas_edicion_video_id ON finance.cuentas_por_cobrar USING bt
 
 
 --
--- TOC entry 5189 (class 1259 OID 49339)
+-- TOC entry 5210 (class 1259 OID 49339)
 -- Name: idx_cuentas_estado; Type: INDEX; Schema: finance; Owner: -
 --
 
@@ -4389,7 +4550,7 @@ CREATE INDEX idx_cuentas_estado ON finance.cuentas_por_cobrar USING btree (estad
 
 
 --
--- TOC entry 5190 (class 1259 OID 49340)
+-- TOC entry 5211 (class 1259 OID 49340)
 -- Name: idx_cuentas_estado_created; Type: INDEX; Schema: finance; Owner: -
 --
 
@@ -4397,7 +4558,7 @@ CREATE INDEX idx_cuentas_estado_created ON finance.cuentas_por_cobrar USING btre
 
 
 --
--- TOC entry 5191 (class 1259 OID 49341)
+-- TOC entry 5212 (class 1259 OID 49341)
 -- Name: idx_cuentas_inscripcion_taller_id; Type: INDEX; Schema: finance; Owner: -
 --
 
@@ -4405,7 +4566,7 @@ CREATE INDEX idx_cuentas_inscripcion_taller_id ON finance.cuentas_por_cobrar USI
 
 
 --
--- TOC entry 5192 (class 1259 OID 49342)
+-- TOC entry 5213 (class 1259 OID 49342)
 -- Name: idx_cuentas_solicitud_inscripcion_id; Type: INDEX; Schema: finance; Owner: -
 --
 
@@ -4413,7 +4574,7 @@ CREATE INDEX idx_cuentas_solicitud_inscripcion_id ON finance.cuentas_por_cobrar 
 
 
 --
--- TOC entry 5198 (class 1259 OID 49343)
+-- TOC entry 5219 (class 1259 OID 49343)
 -- Name: idx_egresos_fecha; Type: INDEX; Schema: finance; Owner: -
 --
 
@@ -4421,7 +4582,7 @@ CREATE INDEX idx_egresos_fecha ON finance.transacciones_egreso USING btree (fech
 
 
 --
--- TOC entry 5195 (class 1259 OID 49344)
+-- TOC entry 5216 (class 1259 OID 49344)
 -- Name: idx_horas_instructor_pago; Type: INDEX; Schema: finance; Owner: -
 --
 
@@ -4429,7 +4590,7 @@ CREATE INDEX idx_horas_instructor_pago ON finance.horas_instructor USING btree (
 
 
 --
--- TOC entry 5201 (class 1259 OID 49345)
+-- TOC entry 5223 (class 1259 OID 49345)
 -- Name: idx_ingresos_fecha; Type: INDEX; Schema: finance; Owner: -
 --
 
@@ -4437,7 +4598,7 @@ CREATE INDEX idx_ingresos_fecha ON finance.transacciones_ingreso USING btree (fe
 
 
 --
--- TOC entry 5213 (class 1259 OID 49346)
+-- TOC entry 5235 (class 1259 OID 49346)
 -- Name: idx_staff_asistencia_fecha; Type: INDEX; Schema: ops; Owner: -
 --
 
@@ -4445,7 +4606,7 @@ CREATE INDEX idx_staff_asistencia_fecha ON ops.registro_asistencia_staff USING b
 
 
 --
--- TOC entry 5218 (class 1259 OID 49347)
+-- TOC entry 5240 (class 1259 OID 49347)
 -- Name: idx_tareas_staff_estado; Type: INDEX; Schema: ops; Owner: -
 --
 
@@ -4453,7 +4614,7 @@ CREATE INDEX idx_tareas_staff_estado ON ops.tareas_staff USING btree (estado);
 
 
 --
--- TOC entry 5219 (class 1259 OID 49348)
+-- TOC entry 5241 (class 1259 OID 49348)
 -- Name: idx_tareas_staff_persona; Type: INDEX; Schema: ops; Owner: -
 --
 
@@ -4461,7 +4622,7 @@ CREATE INDEX idx_tareas_staff_persona ON ops.tareas_staff USING btree (persona_i
 
 
 --
--- TOC entry 5312 (class 1259 OID 51816)
+-- TOC entry 5336 (class 1259 OID 51816)
 -- Name: clientes_ext_contactos_cliente_idx; Type: INDEX; Schema: people; Owner: -
 --
 
@@ -4469,7 +4630,7 @@ CREATE INDEX clientes_ext_contactos_cliente_idx ON people.clientes_externos_cont
 
 
 --
--- TOC entry 5313 (class 1259 OID 51824)
+-- TOC entry 5337 (class 1259 OID 51824)
 -- Name: clientes_ext_contactos_principal_idx; Type: INDEX; Schema: people; Owner: -
 --
 
@@ -4477,7 +4638,7 @@ CREATE UNIQUE INDEX clientes_ext_contactos_principal_idx ON people.clientes_exte
 
 
 --
--- TOC entry 5222 (class 1259 OID 51808)
+-- TOC entry 5244 (class 1259 OID 51808)
 -- Name: clientes_externos_tipo_cliente_idx; Type: INDEX; Schema: people; Owner: -
 --
 
@@ -4485,7 +4646,7 @@ CREATE INDEX clientes_externos_tipo_cliente_idx ON people.clientes_externos USIN
 
 
 --
--- TOC entry 5223 (class 1259 OID 49349)
+-- TOC entry 5245 (class 1259 OID 49349)
 -- Name: idx_clientes_externos_apellidos; Type: INDEX; Schema: people; Owner: -
 --
 
@@ -4493,7 +4654,7 @@ CREATE INDEX idx_clientes_externos_apellidos ON people.clientes_externos USING g
 
 
 --
--- TOC entry 5224 (class 1259 OID 49350)
+-- TOC entry 5246 (class 1259 OID 49350)
 -- Name: idx_clientes_externos_cedula; Type: INDEX; Schema: people; Owner: -
 --
 
@@ -4501,7 +4662,7 @@ CREATE INDEX idx_clientes_externos_cedula ON people.clientes_externos USING btre
 
 
 --
--- TOC entry 5225 (class 1259 OID 49351)
+-- TOC entry 5247 (class 1259 OID 49351)
 -- Name: idx_clientes_externos_nombres; Type: INDEX; Schema: people; Owner: -
 --
 
@@ -4509,7 +4670,7 @@ CREATE INDEX idx_clientes_externos_nombres ON people.clientes_externos USING gin
 
 
 --
--- TOC entry 5204 (class 1259 OID 49352)
+-- TOC entry 5226 (class 1259 OID 49352)
 -- Name: idx_personas_apellidos_trgm; Type: INDEX; Schema: people; Owner: -
 --
 
@@ -4517,7 +4678,7 @@ CREATE INDEX idx_personas_apellidos_trgm ON people.personas USING gin (apellidos
 
 
 --
--- TOC entry 5205 (class 1259 OID 49353)
+-- TOC entry 5227 (class 1259 OID 49353)
 -- Name: idx_personas_cedula; Type: INDEX; Schema: people; Owner: -
 --
 
@@ -4525,7 +4686,7 @@ CREATE INDEX idx_personas_cedula ON people.personas USING btree (cedula) WHERE (
 
 
 --
--- TOC entry 5206 (class 1259 OID 49354)
+-- TOC entry 5228 (class 1259 OID 49354)
 -- Name: idx_personas_nombres_btree; Type: INDEX; Schema: people; Owner: -
 --
 
@@ -4533,7 +4694,7 @@ CREATE INDEX idx_personas_nombres_btree ON people.personas USING btree (nombres)
 
 
 --
--- TOC entry 5207 (class 1259 OID 49355)
+-- TOC entry 5229 (class 1259 OID 49355)
 -- Name: idx_personas_nombres_trgm; Type: INDEX; Schema: people; Owner: -
 --
 
@@ -4541,7 +4702,7 @@ CREATE INDEX idx_personas_nombres_trgm ON people.personas USING gin (nombres pub
 
 
 --
--- TOC entry 5208 (class 1259 OID 49356)
+-- TOC entry 5230 (class 1259 OID 49356)
 -- Name: idx_personas_tipo; Type: INDEX; Schema: people; Owner: -
 --
 
@@ -4549,7 +4710,7 @@ CREATE INDEX idx_personas_tipo ON people.personas USING btree (tipo) WHERE (dele
 
 
 --
--- TOC entry 5283 (class 1259 OID 49357)
+-- TOC entry 5307 (class 1259 OID 49357)
 -- Name: idx_alquiler_equipos_cliente_externo; Type: INDEX; Schema: services; Owner: -
 --
 
@@ -4557,7 +4718,7 @@ CREATE INDEX idx_alquiler_equipos_cliente_externo ON services.alquiler_equipos U
 
 
 --
--- TOC entry 5284 (class 1259 OID 49358)
+-- TOC entry 5308 (class 1259 OID 49358)
 -- Name: idx_alquileres_equipo_estado; Type: INDEX; Schema: services; Owner: -
 --
 
@@ -4565,7 +4726,7 @@ CREATE INDEX idx_alquileres_equipo_estado ON services.alquiler_equipos USING btr
 
 
 --
--- TOC entry 5234 (class 1259 OID 49359)
+-- TOC entry 5256 (class 1259 OID 49359)
 -- Name: idx_reservas_aulas_cliente_externo; Type: INDEX; Schema: services; Owner: -
 --
 
@@ -4573,7 +4734,7 @@ CREATE INDEX idx_reservas_aulas_cliente_externo ON services.reservas_aulas USING
 
 
 --
--- TOC entry 5235 (class 1259 OID 49360)
+-- TOC entry 5257 (class 1259 OID 49360)
 -- Name: idx_reservas_aulas_disponibilidad; Type: INDEX; Schema: services; Owner: -
 --
 
@@ -4581,7 +4742,7 @@ CREATE INDEX idx_reservas_aulas_disponibilidad ON services.reservas_aulas USING 
 
 
 --
--- TOC entry 5238 (class 1259 OID 49361)
+-- TOC entry 5260 (class 1259 OID 49361)
 -- Name: idx_reservas_podcast_cliente_externo; Type: INDEX; Schema: services; Owner: -
 --
 
@@ -4589,7 +4750,7 @@ CREATE INDEX idx_reservas_podcast_cliente_externo ON services.reservas_podcast U
 
 
 --
--- TOC entry 5295 (class 1259 OID 49362)
+-- TOC entry 5319 (class 1259 OID 49362)
 -- Name: idx_reservas_radio_cliente_externo; Type: INDEX; Schema: services; Owner: -
 --
 
@@ -4597,7 +4758,23 @@ CREATE INDEX idx_reservas_radio_cliente_externo ON services.reservas_radio USING
 
 
 --
--- TOC entry 5285 (class 1259 OID 49363)
+-- TOC entry 5263 (class 1259 OID 53643)
+-- Name: idx_servicios_streaming_ciudad; Type: INDEX; Schema: services; Owner: -
+--
+
+CREATE INDEX idx_servicios_streaming_ciudad ON services.servicios_streaming USING btree (ciudad_id);
+
+
+--
+-- TOC entry 5264 (class 1259 OID 53642)
+-- Name: idx_servicios_streaming_fechas; Type: INDEX; Schema: services; Owner: -
+--
+
+CREATE INDEX idx_servicios_streaming_fechas ON services.servicios_streaming USING btree (fecha_evento, hora_inicio, hora_fin);
+
+
+--
+-- TOC entry 5309 (class 1259 OID 49363)
 -- Name: services_alquiler_equipos_equipo_id_index; Type: INDEX; Schema: services; Owner: -
 --
 
@@ -4605,7 +4782,7 @@ CREATE INDEX services_alquiler_equipos_equipo_id_index ON services.alquiler_equi
 
 
 --
--- TOC entry 5286 (class 1259 OID 49364)
+-- TOC entry 5310 (class 1259 OID 49364)
 -- Name: services_alquiler_equipos_estado_index; Type: INDEX; Schema: services; Owner: -
 --
 
@@ -4613,7 +4790,7 @@ CREATE INDEX services_alquiler_equipos_estado_index ON services.alquiler_equipos
 
 
 --
--- TOC entry 5298 (class 1259 OID 49365)
+-- TOC entry 5322 (class 1259 OID 49365)
 -- Name: services_reservas_radio_estado_index; Type: INDEX; Schema: services; Owner: -
 --
 
@@ -4621,7 +4798,7 @@ CREATE INDEX services_reservas_radio_estado_index ON services.reservas_radio USI
 
 
 --
--- TOC entry 5299 (class 1259 OID 49366)
+-- TOC entry 5323 (class 1259 OID 49366)
 -- Name: services_reservas_radio_fecha_reserva_index; Type: INDEX; Schema: services; Owner: -
 --
 
@@ -4629,7 +4806,7 @@ CREATE INDEX services_reservas_radio_fecha_reserva_index ON services.reservas_ra
 
 
 --
--- TOC entry 5300 (class 1259 OID 49367)
+-- TOC entry 5324 (class 1259 OID 49367)
 -- Name: services_reservas_radio_operador_id_index; Type: INDEX; Schema: services; Owner: -
 --
 
@@ -4637,7 +4814,7 @@ CREATE INDEX services_reservas_radio_operador_id_index ON services.reservas_radi
 
 
 --
--- TOC entry 5305 (class 1259 OID 49368)
+-- TOC entry 5329 (class 1259 OID 49368)
 -- Name: services_trabajos_edicion_cliente_externo_id_index; Type: INDEX; Schema: services; Owner: -
 --
 
@@ -4645,7 +4822,7 @@ CREATE INDEX services_trabajos_edicion_cliente_externo_id_index ON services.trab
 
 
 --
--- TOC entry 5306 (class 1259 OID 49369)
+-- TOC entry 5330 (class 1259 OID 49369)
 -- Name: services_trabajos_edicion_estado_index; Type: INDEX; Schema: services; Owner: -
 --
 
@@ -4653,7 +4830,7 @@ CREATE INDEX services_trabajos_edicion_estado_index ON services.trabajos_edicion
 
 
 --
--- TOC entry 5307 (class 1259 OID 49370)
+-- TOC entry 5331 (class 1259 OID 49370)
 -- Name: services_trabajos_edicion_fecha_limite_index; Type: INDEX; Schema: services; Owner: -
 --
 
@@ -4661,7 +4838,7 @@ CREATE INDEX services_trabajos_edicion_fecha_limite_index ON services.trabajos_e
 
 
 --
--- TOC entry 5308 (class 1259 OID 49371)
+-- TOC entry 5332 (class 1259 OID 49371)
 -- Name: services_trabajos_edicion_fecha_recibo_index; Type: INDEX; Schema: services; Owner: -
 --
 
@@ -4669,7 +4846,7 @@ CREATE INDEX services_trabajos_edicion_fecha_recibo_index ON services.trabajos_e
 
 
 --
--- TOC entry 5309 (class 1259 OID 49372)
+-- TOC entry 5333 (class 1259 OID 49372)
 -- Name: services_trabajos_edicion_persona_id_index; Type: INDEX; Schema: services; Owner: -
 --
 
@@ -4677,27 +4854,23 @@ CREATE INDEX services_trabajos_edicion_persona_id_index ON services.trabajos_edi
 
 
 --
--- TOC entry 5442 (class 2620 OID 49373)
+-- TOC entry 5481 (class 2620 OID 49373)
 -- Name: matriculas trg_actualizar_perfil_estudiante; Type: TRIGGER; Schema: academic; Owner: -
 --
 
 CREATE TRIGGER trg_actualizar_perfil_estudiante AFTER INSERT OR UPDATE ON academic.matriculas FOR EACH ROW EXECUTE FUNCTION academic.fn_actualizar_perfil_estudiante();
 
-ALTER TABLE academic.matriculas DISABLE TRIGGER trg_actualizar_perfil_estudiante;
-
 
 --
--- TOC entry 5443 (class 2620 OID 49374)
+-- TOC entry 5482 (class 2620 OID 49374)
 -- Name: matriculas trg_actualizar_resumen_curso; Type: TRIGGER; Schema: academic; Owner: -
 --
 
 CREATE TRIGGER trg_actualizar_resumen_curso AFTER INSERT OR DELETE OR UPDATE ON academic.matriculas FOR EACH ROW EXECUTE FUNCTION academic.fn_actualizar_resumen_curso();
 
-ALTER TABLE academic.matriculas DISABLE TRIGGER trg_actualizar_resumen_curso;
-
 
 --
--- TOC entry 5441 (class 2620 OID 49375)
+-- TOC entry 5480 (class 2620 OID 53666)
 -- Name: cambios_horario trg_auditar_cambios_horario; Type: TRIGGER; Schema: academic; Owner: -
 --
 
@@ -4705,7 +4878,7 @@ CREATE TRIGGER trg_auditar_cambios_horario AFTER INSERT OR DELETE OR UPDATE ON a
 
 
 --
--- TOC entry 5444 (class 2620 OID 49376)
+-- TOC entry 5483 (class 2620 OID 53650)
 -- Name: matriculas trg_validar_capacidad; Type: TRIGGER; Schema: academic; Owner: -
 --
 
@@ -4713,7 +4886,7 @@ CREATE TRIGGER trg_validar_capacidad BEFORE INSERT ON academic.matriculas FOR EA
 
 
 --
--- TOC entry 5446 (class 2620 OID 49377)
+-- TOC entry 5485 (class 2620 OID 49377)
 -- Name: transacciones_ingreso trg_actualizar_saldo; Type: TRIGGER; Schema: finance; Owner: -
 --
 
@@ -4721,7 +4894,7 @@ CREATE TRIGGER trg_actualizar_saldo AFTER INSERT OR DELETE OR UPDATE ON finance.
 
 
 --
--- TOC entry 5445 (class 2620 OID 49378)
+-- TOC entry 5484 (class 2620 OID 49378)
 -- Name: transacciones_egreso trg_resumen_caja_egreso; Type: TRIGGER; Schema: finance; Owner: -
 --
 
@@ -4729,7 +4902,7 @@ CREATE TRIGGER trg_resumen_caja_egreso AFTER INSERT OR DELETE OR UPDATE ON finan
 
 
 --
--- TOC entry 5447 (class 2620 OID 49379)
+-- TOC entry 5486 (class 2620 OID 49379)
 -- Name: transacciones_ingreso trg_resumen_caja_ingreso; Type: TRIGGER; Schema: finance; Owner: -
 --
 
@@ -4737,7 +4910,7 @@ CREATE TRIGGER trg_resumen_caja_ingreso AFTER INSERT OR DELETE OR UPDATE ON fina
 
 
 --
--- TOC entry 5448 (class 2620 OID 49380)
+-- TOC entry 5487 (class 2620 OID 49380)
 -- Name: personas trg_personas_updated_at; Type: TRIGGER; Schema: people; Owner: -
 --
 
@@ -4745,7 +4918,7 @@ CREATE TRIGGER trg_personas_updated_at BEFORE UPDATE ON people.personas FOR EACH
 
 
 --
--- TOC entry 5319 (class 2606 OID 49381)
+-- TOC entry 5355 (class 2606 OID 49381)
 -- Name: asistencia_taller_estudiantes academic_asistencia_taller_estudiantes_asistencia_taller_id_for; Type: FK CONSTRAINT; Schema: academic; Owner: -
 --
 
@@ -4754,7 +4927,7 @@ ALTER TABLE ONLY academic.asistencia_taller_estudiantes
 
 
 --
--- TOC entry 5320 (class 2606 OID 49386)
+-- TOC entry 5356 (class 2606 OID 49386)
 -- Name: asistencia_taller_estudiantes academic_asistencia_taller_estudiantes_inscripcion_taller_id_fo; Type: FK CONSTRAINT; Schema: academic; Owner: -
 --
 
@@ -4763,7 +4936,7 @@ ALTER TABLE ONLY academic.asistencia_taller_estudiantes
 
 
 --
--- TOC entry 5321 (class 2606 OID 49391)
+-- TOC entry 5357 (class 2606 OID 49391)
 -- Name: asistencia_taller_estudiantes academic_asistencia_taller_estudiantes_participante_externo_id_; Type: FK CONSTRAINT; Schema: academic; Owner: -
 --
 
@@ -4772,7 +4945,7 @@ ALTER TABLE ONLY academic.asistencia_taller_estudiantes
 
 
 --
--- TOC entry 5324 (class 2606 OID 49396)
+-- TOC entry 5360 (class 2606 OID 49396)
 -- Name: asistencias_talleres academic_asistencias_talleres_taller_id_foreign; Type: FK CONSTRAINT; Schema: academic; Owner: -
 --
 
@@ -4781,7 +4954,7 @@ ALTER TABLE ONLY academic.asistencias_talleres
 
 
 --
--- TOC entry 5344 (class 2606 OID 49401)
+-- TOC entry 5380 (class 2606 OID 49401)
 -- Name: horarios_talleres academic_horarios_talleres_taller_id_foreign; Type: FK CONSTRAINT; Schema: academic; Owner: -
 --
 
@@ -4790,7 +4963,7 @@ ALTER TABLE ONLY academic.horarios_talleres
 
 
 --
--- TOC entry 5345 (class 2606 OID 49406)
+-- TOC entry 5381 (class 2606 OID 49406)
 -- Name: inscripciones_externos_talleres academic_inscripciones_externos_talleres_participante_externo_i; Type: FK CONSTRAINT; Schema: academic; Owner: -
 --
 
@@ -4799,7 +4972,7 @@ ALTER TABLE ONLY academic.inscripciones_externos_talleres
 
 
 --
--- TOC entry 5346 (class 2606 OID 49411)
+-- TOC entry 5382 (class 2606 OID 49411)
 -- Name: inscripciones_externos_talleres academic_inscripciones_externos_talleres_taller_id_foreign; Type: FK CONSTRAINT; Schema: academic; Owner: -
 --
 
@@ -4808,7 +4981,7 @@ ALTER TABLE ONLY academic.inscripciones_externos_talleres
 
 
 --
--- TOC entry 5350 (class 2606 OID 49416)
+-- TOC entry 5386 (class 2606 OID 49416)
 -- Name: inscripciones_talleres academic_inscripciones_talleres_estudiante_id_foreign; Type: FK CONSTRAINT; Schema: academic; Owner: -
 --
 
@@ -4817,7 +4990,7 @@ ALTER TABLE ONLY academic.inscripciones_talleres
 
 
 --
--- TOC entry 5351 (class 2606 OID 49421)
+-- TOC entry 5387 (class 2606 OID 49421)
 -- Name: inscripciones_talleres academic_inscripciones_talleres_taller_id_foreign; Type: FK CONSTRAINT; Schema: academic; Owner: -
 --
 
@@ -4826,7 +4999,7 @@ ALTER TABLE ONLY academic.inscripciones_talleres
 
 
 --
--- TOC entry 5352 (class 2606 OID 49426)
+-- TOC entry 5388 (class 2606 OID 49426)
 -- Name: matriculas academic_matriculas_solicitud_inscripcion_id_foreign; Type: FK CONSTRAINT; Schema: academic; Owner: -
 --
 
@@ -4835,7 +5008,7 @@ ALTER TABLE ONLY academic.matriculas
 
 
 --
--- TOC entry 5358 (class 2606 OID 49431)
+-- TOC entry 5394 (class 2606 OID 49431)
 -- Name: participantes_cursos_personalizados academic_participantes_cursos_personalizados_curso_personalizad; Type: FK CONSTRAINT; Schema: academic; Owner: -
 --
 
@@ -4844,7 +5017,7 @@ ALTER TABLE ONLY academic.participantes_cursos_personalizados
 
 
 --
--- TOC entry 5359 (class 2606 OID 49436)
+-- TOC entry 5395 (class 2606 OID 49436)
 -- Name: participantes_cursos_personalizados academic_participantes_cursos_personalizados_participante_exter; Type: FK CONSTRAINT; Schema: academic; Owner: -
 --
 
@@ -4853,7 +5026,7 @@ ALTER TABLE ONLY academic.participantes_cursos_personalizados
 
 
 --
--- TOC entry 5360 (class 2606 OID 49441)
+-- TOC entry 5396 (class 2606 OID 49441)
 -- Name: solicitudes_inscripcion academic_solicitudes_inscripcion_curso_abierto_id_foreign; Type: FK CONSTRAINT; Schema: academic; Owner: -
 --
 
@@ -4862,7 +5035,7 @@ ALTER TABLE ONLY academic.solicitudes_inscripcion
 
 
 --
--- TOC entry 5361 (class 2606 OID 49446)
+-- TOC entry 5397 (class 2606 OID 49446)
 -- Name: solicitudes_inscripcion academic_solicitudes_inscripcion_participante_externo_id_foreig; Type: FK CONSTRAINT; Schema: academic; Owner: -
 --
 
@@ -4871,7 +5044,7 @@ ALTER TABLE ONLY academic.solicitudes_inscripcion
 
 
 --
--- TOC entry 5362 (class 2606 OID 49451)
+-- TOC entry 5398 (class 2606 OID 49451)
 -- Name: solicitudes_inscripcion academic_solicitudes_inscripcion_persona_id_foreign; Type: FK CONSTRAINT; Schema: academic; Owner: -
 --
 
@@ -4880,7 +5053,7 @@ ALTER TABLE ONLY academic.solicitudes_inscripcion
 
 
 --
--- TOC entry 5363 (class 2606 OID 49456)
+-- TOC entry 5399 (class 2606 OID 49456)
 -- Name: solicitudes_inscripcion academic_solicitudes_inscripcion_validado_por_foreign; Type: FK CONSTRAINT; Schema: academic; Owner: -
 --
 
@@ -4889,7 +5062,7 @@ ALTER TABLE ONLY academic.solicitudes_inscripcion
 
 
 --
--- TOC entry 5316 (class 2606 OID 49461)
+-- TOC entry 5352 (class 2606 OID 49461)
 -- Name: asesorias asesorias_cliente_externo_id_fkey; Type: FK CONSTRAINT; Schema: academic; Owner: -
 --
 
@@ -4898,7 +5071,7 @@ ALTER TABLE ONLY academic.asesorias
 
 
 --
--- TOC entry 5317 (class 2606 OID 49466)
+-- TOC entry 5353 (class 2606 OID 49466)
 -- Name: asesorias asesorias_instructor_id_fkey; Type: FK CONSTRAINT; Schema: academic; Owner: -
 --
 
@@ -4907,7 +5080,7 @@ ALTER TABLE ONLY academic.asesorias
 
 
 --
--- TOC entry 5318 (class 2606 OID 49471)
+-- TOC entry 5354 (class 2606 OID 49471)
 -- Name: asesorias asesorias_persona_id_fkey; Type: FK CONSTRAINT; Schema: academic; Owner: -
 --
 
@@ -4916,7 +5089,7 @@ ALTER TABLE ONLY academic.asesorias
 
 
 --
--- TOC entry 5322 (class 2606 OID 49476)
+-- TOC entry 5358 (class 2606 OID 49476)
 -- Name: asistencias asistencias_clase_id_fkey; Type: FK CONSTRAINT; Schema: academic; Owner: -
 --
 
@@ -4925,7 +5098,7 @@ ALTER TABLE ONLY academic.asistencias
 
 
 --
--- TOC entry 5323 (class 2606 OID 49481)
+-- TOC entry 5359 (class 2606 OID 49481)
 -- Name: asistencias asistencias_matricula_id_fkey; Type: FK CONSTRAINT; Schema: academic; Owner: -
 --
 
@@ -4934,7 +5107,7 @@ ALTER TABLE ONLY academic.asistencias
 
 
 --
--- TOC entry 5325 (class 2606 OID 49486)
+-- TOC entry 5361 (class 2606 OID 49486)
 -- Name: cambios_horario cambios_horario_autorizado_por_fkey; Type: FK CONSTRAINT; Schema: academic; Owner: -
 --
 
@@ -4943,7 +5116,7 @@ ALTER TABLE ONLY academic.cambios_horario
 
 
 --
--- TOC entry 5326 (class 2606 OID 49491)
+-- TOC entry 5362 (class 2606 OID 53656)
 -- Name: cambios_horario cambios_horario_curso_abierto_nuevo_id_fkey; Type: FK CONSTRAINT; Schema: academic; Owner: -
 --
 
@@ -4952,7 +5125,7 @@ ALTER TABLE ONLY academic.cambios_horario
 
 
 --
--- TOC entry 5327 (class 2606 OID 49496)
+-- TOC entry 5363 (class 2606 OID 53651)
 -- Name: cambios_horario cambios_horario_matricula_origen_id_fkey; Type: FK CONSTRAINT; Schema: academic; Owner: -
 --
 
@@ -4961,7 +5134,7 @@ ALTER TABLE ONLY academic.cambios_horario
 
 
 --
--- TOC entry 5328 (class 2606 OID 49501)
+-- TOC entry 5364 (class 2606 OID 49501)
 -- Name: certificados certificados_catalogo_id_fkey; Type: FK CONSTRAINT; Schema: academic; Owner: -
 --
 
@@ -4970,7 +5143,7 @@ ALTER TABLE ONLY academic.certificados
 
 
 --
--- TOC entry 5329 (class 2606 OID 49506)
+-- TOC entry 5365 (class 2606 OID 49506)
 -- Name: certificados certificados_curso_abierto_id_fkey; Type: FK CONSTRAINT; Schema: academic; Owner: -
 --
 
@@ -4979,7 +5152,7 @@ ALTER TABLE ONLY academic.certificados
 
 
 --
--- TOC entry 5330 (class 2606 OID 49511)
+-- TOC entry 5366 (class 2606 OID 49511)
 -- Name: certificados certificados_estudiante_id_fkey; Type: FK CONSTRAINT; Schema: academic; Owner: -
 --
 
@@ -4988,7 +5161,7 @@ ALTER TABLE ONLY academic.certificados
 
 
 --
--- TOC entry 5331 (class 2606 OID 49516)
+-- TOC entry 5367 (class 2606 OID 49516)
 -- Name: certificados certificados_modulo_id_fkey; Type: FK CONSTRAINT; Schema: academic; Owner: -
 --
 
@@ -4997,7 +5170,7 @@ ALTER TABLE ONLY academic.certificados
 
 
 --
--- TOC entry 5334 (class 2606 OID 49521)
+-- TOC entry 5370 (class 2606 OID 49521)
 -- Name: clases_extras clases_extras_curso_abierto_id_fkey; Type: FK CONSTRAINT; Schema: academic; Owner: -
 --
 
@@ -5006,7 +5179,7 @@ ALTER TABLE ONLY academic.clases_extras
 
 
 --
--- TOC entry 5335 (class 2606 OID 49526)
+-- TOC entry 5371 (class 2606 OID 49526)
 -- Name: clases_extras clases_extras_estudiante_id_fkey; Type: FK CONSTRAINT; Schema: academic; Owner: -
 --
 
@@ -5015,7 +5188,7 @@ ALTER TABLE ONLY academic.clases_extras
 
 
 --
--- TOC entry 5336 (class 2606 OID 49531)
+-- TOC entry 5372 (class 2606 OID 49531)
 -- Name: clases_extras clases_extras_instructor_id_fkey; Type: FK CONSTRAINT; Schema: academic; Owner: -
 --
 
@@ -5024,7 +5197,7 @@ ALTER TABLE ONLY academic.clases_extras
 
 
 --
--- TOC entry 5332 (class 2606 OID 49536)
+-- TOC entry 5368 (class 2606 OID 49536)
 -- Name: clases clases_instructor_id_fkey; Type: FK CONSTRAINT; Schema: academic; Owner: -
 --
 
@@ -5033,7 +5206,7 @@ ALTER TABLE ONLY academic.clases
 
 
 --
--- TOC entry 5333 (class 2606 OID 49541)
+-- TOC entry 5369 (class 2606 OID 49541)
 -- Name: clases clases_modulo_id_fkey; Type: FK CONSTRAINT; Schema: academic; Owner: -
 --
 
@@ -5042,7 +5215,7 @@ ALTER TABLE ONLY academic.clases
 
 
 --
--- TOC entry 5337 (class 2606 OID 49546)
+-- TOC entry 5373 (class 2606 OID 49546)
 -- Name: comentarios_curso comentarios_curso_autor_id_fkey; Type: FK CONSTRAINT; Schema: academic; Owner: -
 --
 
@@ -5051,7 +5224,7 @@ ALTER TABLE ONLY academic.comentarios_curso
 
 
 --
--- TOC entry 5338 (class 2606 OID 49551)
+-- TOC entry 5374 (class 2606 OID 49551)
 -- Name: comentarios_curso comentarios_curso_curso_abierto_id_fkey; Type: FK CONSTRAINT; Schema: academic; Owner: -
 --
 
@@ -5060,7 +5233,7 @@ ALTER TABLE ONLY academic.comentarios_curso
 
 
 --
--- TOC entry 5339 (class 2606 OID 49556)
+-- TOC entry 5375 (class 2606 OID 49556)
 -- Name: cursos_abiertos cursos_abiertos_catalogo_id_fkey; Type: FK CONSTRAINT; Schema: academic; Owner: -
 --
 
@@ -5069,7 +5242,7 @@ ALTER TABLE ONLY academic.cursos_abiertos
 
 
 --
--- TOC entry 5340 (class 2606 OID 49561)
+-- TOC entry 5376 (class 2606 OID 49561)
 -- Name: cursos_abiertos cursos_abiertos_ciudad_id_fkey; Type: FK CONSTRAINT; Schema: academic; Owner: -
 --
 
@@ -5078,7 +5251,7 @@ ALTER TABLE ONLY academic.cursos_abiertos
 
 
 --
--- TOC entry 5341 (class 2606 OID 49566)
+-- TOC entry 5377 (class 2606 OID 49566)
 -- Name: cursos_abiertos cursos_abiertos_docente_id_fkey; Type: FK CONSTRAINT; Schema: academic; Owner: -
 --
 
@@ -5087,7 +5260,7 @@ ALTER TABLE ONLY academic.cursos_abiertos
 
 
 --
--- TOC entry 5342 (class 2606 OID 49571)
+-- TOC entry 5378 (class 2606 OID 49571)
 -- Name: cursos_abiertos cursos_abiertos_horario_id_fkey; Type: FK CONSTRAINT; Schema: academic; Owner: -
 --
 
@@ -5096,7 +5269,7 @@ ALTER TABLE ONLY academic.cursos_abiertos
 
 
 --
--- TOC entry 5343 (class 2606 OID 49576)
+-- TOC entry 5379 (class 2606 OID 49576)
 -- Name: cursos_abiertos cursos_abiertos_instructor_titular_id_fkey; Type: FK CONSTRAINT; Schema: academic; Owner: -
 --
 
@@ -5105,7 +5278,7 @@ ALTER TABLE ONLY academic.cursos_abiertos
 
 
 --
--- TOC entry 5347 (class 2606 OID 49581)
+-- TOC entry 5383 (class 2606 OID 49581)
 -- Name: inscripciones_taller inscripciones_taller_participante_externo_fk; Type: FK CONSTRAINT; Schema: academic; Owner: -
 --
 
@@ -5114,7 +5287,7 @@ ALTER TABLE ONLY academic.inscripciones_taller
 
 
 --
--- TOC entry 5348 (class 2606 OID 49586)
+-- TOC entry 5384 (class 2606 OID 49586)
 -- Name: inscripciones_taller inscripciones_taller_persona_id_fkey; Type: FK CONSTRAINT; Schema: academic; Owner: -
 --
 
@@ -5123,7 +5296,7 @@ ALTER TABLE ONLY academic.inscripciones_taller
 
 
 --
--- TOC entry 5349 (class 2606 OID 49591)
+-- TOC entry 5385 (class 2606 OID 49591)
 -- Name: inscripciones_taller inscripciones_taller_taller_id_fkey; Type: FK CONSTRAINT; Schema: academic; Owner: -
 --
 
@@ -5132,7 +5305,7 @@ ALTER TABLE ONLY academic.inscripciones_taller
 
 
 --
--- TOC entry 5353 (class 2606 OID 49596)
+-- TOC entry 5389 (class 2606 OID 49596)
 -- Name: matriculas matriculas_curso_abierto_id_fkey; Type: FK CONSTRAINT; Schema: academic; Owner: -
 --
 
@@ -5141,7 +5314,7 @@ ALTER TABLE ONLY academic.matriculas
 
 
 --
--- TOC entry 5354 (class 2606 OID 49601)
+-- TOC entry 5390 (class 2606 OID 49601)
 -- Name: matriculas matriculas_estudiante_id_fkey; Type: FK CONSTRAINT; Schema: academic; Owner: -
 --
 
@@ -5150,7 +5323,7 @@ ALTER TABLE ONLY academic.matriculas
 
 
 --
--- TOC entry 5355 (class 2606 OID 49606)
+-- TOC entry 5391 (class 2606 OID 49606)
 -- Name: modulos modulos_curso_abierto_id_fkey; Type: FK CONSTRAINT; Schema: academic; Owner: -
 --
 
@@ -5159,7 +5332,7 @@ ALTER TABLE ONLY academic.modulos
 
 
 --
--- TOC entry 5356 (class 2606 OID 49611)
+-- TOC entry 5392 (class 2606 OID 49611)
 -- Name: notas notas_matricula_id_fkey; Type: FK CONSTRAINT; Schema: academic; Owner: -
 --
 
@@ -5168,7 +5341,7 @@ ALTER TABLE ONLY academic.notas
 
 
 --
--- TOC entry 5357 (class 2606 OID 49616)
+-- TOC entry 5393 (class 2606 OID 49616)
 -- Name: notas notas_modulo_id_fkey; Type: FK CONSTRAINT; Schema: academic; Owner: -
 --
 
@@ -5177,7 +5350,7 @@ ALTER TABLE ONLY academic.notas
 
 
 --
--- TOC entry 5364 (class 2606 OID 49621)
+-- TOC entry 5400 (class 2606 OID 49621)
 -- Name: talleres talleres_ciudad_id_fkey; Type: FK CONSTRAINT; Schema: academic; Owner: -
 --
 
@@ -5186,7 +5359,7 @@ ALTER TABLE ONLY academic.talleres
 
 
 --
--- TOC entry 5365 (class 2606 OID 49626)
+-- TOC entry 5401 (class 2606 OID 49626)
 -- Name: talleres talleres_instructor_id_fkey; Type: FK CONSTRAINT; Schema: academic; Owner: -
 --
 
@@ -5195,7 +5368,7 @@ ALTER TABLE ONLY academic.talleres
 
 
 --
--- TOC entry 5366 (class 2606 OID 49631)
+-- TOC entry 5402 (class 2606 OID 49631)
 -- Name: traslados_modulo traslados_modulo_autorizado_por_fkey; Type: FK CONSTRAINT; Schema: academic; Owner: -
 --
 
@@ -5204,7 +5377,7 @@ ALTER TABLE ONLY academic.traslados_modulo
 
 
 --
--- TOC entry 5367 (class 2606 OID 49636)
+-- TOC entry 5403 (class 2606 OID 49636)
 -- Name: traslados_modulo traslados_modulo_curso_abierto_destino_id_fkey; Type: FK CONSTRAINT; Schema: academic; Owner: -
 --
 
@@ -5213,7 +5386,7 @@ ALTER TABLE ONLY academic.traslados_modulo
 
 
 --
--- TOC entry 5368 (class 2606 OID 49641)
+-- TOC entry 5404 (class 2606 OID 53661)
 -- Name: traslados_modulo traslados_modulo_matricula_origen_id_fkey; Type: FK CONSTRAINT; Schema: academic; Owner: -
 --
 
@@ -5222,7 +5395,7 @@ ALTER TABLE ONLY academic.traslados_modulo
 
 
 --
--- TOC entry 5369 (class 2606 OID 49646)
+-- TOC entry 5405 (class 2606 OID 49646)
 -- Name: traslados_modulo traslados_modulo_modulo_destino_id_fkey; Type: FK CONSTRAINT; Schema: academic; Owner: -
 --
 
@@ -5231,7 +5404,7 @@ ALTER TABLE ONLY academic.traslados_modulo
 
 
 --
--- TOC entry 5370 (class 2606 OID 49651)
+-- TOC entry 5406 (class 2606 OID 49651)
 -- Name: traslados_modulo traslados_modulo_modulo_origen_id_fkey; Type: FK CONSTRAINT; Schema: academic; Owner: -
 --
 
@@ -5240,7 +5413,7 @@ ALTER TABLE ONLY academic.traslados_modulo
 
 
 --
--- TOC entry 5374 (class 2606 OID 49656)
+-- TOC entry 5410 (class 2606 OID 49656)
 -- Name: eventos_financieros eventos_financieros_registrado_por_fkey; Type: FK CONSTRAINT; Schema: audit; Owner: -
 --
 
@@ -5249,7 +5422,7 @@ ALTER TABLE ONLY audit.eventos_financieros
 
 
 --
--- TOC entry 5375 (class 2606 OID 49661)
+-- TOC entry 5411 (class 2606 OID 49661)
 -- Name: eventos_financieros eventos_financieros_transaccion_egreso_id_fkey; Type: FK CONSTRAINT; Schema: audit; Owner: -
 --
 
@@ -5258,7 +5431,7 @@ ALTER TABLE ONLY audit.eventos_financieros
 
 
 --
--- TOC entry 5376 (class 2606 OID 49666)
+-- TOC entry 5412 (class 2606 OID 49666)
 -- Name: eventos_financieros eventos_financieros_transaccion_ingreso_id_fkey; Type: FK CONSTRAINT; Schema: audit; Owner: -
 --
 
@@ -5267,7 +5440,7 @@ ALTER TABLE ONLY audit.eventos_financieros
 
 
 --
--- TOC entry 5377 (class 2606 OID 49671)
+-- TOC entry 5413 (class 2606 OID 49671)
 -- Name: inicios_sesion inicios_sesion_cuenta_id_fkey; Type: FK CONSTRAINT; Schema: audit; Owner: -
 --
 
@@ -5276,7 +5449,7 @@ ALTER TABLE ONLY audit.inicios_sesion
 
 
 --
--- TOC entry 5378 (class 2606 OID 49676)
+-- TOC entry 5414 (class 2606 OID 49676)
 -- Name: inicios_sesion inicios_sesion_persona_id_fkey; Type: FK CONSTRAINT; Schema: audit; Owner: -
 --
 
@@ -5285,7 +5458,7 @@ ALTER TABLE ONLY audit.inicios_sesion
 
 
 --
--- TOC entry 5379 (class 2606 OID 49681)
+-- TOC entry 5415 (class 2606 OID 49681)
 -- Name: model_has_permissions core_model_has_permissions_permission_id_foreign; Type: FK CONSTRAINT; Schema: core; Owner: -
 --
 
@@ -5294,7 +5467,7 @@ ALTER TABLE ONLY core.model_has_permissions
 
 
 --
--- TOC entry 5380 (class 2606 OID 49686)
+-- TOC entry 5416 (class 2606 OID 49686)
 -- Name: model_has_roles core_model_has_roles_role_id_foreign; Type: FK CONSTRAINT; Schema: core; Owner: -
 --
 
@@ -5303,7 +5476,7 @@ ALTER TABLE ONLY core.model_has_roles
 
 
 --
--- TOC entry 5381 (class 2606 OID 49691)
+-- TOC entry 5417 (class 2606 OID 49691)
 -- Name: role_has_permissions core_role_has_permissions_permission_id_foreign; Type: FK CONSTRAINT; Schema: core; Owner: -
 --
 
@@ -5312,7 +5485,7 @@ ALTER TABLE ONLY core.role_has_permissions
 
 
 --
--- TOC entry 5382 (class 2606 OID 49696)
+-- TOC entry 5418 (class 2606 OID 49696)
 -- Name: role_has_permissions core_role_has_permissions_role_id_foreign; Type: FK CONSTRAINT; Schema: core; Owner: -
 --
 
@@ -5321,7 +5494,25 @@ ALTER TABLE ONLY core.role_has_permissions
 
 
 --
--- TOC entry 5383 (class 2606 OID 49701)
+-- TOC entry 5478 (class 2606 OID 53679)
+-- Name: curso_interesados curso_interesados_curso_abierto_id_foreign; Type: FK CONSTRAINT; Schema: core; Owner: -
+--
+
+ALTER TABLE ONLY core.curso_interesados
+    ADD CONSTRAINT curso_interesados_curso_abierto_id_foreign FOREIGN KEY (curso_abierto_id) REFERENCES academic.cursos_abiertos(id) ON DELETE CASCADE;
+
+
+--
+-- TOC entry 5479 (class 2606 OID 53684)
+-- Name: curso_interesados curso_interesados_taller_id_foreign; Type: FK CONSTRAINT; Schema: core; Owner: -
+--
+
+ALTER TABLE ONLY core.curso_interesados
+    ADD CONSTRAINT curso_interesados_taller_id_foreign FOREIGN KEY (taller_id) REFERENCES academic.talleres(id) ON DELETE CASCADE;
+
+
+--
+-- TOC entry 5419 (class 2606 OID 49701)
 -- Name: cuentas_por_cobrar cuentas_por_cobrar_asesoria_id_fkey; Type: FK CONSTRAINT; Schema: finance; Owner: -
 --
 
@@ -5330,7 +5521,7 @@ ALTER TABLE ONLY finance.cuentas_por_cobrar
 
 
 --
--- TOC entry 5384 (class 2606 OID 49706)
+-- TOC entry 5420 (class 2606 OID 49706)
 -- Name: cuentas_por_cobrar cuentas_por_cobrar_clase_extra_id_fkey; Type: FK CONSTRAINT; Schema: finance; Owner: -
 --
 
@@ -5339,7 +5530,7 @@ ALTER TABLE ONLY finance.cuentas_por_cobrar
 
 
 --
--- TOC entry 5385 (class 2606 OID 49711)
+-- TOC entry 5421 (class 2606 OID 49711)
 -- Name: cuentas_por_cobrar cuentas_por_cobrar_inscripcion_taller_id_fkey; Type: FK CONSTRAINT; Schema: finance; Owner: -
 --
 
@@ -5348,7 +5539,7 @@ ALTER TABLE ONLY finance.cuentas_por_cobrar
 
 
 --
--- TOC entry 5386 (class 2606 OID 49716)
+-- TOC entry 5422 (class 2606 OID 49716)
 -- Name: cuentas_por_cobrar cuentas_por_cobrar_matricula_id_fkey; Type: FK CONSTRAINT; Schema: finance; Owner: -
 --
 
@@ -5357,7 +5548,7 @@ ALTER TABLE ONLY finance.cuentas_por_cobrar
 
 
 --
--- TOC entry 5387 (class 2606 OID 49721)
+-- TOC entry 5423 (class 2606 OID 49721)
 -- Name: cuentas_por_cobrar cuentas_por_cobrar_reserva_aula_id_fkey; Type: FK CONSTRAINT; Schema: finance; Owner: -
 --
 
@@ -5366,7 +5557,7 @@ ALTER TABLE ONLY finance.cuentas_por_cobrar
 
 
 --
--- TOC entry 5388 (class 2606 OID 49726)
+-- TOC entry 5424 (class 2606 OID 49726)
 -- Name: cuentas_por_cobrar cuentas_por_cobrar_reserva_podcast_id_fkey; Type: FK CONSTRAINT; Schema: finance; Owner: -
 --
 
@@ -5375,7 +5566,7 @@ ALTER TABLE ONLY finance.cuentas_por_cobrar
 
 
 --
--- TOC entry 5389 (class 2606 OID 49731)
+-- TOC entry 5425 (class 2606 OID 49731)
 -- Name: cuentas_por_cobrar cuentas_por_cobrar_servicio_produccion_id_fkey; Type: FK CONSTRAINT; Schema: finance; Owner: -
 --
 
@@ -5384,7 +5575,7 @@ ALTER TABLE ONLY finance.cuentas_por_cobrar
 
 
 --
--- TOC entry 5390 (class 2606 OID 49736)
+-- TOC entry 5426 (class 2606 OID 49736)
 -- Name: cuentas_por_cobrar cuentas_por_cobrar_servicio_streaming_id_fkey; Type: FK CONSTRAINT; Schema: finance; Owner: -
 --
 
@@ -5393,7 +5584,7 @@ ALTER TABLE ONLY finance.cuentas_por_cobrar
 
 
 --
--- TOC entry 5391 (class 2606 OID 49741)
+-- TOC entry 5427 (class 2606 OID 49741)
 -- Name: cuentas_por_cobrar finance_cuentas_por_cobrar_alquiler_equipo_id_foreign; Type: FK CONSTRAINT; Schema: finance; Owner: -
 --
 
@@ -5402,7 +5593,7 @@ ALTER TABLE ONLY finance.cuentas_por_cobrar
 
 
 --
--- TOC entry 5392 (class 2606 OID 49746)
+-- TOC entry 5428 (class 2606 OID 49746)
 -- Name: cuentas_por_cobrar finance_cuentas_por_cobrar_edicion_video_id_foreign; Type: FK CONSTRAINT; Schema: finance; Owner: -
 --
 
@@ -5411,7 +5602,7 @@ ALTER TABLE ONLY finance.cuentas_por_cobrar
 
 
 --
--- TOC entry 5393 (class 2606 OID 49751)
+-- TOC entry 5429 (class 2606 OID 49751)
 -- Name: cuentas_por_cobrar finance_cuentas_por_cobrar_reserva_radio_id_foreign; Type: FK CONSTRAINT; Schema: finance; Owner: -
 --
 
@@ -5420,7 +5611,7 @@ ALTER TABLE ONLY finance.cuentas_por_cobrar
 
 
 --
--- TOC entry 5394 (class 2606 OID 49756)
+-- TOC entry 5430 (class 2606 OID 49756)
 -- Name: cuentas_por_cobrar finance_cuentas_por_cobrar_solicitud_inscripcion_id_foreign; Type: FK CONSTRAINT; Schema: finance; Owner: -
 --
 
@@ -5429,7 +5620,7 @@ ALTER TABLE ONLY finance.cuentas_por_cobrar
 
 
 --
--- TOC entry 5371 (class 2606 OID 49761)
+-- TOC entry 5407 (class 2606 OID 49761)
 -- Name: lineas_pago_modulo finance_lineas_pago_modulo_ajustado_por_foreign; Type: FK CONSTRAINT; Schema: finance; Owner: -
 --
 
@@ -5438,7 +5629,7 @@ ALTER TABLE ONLY finance.lineas_pago_modulo
 
 
 --
--- TOC entry 5372 (class 2606 OID 49766)
+-- TOC entry 5408 (class 2606 OID 49766)
 -- Name: lineas_pago_modulo finance_lineas_pago_modulo_matricula_id_foreign; Type: FK CONSTRAINT; Schema: finance; Owner: -
 --
 
@@ -5447,7 +5638,7 @@ ALTER TABLE ONLY finance.lineas_pago_modulo
 
 
 --
--- TOC entry 5373 (class 2606 OID 49771)
+-- TOC entry 5409 (class 2606 OID 49771)
 -- Name: lineas_pago_modulo finance_lineas_pago_modulo_modulo_id_foreign; Type: FK CONSTRAINT; Schema: finance; Owner: -
 --
 
@@ -5456,7 +5647,7 @@ ALTER TABLE ONLY finance.lineas_pago_modulo
 
 
 --
--- TOC entry 5400 (class 2606 OID 49776)
+-- TOC entry 5436 (class 2606 OID 49776)
 -- Name: transacciones_ingreso finance_transacciones_ingreso_linea_pago_modulo_id_foreign; Type: FK CONSTRAINT; Schema: finance; Owner: -
 --
 
@@ -5465,7 +5656,7 @@ ALTER TABLE ONLY finance.transacciones_ingreso
 
 
 --
--- TOC entry 5395 (class 2606 OID 49781)
+-- TOC entry 5431 (class 2606 OID 49781)
 -- Name: horas_instructor horas_instructor_clase_id_fkey; Type: FK CONSTRAINT; Schema: finance; Owner: -
 --
 
@@ -5474,7 +5665,7 @@ ALTER TABLE ONLY finance.horas_instructor
 
 
 --
--- TOC entry 5396 (class 2606 OID 49786)
+-- TOC entry 5432 (class 2606 OID 49786)
 -- Name: horas_instructor horas_instructor_curso_abierto_id_fkey; Type: FK CONSTRAINT; Schema: finance; Owner: -
 --
 
@@ -5483,7 +5674,7 @@ ALTER TABLE ONLY finance.horas_instructor
 
 
 --
--- TOC entry 5397 (class 2606 OID 49791)
+-- TOC entry 5433 (class 2606 OID 49791)
 -- Name: horas_instructor horas_instructor_egreso_id_fkey; Type: FK CONSTRAINT; Schema: finance; Owner: -
 --
 
@@ -5492,7 +5683,7 @@ ALTER TABLE ONLY finance.horas_instructor
 
 
 --
--- TOC entry 5398 (class 2606 OID 49796)
+-- TOC entry 5434 (class 2606 OID 49796)
 -- Name: horas_instructor horas_instructor_instructor_id_fkey; Type: FK CONSTRAINT; Schema: finance; Owner: -
 --
 
@@ -5501,7 +5692,7 @@ ALTER TABLE ONLY finance.horas_instructor
 
 
 --
--- TOC entry 5399 (class 2606 OID 49801)
+-- TOC entry 5435 (class 2606 OID 49801)
 -- Name: transacciones_egreso transacciones_egreso_registrado_por_fkey; Type: FK CONSTRAINT; Schema: finance; Owner: -
 --
 
@@ -5510,7 +5701,7 @@ ALTER TABLE ONLY finance.transacciones_egreso
 
 
 --
--- TOC entry 5401 (class 2606 OID 49806)
+-- TOC entry 5437 (class 2606 OID 49806)
 -- Name: transacciones_ingreso transacciones_ingreso_cuenta_cobrar_id_fkey; Type: FK CONSTRAINT; Schema: finance; Owner: -
 --
 
@@ -5519,7 +5710,7 @@ ALTER TABLE ONLY finance.transacciones_ingreso
 
 
 --
--- TOC entry 5402 (class 2606 OID 49811)
+-- TOC entry 5438 (class 2606 OID 49811)
 -- Name: transacciones_ingreso transacciones_ingreso_registrado_por_fkey; Type: FK CONSTRAINT; Schema: finance; Owner: -
 --
 
@@ -5528,7 +5719,7 @@ ALTER TABLE ONLY finance.transacciones_ingreso
 
 
 --
--- TOC entry 5404 (class 2606 OID 49816)
+-- TOC entry 5440 (class 2606 OID 49816)
 -- Name: registro_asistencia_staff registro_asistencia_staff_persona_id_fkey; Type: FK CONSTRAINT; Schema: ops; Owner: -
 --
 
@@ -5537,7 +5728,7 @@ ALTER TABLE ONLY ops.registro_asistencia_staff
 
 
 --
--- TOC entry 5405 (class 2606 OID 49821)
+-- TOC entry 5441 (class 2606 OID 49821)
 -- Name: registro_asistencia_staff registro_asistencia_staff_registrado_por_fkey; Type: FK CONSTRAINT; Schema: ops; Owner: -
 --
 
@@ -5546,7 +5737,7 @@ ALTER TABLE ONLY ops.registro_asistencia_staff
 
 
 --
--- TOC entry 5440 (class 2606 OID 51817)
+-- TOC entry 5477 (class 2606 OID 51817)
 -- Name: clientes_externos_contactos clientes_ext_contactos_cliente_fk; Type: FK CONSTRAINT; Schema: people; Owner: -
 --
 
@@ -5555,7 +5746,7 @@ ALTER TABLE ONLY people.clientes_externos_contactos
 
 
 --
--- TOC entry 5406 (class 2606 OID 49826)
+-- TOC entry 5442 (class 2606 OID 49826)
 -- Name: clientes_externos clientes_externos_ciudad_id_fkey; Type: FK CONSTRAINT; Schema: people; Owner: -
 --
 
@@ -5564,7 +5755,7 @@ ALTER TABLE ONLY people.clientes_externos
 
 
 --
--- TOC entry 5415 (class 2606 OID 49831)
+-- TOC entry 5452 (class 2606 OID 49831)
 -- Name: cuentas_sistema cuentas_sistema_persona_id_fkey; Type: FK CONSTRAINT; Schema: people; Owner: -
 --
 
@@ -5573,7 +5764,7 @@ ALTER TABLE ONLY people.cuentas_sistema
 
 
 --
--- TOC entry 5416 (class 2606 OID 49836)
+-- TOC entry 5453 (class 2606 OID 49836)
 -- Name: perfil_estudiante perfil_estudiante_persona_id_fkey; Type: FK CONSTRAINT; Schema: people; Owner: -
 --
 
@@ -5582,7 +5773,7 @@ ALTER TABLE ONLY people.perfil_estudiante
 
 
 --
--- TOC entry 5417 (class 2606 OID 49841)
+-- TOC entry 5454 (class 2606 OID 49841)
 -- Name: perfil_instructor perfil_instructor_persona_id_fkey; Type: FK CONSTRAINT; Schema: people; Owner: -
 --
 
@@ -5591,7 +5782,7 @@ ALTER TABLE ONLY people.perfil_instructor
 
 
 --
--- TOC entry 5418 (class 2606 OID 49846)
+-- TOC entry 5455 (class 2606 OID 49846)
 -- Name: perfil_staff perfil_staff_persona_id_fkey; Type: FK CONSTRAINT; Schema: people; Owner: -
 --
 
@@ -5600,7 +5791,7 @@ ALTER TABLE ONLY people.perfil_staff
 
 
 --
--- TOC entry 5403 (class 2606 OID 49851)
+-- TOC entry 5439 (class 2606 OID 49851)
 -- Name: personas personas_ciudad_id_fkey; Type: FK CONSTRAINT; Schema: people; Owner: -
 --
 
@@ -5609,7 +5800,7 @@ ALTER TABLE ONLY people.personas
 
 
 --
--- TOC entry 5422 (class 2606 OID 49856)
+-- TOC entry 5459 (class 2606 OID 49856)
 -- Name: asignaciones_personal asignaciones_personal_persona_id_fkey; Type: FK CONSTRAINT; Schema: services; Owner: -
 --
 
@@ -5618,7 +5809,7 @@ ALTER TABLE ONLY services.asignaciones_personal
 
 
 --
--- TOC entry 5423 (class 2606 OID 49861)
+-- TOC entry 5460 (class 2606 OID 49861)
 -- Name: asignaciones_personal asignaciones_personal_reserva_podcast_id_fkey; Type: FK CONSTRAINT; Schema: services; Owner: -
 --
 
@@ -5627,7 +5818,7 @@ ALTER TABLE ONLY services.asignaciones_personal
 
 
 --
--- TOC entry 5424 (class 2606 OID 49866)
+-- TOC entry 5461 (class 2606 OID 49866)
 -- Name: asignaciones_personal asignaciones_personal_servicio_produccion_id_fkey; Type: FK CONSTRAINT; Schema: services; Owner: -
 --
 
@@ -5636,7 +5827,7 @@ ALTER TABLE ONLY services.asignaciones_personal
 
 
 --
--- TOC entry 5425 (class 2606 OID 49871)
+-- TOC entry 5462 (class 2606 OID 49871)
 -- Name: asignaciones_personal asignaciones_personal_servicio_streaming_id_fkey; Type: FK CONSTRAINT; Schema: services; Owner: -
 --
 
@@ -5645,7 +5836,7 @@ ALTER TABLE ONLY services.asignaciones_personal
 
 
 --
--- TOC entry 5428 (class 2606 OID 49876)
+-- TOC entry 5465 (class 2606 OID 49876)
 -- Name: edicion_videos edicion_videos_cliente_externo_id_fkey; Type: FK CONSTRAINT; Schema: services; Owner: -
 --
 
@@ -5654,7 +5845,7 @@ ALTER TABLE ONLY services.edicion_videos
 
 
 --
--- TOC entry 5429 (class 2606 OID 49881)
+-- TOC entry 5466 (class 2606 OID 49881)
 -- Name: edicion_videos edicion_videos_persona_id_fkey; Type: FK CONSTRAINT; Schema: services; Owner: -
 --
 
@@ -5663,7 +5854,7 @@ ALTER TABLE ONLY services.edicion_videos
 
 
 --
--- TOC entry 5430 (class 2606 OID 49886)
+-- TOC entry 5467 (class 2606 OID 49886)
 -- Name: items_paquete_podcast items_paquete_podcast_paquete_id_fkey; Type: FK CONSTRAINT; Schema: services; Owner: -
 --
 
@@ -5672,7 +5863,7 @@ ALTER TABLE ONLY services.items_paquete_podcast
 
 
 --
--- TOC entry 5407 (class 2606 OID 49891)
+-- TOC entry 5443 (class 2606 OID 49891)
 -- Name: reservas_aulas reservas_aulas_aula_id_fkey; Type: FK CONSTRAINT; Schema: services; Owner: -
 --
 
@@ -5681,7 +5872,7 @@ ALTER TABLE ONLY services.reservas_aulas
 
 
 --
--- TOC entry 5408 (class 2606 OID 49896)
+-- TOC entry 5444 (class 2606 OID 49896)
 -- Name: reservas_aulas reservas_aulas_cliente_externo_id_fkey; Type: FK CONSTRAINT; Schema: services; Owner: -
 --
 
@@ -5690,7 +5881,7 @@ ALTER TABLE ONLY services.reservas_aulas
 
 
 --
--- TOC entry 5409 (class 2606 OID 49901)
+-- TOC entry 5445 (class 2606 OID 49901)
 -- Name: reservas_aulas reservas_aulas_persona_id_fkey; Type: FK CONSTRAINT; Schema: services; Owner: -
 --
 
@@ -5699,7 +5890,7 @@ ALTER TABLE ONLY services.reservas_aulas
 
 
 --
--- TOC entry 5410 (class 2606 OID 49906)
+-- TOC entry 5446 (class 2606 OID 49906)
 -- Name: reservas_podcast reservas_podcast_cliente_externo_id_fkey; Type: FK CONSTRAINT; Schema: services; Owner: -
 --
 
@@ -5708,7 +5899,7 @@ ALTER TABLE ONLY services.reservas_podcast
 
 
 --
--- TOC entry 5411 (class 2606 OID 49911)
+-- TOC entry 5447 (class 2606 OID 49911)
 -- Name: reservas_podcast reservas_podcast_paquete_id_fkey; Type: FK CONSTRAINT; Schema: services; Owner: -
 --
 
@@ -5717,7 +5908,7 @@ ALTER TABLE ONLY services.reservas_podcast
 
 
 --
--- TOC entry 5412 (class 2606 OID 49916)
+-- TOC entry 5448 (class 2606 OID 49916)
 -- Name: reservas_podcast reservas_podcast_persona_id_fkey; Type: FK CONSTRAINT; Schema: services; Owner: -
 --
 
@@ -5726,7 +5917,7 @@ ALTER TABLE ONLY services.reservas_podcast
 
 
 --
--- TOC entry 5419 (class 2606 OID 49921)
+-- TOC entry 5456 (class 2606 OID 49921)
 -- Name: alquiler_equipos services_alquiler_equipos_cliente_externo_id_foreign; Type: FK CONSTRAINT; Schema: services; Owner: -
 --
 
@@ -5735,7 +5926,7 @@ ALTER TABLE ONLY services.alquiler_equipos
 
 
 --
--- TOC entry 5420 (class 2606 OID 49926)
+-- TOC entry 5457 (class 2606 OID 49926)
 -- Name: alquiler_equipos services_alquiler_equipos_equipo_id_foreign; Type: FK CONSTRAINT; Schema: services; Owner: -
 --
 
@@ -5744,7 +5935,7 @@ ALTER TABLE ONLY services.alquiler_equipos
 
 
 --
--- TOC entry 5421 (class 2606 OID 49931)
+-- TOC entry 5458 (class 2606 OID 49931)
 -- Name: alquiler_equipos services_alquiler_equipos_persona_id_foreign; Type: FK CONSTRAINT; Schema: services; Owner: -
 --
 
@@ -5753,7 +5944,7 @@ ALTER TABLE ONLY services.alquiler_equipos
 
 
 --
--- TOC entry 5426 (class 2606 OID 49936)
+-- TOC entry 5463 (class 2606 OID 49936)
 -- Name: asignaciones_personal services_asignaciones_personal_edicion_video_id_foreign; Type: FK CONSTRAINT; Schema: services; Owner: -
 --
 
@@ -5762,7 +5953,7 @@ ALTER TABLE ONLY services.asignaciones_personal
 
 
 --
--- TOC entry 5427 (class 2606 OID 49941)
+-- TOC entry 5464 (class 2606 OID 49941)
 -- Name: asignaciones_personal services_asignaciones_personal_reserva_radio_id_foreign; Type: FK CONSTRAINT; Schema: services; Owner: -
 --
 
@@ -5771,7 +5962,7 @@ ALTER TABLE ONLY services.asignaciones_personal
 
 
 --
--- TOC entry 5431 (class 2606 OID 49946)
+-- TOC entry 5468 (class 2606 OID 49946)
 -- Name: reservas_radio services_reservas_radio_cliente_externo_id_foreign; Type: FK CONSTRAINT; Schema: services; Owner: -
 --
 
@@ -5780,7 +5971,7 @@ ALTER TABLE ONLY services.reservas_radio
 
 
 --
--- TOC entry 5432 (class 2606 OID 49951)
+-- TOC entry 5469 (class 2606 OID 49951)
 -- Name: reservas_radio services_reservas_radio_operador_id_foreign; Type: FK CONSTRAINT; Schema: services; Owner: -
 --
 
@@ -5789,7 +5980,7 @@ ALTER TABLE ONLY services.reservas_radio
 
 
 --
--- TOC entry 5433 (class 2606 OID 49956)
+-- TOC entry 5470 (class 2606 OID 49956)
 -- Name: reservas_radio services_reservas_radio_persona_id_foreign; Type: FK CONSTRAINT; Schema: services; Owner: -
 --
 
@@ -5798,7 +5989,7 @@ ALTER TABLE ONLY services.reservas_radio
 
 
 --
--- TOC entry 5434 (class 2606 OID 49961)
+-- TOC entry 5471 (class 2606 OID 49961)
 -- Name: reservas_radio services_reservas_radio_tarifa_id_foreign; Type: FK CONSTRAINT; Schema: services; Owner: -
 --
 
@@ -5807,7 +5998,16 @@ ALTER TABLE ONLY services.reservas_radio
 
 
 --
--- TOC entry 5437 (class 2606 OID 49966)
+-- TOC entry 5449 (class 2606 OID 53637)
+-- Name: servicios_streaming services_servicios_streaming_ciudad_id_foreign; Type: FK CONSTRAINT; Schema: services; Owner: -
+--
+
+ALTER TABLE ONLY services.servicios_streaming
+    ADD CONSTRAINT services_servicios_streaming_ciudad_id_foreign FOREIGN KEY (ciudad_id) REFERENCES core.ciudades(id) ON DELETE SET NULL;
+
+
+--
+-- TOC entry 5474 (class 2606 OID 49966)
 -- Name: trabajos_edicion services_trabajos_edicion_cliente_externo_id_foreign; Type: FK CONSTRAINT; Schema: services; Owner: -
 --
 
@@ -5816,7 +6016,7 @@ ALTER TABLE ONLY services.trabajos_edicion
 
 
 --
--- TOC entry 5438 (class 2606 OID 49971)
+-- TOC entry 5475 (class 2606 OID 49971)
 -- Name: trabajos_edicion services_trabajos_edicion_persona_id_foreign; Type: FK CONSTRAINT; Schema: services; Owner: -
 --
 
@@ -5825,7 +6025,7 @@ ALTER TABLE ONLY services.trabajos_edicion
 
 
 --
--- TOC entry 5439 (class 2606 OID 49976)
+-- TOC entry 5476 (class 2606 OID 49976)
 -- Name: trabajos_edicion services_trabajos_edicion_reserva_podcast_id_foreign; Type: FK CONSTRAINT; Schema: services; Owner: -
 --
 
@@ -5834,7 +6034,7 @@ ALTER TABLE ONLY services.trabajos_edicion
 
 
 --
--- TOC entry 5435 (class 2606 OID 49981)
+-- TOC entry 5472 (class 2606 OID 49981)
 -- Name: servicios_produccion servicios_produccion_cliente_externo_id_fkey; Type: FK CONSTRAINT; Schema: services; Owner: -
 --
 
@@ -5843,7 +6043,7 @@ ALTER TABLE ONLY services.servicios_produccion
 
 
 --
--- TOC entry 5436 (class 2606 OID 49986)
+-- TOC entry 5473 (class 2606 OID 49986)
 -- Name: servicios_produccion servicios_produccion_persona_id_fkey; Type: FK CONSTRAINT; Schema: services; Owner: -
 --
 
@@ -5852,7 +6052,7 @@ ALTER TABLE ONLY services.servicios_produccion
 
 
 --
--- TOC entry 5413 (class 2606 OID 49991)
+-- TOC entry 5450 (class 2606 OID 49991)
 -- Name: servicios_streaming servicios_streaming_cliente_externo_id_fkey; Type: FK CONSTRAINT; Schema: services; Owner: -
 --
 
@@ -5861,7 +6061,7 @@ ALTER TABLE ONLY services.servicios_streaming
 
 
 --
--- TOC entry 5414 (class 2606 OID 49996)
+-- TOC entry 5451 (class 2606 OID 49996)
 -- Name: servicios_streaming servicios_streaming_persona_id_fkey; Type: FK CONSTRAINT; Schema: services; Owner: -
 --
 

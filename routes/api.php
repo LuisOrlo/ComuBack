@@ -44,6 +44,8 @@ use App\Http\Controllers\Api\ReservaPodcastController;
 use App\Http\Controllers\Api\TrabajoEdicionController;
 use App\Http\Controllers\Api\TarifaRadioController;
 use App\Http\Controllers\Api\ReservaRadioController;
+use App\Http\Controllers\Api\SetController;
+use App\Http\Controllers\Api\ReservaSetController;
 use App\Http\Controllers\Api\ServicioStreamingController;
 use App\Http\Controllers\Api\InstructorPortalController;
 use App\Http\Controllers\Api\FinanceController;
@@ -111,9 +113,13 @@ use Illuminate\Support\Facades\Route;
     // Cursos abiertos (público, solo lectura para matrícula)
     Route::get('cursos-abiertos', [CursoAbiertoController::class, 'disponibles'])
         ->name('public.cursos-abiertos.index');
+    Route::get('cursos-abiertos/{id}/publico', [CursoAbiertoController::class, 'showPublico'])
+        ->name('public.cursos-abiertos.show');
+    Route::get('academic/cursos-abiertos/{id}/publico', [CursoAbiertoController::class, 'showPublico'])
+        ->name('public.academic.cursos-abiertos.show');
 
     // Talleres (público, solo lectura para matrícula)
-    Route::get('talleres', [TallerController::class, 'index'])
+    Route::get('talleres', [TallerController::class, 'disponiblesPublico'])
         ->name('public.talleres.index');
 
     // Cursos personalizados disponibles para el formulario público
@@ -345,6 +351,7 @@ use Illuminate\Support\Facades\Route;
             Route::post('/', [CursoAbiertoController::class, 'store'])->name('cursos-abiertos.store');
             Route::get('{id}', [CursoAbiertoController::class, 'show'])->name('cursos-abiertos.show');
             Route::put('{id}', [CursoAbiertoController::class, 'update'])->name('cursos-abiertos.update');
+            Route::put('{id}/clases', [CursoAbiertoController::class, 'sincronizarClases'])->name('cursos-abiertos.sincronizar-clases');
             Route::delete('{id}', [CursoAbiertoController::class, 'destroy'])->name('cursos-abiertos.destroy');
             Route::get('{id}/horarios', [CursoAbiertoController::class, 'horarios'])->name('cursos-abiertos.horarios');
             Route::get('{id}/matriculas', [CursoAbiertoController::class, 'matriculas'])->name('cursos-abiertos.matriculas');
@@ -393,6 +400,24 @@ use Illuminate\Support\Facades\Route;
             Route::get('{id}', [ReservaAulaController::class, 'show'])->name('reservas-aulas.show');
             Route::put('{id}', [ReservaAulaController::class, 'update'])->name('reservas-aulas.update');
             Route::delete('{id}', [ReservaAulaController::class, 'destroy'])->name('reservas-aulas.destroy');
+        });
+
+        // SERVICIOS - SETS
+        Route::prefix('servicios/sets')->group(function () {
+            Route::get('/', [SetController::class, 'index'])->name('sets.index');
+            Route::post('/', [SetController::class, 'store'])->name('sets.store');
+            Route::get('{id}', [SetController::class, 'show'])->name('sets.show');
+            Route::put('{id}', [SetController::class, 'update'])->name('sets.update');
+            Route::delete('{id}', [SetController::class, 'destroy'])->name('sets.destroy');
+        });
+
+        // SERVICIOS - RESERVAS DE SETS
+        Route::prefix('servicios/reservas-sets')->group(function () {
+            Route::get('/', [ReservaSetController::class, 'index'])->name('reservas-sets.index');
+            Route::post('/', [ReservaSetController::class, 'store'])->name('reservas-sets.store');
+            Route::get('{id}', [ReservaSetController::class, 'show'])->name('reservas-sets.show');
+            Route::put('{id}', [ReservaSetController::class, 'update'])->name('reservas-sets.update');
+            Route::delete('{id}', [ReservaSetController::class, 'destroy'])->name('reservas-sets.destroy');
         });
 
         // SERVICIOS - CLIENTES EXTERNOS

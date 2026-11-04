@@ -1,0 +1,76 @@
+<?php
+
+namespace App\Models\Services;
+
+use App\Models\ClienteExterno;
+use App\Models\CuentaPorCobrar;
+use App\Models\Persona;
+use Illuminate\Database\Eloquent\Concerns\HasUuids;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasOne;
+
+class ReservaSet extends Model
+{
+    use HasFactory, HasUuids;
+
+    protected $table = 'services.reservas_sets';
+
+    protected static function booted(): void
+    {
+        static::created(function ($model) {
+            if ($model->cliente_externo_id) {
+                ClienteExterno::where('id', $model->cliente_externo_id)
+                    ->update(['es_cliente' => true]);
+            }
+        });
+    }
+
+    protected $fillable = [
+        'set_id',
+        'persona_id',
+        'cliente_externo_id',
+        'fecha_reserva',
+        'hora_inicio',
+        'hora_fin',
+        'precio_total',
+        'precio_original',
+        'monto_descuento',
+        'motivo_descuento',
+        'monto_recargo',
+        'motivo_recargo',
+        'estado',
+        'observaciones',
+    ];
+
+    protected function casts(): array
+    {
+        return [
+            'precio_total' => 'decimal:2',
+            'precio_original' => 'decimal:2',
+            'monto_descuento' => 'decimal:2',
+            'monto_recargo' => 'decimal:2',
+        ];
+    }
+
+    public function set(): BelongsTo
+    {
+        return $this->belongsTo(Set::class, 'set_id');
+    }
+
+    public function persona(): BelongsTo
+    {
+        return $this->belongsTo(Persona::class, 'persona_id');
+    }
+
+    public function clienteExterno(): BelongsTo
+    {
+        return $this->belongsTo(ClienteExterno::class, 'cliente_externo_id');
+    }
+
+    public function cuentaPorCobrar(): HasOne
+    {
+        return $this->hasOne(CuentaPorCobrar::class, 'reserva_set_id');
+    }
+}

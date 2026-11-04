@@ -1036,18 +1036,20 @@ class EstudianteController extends Controller
             $reservaRadioIds = DB::table('services.reservas_radio')->where('persona_id', $personaId)->pluck('id')->toArray();
             $alquilerEquipoIds = DB::table('services.alquiler_equipos')->where('persona_id', $personaId)->pluck('id')->toArray();
             $edicionVideoIds = DB::table('services.edicion_videos')->where('persona_id', $personaId)->pluck('id')->toArray();
+            $reservaSetIds = DB::table('services.reservas_sets')->where('persona_id', $personaId)->pluck('id')->toArray();
             $streamingIds = DB::table('services.servicios_streaming')->where('persona_id', $personaId)->pluck('id')->toArray();
             $produccionIds = DB::table('services.servicios_produccion')->where('persona_id', $personaId)->pluck('id')->toArray();
 
             $cuentasServicios = [];
-            if (!empty($reservaAulaIds) || !empty($reservaPodcastIds) || !empty($reservaRadioIds) || !empty($alquilerEquipoIds) || !empty($edicionVideoIds) || !empty($streamingIds) || !empty($produccionIds)) {
+            if (!empty($reservaAulaIds) || !empty($reservaPodcastIds) || !empty($reservaRadioIds) || !empty($alquilerEquipoIds) || !empty($edicionVideoIds) || !empty($reservaSetIds) || !empty($streamingIds) || !empty($produccionIds)) {
                 $cuentasServicios = DB::table('finance.cuentas_por_cobrar')
-                    ->where(function ($q) use ($reservaAulaIds, $reservaPodcastIds, $reservaRadioIds, $alquilerEquipoIds, $edicionVideoIds, $streamingIds, $produccionIds) {
+                    ->where(function ($q) use ($reservaAulaIds, $reservaPodcastIds, $reservaRadioIds, $alquilerEquipoIds, $edicionVideoIds, $reservaSetIds, $streamingIds, $produccionIds) {
                         if (!empty($reservaAulaIds)) $q->orWhereIn('reserva_aula_id', $reservaAulaIds);
                         if (!empty($reservaPodcastIds)) $q->orWhereIn('reserva_podcast_id', $reservaPodcastIds);
                         if (!empty($reservaRadioIds)) $q->orWhereIn('reserva_radio_id', $reservaRadioIds);
                         if (!empty($alquilerEquipoIds)) $q->orWhereIn('alquiler_equipo_id', $alquilerEquipoIds);
                         if (!empty($edicionVideoIds)) $q->orWhereIn('edicion_video_id', $edicionVideoIds);
+                        if (!empty($reservaSetIds)) $q->orWhereIn('reserva_set_id', $reservaSetIds);
                         if (!empty($streamingIds)) $q->orWhereIn('servicio_streaming_id', $streamingIds);
                         if (!empty($produccionIds)) $q->orWhereIn('servicio_produccion_id', $produccionIds);
                     })
@@ -1614,6 +1616,9 @@ class EstudianteController extends Controller
                 } elseif ($cs->reserva_aula_id) {
                     $nombre = $cs->reservaAula?->aula?->nombre ?: '';
                     $concepto = 'Aula' . ($nombre ? " — {$nombre}" : '');
+                } elseif ($cs->reserva_set_id) {
+                    $nombre = $cs->reservaSet?->set?->nombre ?: '';
+                    $concepto = 'Set' . ($nombre ? " — {$nombre}" : '');
                 } elseif ($cs->alquiler_equipo_id) {
                     $nombre = $cs->alquilerEquipo?->equipo?->nombre ?: '';
                     $concepto = 'Equipo' . ($nombre ? " — {$nombre}" : '');
@@ -2013,6 +2018,7 @@ class EstudianteController extends Controller
                 $tipoServicio = '';
                 if ($cs->reserva_podcast_id) $tipoServicio = 'Podcast';
                 elseif ($cs->reserva_aula_id) $tipoServicio = 'Aula';
+                elseif ($cs->reserva_set_id) $tipoServicio = 'Set';
                 elseif ($cs->alquiler_equipo_id) $tipoServicio = 'Equipo';
                 elseif ($cs->reserva_radio_id) $tipoServicio = 'Radio';
                 elseif ($cs->edicion_video_id) $tipoServicio = 'Edición de Video';

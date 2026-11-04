@@ -197,6 +197,7 @@ class FinanceController extends Controller
                            ->whereNull('clase_extra_id')
                            ->whereNull('asesoria_id')
                            ->whereNull('reserva_radio_id')
+                           ->whereNull('reserva_set_id')
                            ->whereDate('created_at', '>=', $desde)
                            ->whereDate('created_at', '<=', $hasta);
                     });
@@ -220,6 +221,7 @@ class FinanceController extends Controller
                     ->orWhereNotNull('clase_extra_id')
                     ->orWhereNotNull('asesoria_id')
                     ->orWhereNotNull('reserva_radio_id')
+                    ->orWhereNotNull('reserva_set_id')
                 );
             }
         }
@@ -656,6 +658,28 @@ class FinanceController extends Controller
                 ];
             }
 
+            // Sets
+            $setsIds = CuentaPorCobrar::whereNotNull('reserva_set_id')->pluck('reserva_set_id')->toArray();
+            $setsSinCuenta = \App\Models\Services\ReservaSet::with(['set', 'persona', 'clienteExterno'])
+                ->whereNotIn('id', $setsIds)
+                ->whereIn('estado', ['reservado', 'confirmado', 'en_progreso'])
+                ->get();
+            foreach ($setsSinCuenta as $r) {
+                $clienteNombre = $r->persona
+                    ? trim(($r->persona->nombres ?? '') . ' ' . ($r->persona->apellidos ?? ''))
+                    : ($r->clienteExterno?->nombre_mostrado ?? trim(($r->clienteExterno?->nombres ?? '') . ' ' . ($r->clienteExterno?->apellidos ?? '')));
+                $serviciosItems[] = [
+                    'id' => $r->id,
+                    'tipo' => 'set',
+                    'monto_total' => (float) ($r->precio_total ?? 0),
+                    'monto_abonado' => 0,
+                    'saldo_pendiente' => (float) ($r->precio_total ?? 0),
+                    'estado' => 'pendiente',
+                    'nombre_servicio' => 'Alquiler de Set: ' . ($r->set?->nombre ?? 'Set'),
+                    'persona_nombre' => $clienteNombre,
+                ];
+            }
+
             // Clases extra
             $clasesExtraIds = CuentaPorCobrar::whereNotNull('clase_extra_id')->pluck('clase_extra_id')->toArray();
             $clasesExtraSinCuenta = DB::table('academic.clases_extras')
@@ -838,6 +862,7 @@ class FinanceController extends Controller
                         ->orWhereNotNull('clase_extra_id')
                         ->orWhereNotNull('asesoria_id')
                         ->orWhereNotNull('reserva_radio_id')
+                        ->orWhereNotNull('reserva_set_id')
                     )),
                 ],
                 'sin_cuenta' => [
@@ -1547,6 +1572,12 @@ class FinanceController extends Controller
                                 ->where(function ($sq) use ($matchingPersonas) {
                                     $sq->whereIn('persona_id', $matchingPersonas)->orWhereIn('cliente_externo_id', $matchingPersonas);
                                 });
+                        })->orWhereExists(function ($sub) use ($matchingPersonas) {
+                            $sub->select(DB::raw(1))->from('services.reservas_sets')
+                                ->whereColumn('services.reservas_sets.id', 'finance.cuentas_por_cobrar.reserva_set_id')
+                                ->where(function ($sq) use ($matchingPersonas) {
+                                    $sq->whereIn('persona_id', $matchingPersonas)->orWhereIn('cliente_externo_id', $matchingPersonas);
+                                });
                         });
                     }
                 })->pluck('id');
@@ -1625,6 +1656,9 @@ class FinanceController extends Controller
                 'cuentaPorCobrar.reservaAula.persona',
                 'cuentaPorCobrar.reservaAula.clienteExterno',
                 'cuentaPorCobrar.reservaAula.aula',
+                'cuentaPorCobrar.reservaSet.persona',
+                'cuentaPorCobrar.reservaSet.clienteExterno',
+                'cuentaPorCobrar.reservaSet.set',
                 'cuentaPorCobrar.alquilerEquipo.persona',
                 'cuentaPorCobrar.alquilerEquipo.clienteExterno',
                 'cuentaPorCobrar.alquilerEquipo.equipo',
@@ -1726,7 +1760,9 @@ class FinanceController extends Controller
                 ?? $cp?->alquilerEquipo?->persona
                 ?? $cp?->alquilerEquipo?->clienteExterno
                 ?? $cp?->reservaRadio?->persona
-                ?? $cp?->reservaRadio?->clienteExterno;
+                ?? $cp?->reservaRadio?->clienteExterno
+                ?? $cp?->reservaSet?->persona
+                ?? $cp?->reservaSet?->clienteExterno;
             $curso = $mat?->cursoAbierto ?? $cp?->matricula?->cursoAbierto;
             $esPersonalizado = (bool) ($curso?->es_personalizado ?? false);
             $cursoNombre = $esPersonalizado
@@ -1736,7 +1772,11 @@ class FinanceController extends Controller
                 ?? $cp?->reservaPodcast?->titulo
                 ?? $cp?->reservaPodcast?->paquete?->nombre
                 ?? $cp?->reservaAula?->aula?->nombre
-                ?? $cp?->alquilerEquipo?->equipo?->nombre;
+                ?? ($cp?->reservaSet ? ('Alquiler de Set' . ($cp->reservaSet->set?->nombre ? ': ' . $cp->reservaSet->set->nombre : '')) : null)
+                ?? $cp?->alquilerEquipo?->equipo?->nombre
+                ?? $cp?->reservaRadio?->tarifa?->nombre
+                ?? ($cp?->edicionVideo ? ('Edición de Video' . ($cp->edicionVideo->titulo ? ': ' . $cp->edicionVideo->titulo : '')) : null)
+                ?? ($cp?->reserva_set_id ? 'Alquiler de Set' : null);
             $moduleName = $rep->lineaPagoModulo?->modulo?->nombre_modulo;
             $amount = round((float) $items->sum('monto'), 2);
             $conceptDetails = $items->sortBy(
@@ -1793,10 +1833,10 @@ class FinanceController extends Controller
                 'comprobante_url' => $rep->comprobante_url,
                 'comprobantes' => $items->pluck('comprobante_url')->filter()->unique()->values()->all(),
                 'observaciones' => $rep->observaciones,
-                'estudiante_nombre' => $estudiante ? trim(($estudiante->nombres ?? '') . ' ' . ($estudiante->apellidos ?? '')) : null,
+                'estudiante_nombre' => $estudiante ? ($estudiante->nombre_mostrado ?? ($estudiante->tipo_cliente === 'empresa' && !empty($estudiante->nombre_empresa) ? $estudiante->nombre_empresa : null) ?? trim(($estudiante->nombres ?? '') . ' ' . ($estudiante->apellidos ?? '')) ?: ($estudiante->nombre_empresa ?? null)) : null,
                 'estudiante_cedula' => $estudiante?->cedula ?? null,
                 'curso_nombre' => $cursoNombre,
-                'categoria_nombre' => $esPersonalizado ? 'Cursos personalizados' : ($cp?->inscripcion_taller_id ? 'Talleres' : 'Cursos'),
+                'categoria_nombre' => $esPersonalizado ? 'Cursos personalizados' : ($cp?->inscripcion_taller_id ? 'Talleres' : ($cp?->reserva_set_id ? 'Alquiler de Sets' : ($cp?->reserva_aula_id ? 'Alquiler de Aulas' : ($cp?->reserva_podcast_id ? 'Podcast' : ($cp?->alquiler_equipo_id ? 'Alquiler de Equipos' : ($cp?->reserva_radio_id ? 'Radio' : ($cp?->edicion_video_id ? 'Edición de Videos' : 'Cursos'))))))),
                 'es_personalizado' => $esPersonalizado,
                 'modulo_nombre' => count($conceptDetails) > 1 ? null : $moduleName,
                 'modulos_count' => count($details),
@@ -1947,6 +1987,9 @@ class FinanceController extends Controller
             'cuentaPorCobrar.reservaAula.persona',
             'cuentaPorCobrar.reservaAula.clienteExterno',
             'cuentaPorCobrar.reservaAula.aula',
+            'cuentaPorCobrar.reservaSet.persona',
+            'cuentaPorCobrar.reservaSet.clienteExterno',
+            'cuentaPorCobrar.reservaSet.set',
             'cuentaPorCobrar.alquilerEquipo.persona',
             'cuentaPorCobrar.alquilerEquipo.clienteExterno',
             'cuentaPorCobrar.alquilerEquipo.equipo',
@@ -2086,6 +2129,8 @@ class FinanceController extends Controller
                 ?? $cp->reservaPodcast?->clienteExterno
                 ?? $cp->reservaAula?->persona
                 ?? $cp->reservaAula?->clienteExterno
+                ?? $cp->reservaSet?->persona
+                ?? $cp->reservaSet?->clienteExterno
                 ?? $cp->alquilerEquipo?->persona
                 ?? $cp->alquilerEquipo?->clienteExterno
                 ?? $cp->reservaRadio?->persona
@@ -2102,9 +2147,12 @@ class FinanceController extends Controller
                     ?? $cp->reservaPodcast?->titulo
                     ?? $cp->reservaPodcast?->paquete?->nombre
                     ?? $cp->reservaAula?->aula?->nombre
+                    ?? ($cp->reservaSet ? ('Alquiler de Set' . ($cp->reservaSet->set?->nombre ? ': ' . $cp->reservaSet->set->nombre : '')) : null)
                     ?? $cp->alquilerEquipo?->equipo?->nombre
+                    ?? $cp->reservaRadio?->tarifa?->nombre
                     ?? $cp->edicionVideo?->titulo
-                    ?? ($cp->edicion_video_id ? 'Edición de Video' : null);
+                    ?? ($cp->edicion_video_id ? 'Edición de Video' : null)
+                    ?? ($cp->reserva_set_id ? 'Alquiler de Set' : null);
             }
             $tallerNombre = $cp->inscripcionTaller?->taller?->nombre;
         }
@@ -2195,7 +2243,7 @@ class FinanceController extends Controller
                 'observaciones' => $t->observaciones,
                 'motivo_rechazo' => $t->motivo_rechazo,
                 'fecha_verificacion' => $t->fecha_verificacion?->format('Y-m-d H:i'),
-                'estudiante_nombre' => $estudiante ? ($estudiante->nombre_mostrado ?? trim(($estudiante->nombres ?? '') . ' ' . ($estudiante->apellidos ?? ''))) : null,
+                'estudiante_nombre' => $estudiante ? ($estudiante->nombre_mostrado ?? ($estudiante->tipo_cliente === 'empresa' && !empty($estudiante->nombre_empresa) ? $estudiante->nombre_empresa : null) ?? trim(($estudiante->nombres ?? '') . ' ' . ($estudiante->apellidos ?? '')) ?: ($estudiante->nombre_empresa ?? null)) : null,
                 'curso_nombre' => $cursoNombre,
                 'catalogo_nombre' => $catalogoNombre,
                 'modulo_nombre' => $moduloNombre,
@@ -2575,6 +2623,7 @@ class FinanceController extends Controller
             'equipo' => [\App\Models\Services\AlquilerEquipo::class, 'alquiler_equipo_id'],
             'edicion' => [\App\Models\Services\TrabajoEdicion::class, 'edicion_video_id'],
             'radio' => [\App\Models\Services\ReservaRadio::class, 'reserva_radio_id'],
+            'set' => [\App\Models\Services\ReservaSet::class, 'reserva_set_id'],
         ];
 
         if (!isset($modelos[$tipo])) {
@@ -2594,7 +2643,8 @@ class FinanceController extends Controller
                 : '—';
         }
         if ($nombreCliente === '—' && method_exists($servicio, 'clienteExterno') && $servicio->clienteExterno) {
-            $nombreCliente = trim(($servicio->clienteExterno->nombres ?? '') . ' ' . ($servicio->clienteExterno->apellidos ?? ''));
+            $ce = $servicio->clienteExterno;
+            $nombreCliente = $ce->nombre_mostrado ?? trim(($ce->nombres ?? '') . ' ' . ($ce->apellidos ?? '')) ?: ($ce->nombre_empresa ?? '—');
         }
 
         $montoTotal = (float) ($servicio->precio_total ?? 0);
@@ -2612,6 +2662,8 @@ class FinanceController extends Controller
             $nombreServicio = 'Edición de Video';
         } elseif ($tipo === 'radio') {
             $nombreServicio = 'Radio';
+        } elseif ($tipo === 'set') {
+            $nombreServicio = $servicio->set?->nombre ?? 'Set';
         }
 
         return response()->json([
@@ -2644,6 +2696,7 @@ class FinanceController extends Controller
             'equipo' => [\App\Models\Services\AlquilerEquipo::class, 'alquiler_equipo_id'],
             'edicion' => [\App\Models\Services\TrabajoEdicion::class, 'edicion_video_id'],
             'radio' => [\App\Models\Services\ReservaRadio::class, 'reserva_radio_id'],
+            'set' => [\App\Models\Services\ReservaSet::class, 'reserva_set_id'],
         ];
 
         if (!isset($modelos[$tipo])) {
@@ -2803,6 +2856,9 @@ class FinanceController extends Controller
                           ->orWhereHas('reservaAula.persona', fn($pq) => $pq->where('nombres', 'ilike', $likeSearch)->orWhere('apellidos', 'ilike', $likeSearch)->orWhere('cedula', 'ilike', $likeSearch))
                           ->orWhereHas('reservaAula.clienteExterno', fn($cq) => $cq->where('nombres', 'ilike', $likeSearch)->orWhere('apellidos', 'ilike', $likeSearch))
                           ->orWhereHas('reservaAula.aula', fn($aq) => $aq->where('nombre', 'ilike', $likeSearch))
+                          ->orWhereHas('reservaSet.persona', fn($pq) => $pq->where('nombres', 'ilike', $likeSearch)->orWhere('apellidos', 'ilike', $likeSearch)->orWhere('cedula', 'ilike', $likeSearch))
+                          ->orWhereHas('reservaSet.clienteExterno', fn($cq) => $cq->where('nombres', 'ilike', $likeSearch)->orWhere('apellidos', 'ilike', $likeSearch)->orWhere('nombre_empresa', 'ilike', $likeSearch))
+                          ->orWhereHas('reservaSet.set', fn($sq) => $sq->where('nombre', 'ilike', $likeSearch))
                           ->orWhereHas('reservaRadio.persona', fn($pq) => $pq->where('nombres', 'ilike', $likeSearch)->orWhere('apellidos', 'ilike', $likeSearch)->orWhere('cedula', 'ilike', $likeSearch))
                           ->orWhereHas('reservaRadio.clienteExterno', fn($cq) => $cq->where('nombres', 'ilike', $likeSearch)->orWhere('apellidos', 'ilike', $likeSearch))
                           ->orWhereHas('edicionVideo.cliente', fn($cq) => $cq->where('nombres', 'ilike', $likeSearch)->orWhere('apellidos', 'ilike', $likeSearch))
@@ -2854,7 +2910,7 @@ class FinanceController extends Controller
             $sq->whereNotNull('reserva_aula_id')->orWhereNotNull('reserva_podcast_id')
                ->orWhereNotNull('alquiler_equipo_id')->orWhereNotNull('servicio_streaming_id')
                ->orWhereNotNull('servicio_produccion_id')->orWhereNotNull('edicion_video_id')
-               ->orWhereNotNull('reserva_radio_id')))->sum('monto');
+               ->orWhereNotNull('reserva_radio_id')->orWhereNotNull('reserva_set_id')))->sum('monto');
         $totales['talleres'] = (float) (clone $query)->whereHas('cuentaPorCobrar', fn($q) => $q->whereNotNull('inscripcion_taller_id'))->sum('monto');
         $totales['cursos'] = (float) $cursosTotal;
         $totales['servicios'] = (float) $serviciosTotal;
@@ -2904,6 +2960,9 @@ class FinanceController extends Controller
                 'cuentaPorCobrar.reservaAula.persona',
                 'cuentaPorCobrar.reservaAula.clienteExterno',
                 'cuentaPorCobrar.reservaAula.aula',
+                'cuentaPorCobrar.reservaSet.persona',
+                'cuentaPorCobrar.reservaSet.clienteExterno',
+                'cuentaPorCobrar.reservaSet.set',
                 'cuentaPorCobrar.alquilerEquipo.persona',
                 'cuentaPorCobrar.alquilerEquipo.clienteExterno',
                 'cuentaPorCobrar.alquilerEquipo.equipo',
@@ -3013,6 +3072,7 @@ class FinanceController extends Controller
                 elseif ($cp->reserva_radio_id) $cat = 'Radio';
                 elseif ($cp->edicion_video_id) $cat = 'Edición de Video';
                 elseif ($cp->servicio_streaming_id) $cat = 'Streaming';
+                elseif ($cp->reserva_set_id) $cat = 'Alquiler de Sets';
                 elseif ($cp->servicio_produccion_id) $cat = 'Producción Audiovisual';
                 elseif ($cp->clase_extra_id) $cat = 'Asesorías';
             } elseif ($rep->linea_pago_modulo_id) {
@@ -3033,6 +3093,8 @@ class FinanceController extends Controller
                 ?? $cp?->alquilerEquipo?->clienteExterno
                 ?? $cp?->reservaRadio?->persona
                 ?? $cp?->reservaRadio?->clienteExterno
+                ?? $cp?->reservaSet?->persona
+                ?? $cp?->reservaSet?->clienteExterno
                 ?? $cp?->edicionVideo?->cliente
                 ?? $cp?->edicionVideo?->clienteExterno
                 ?? $rep->lineaPagoModulo?->matricula?->estudiante;
@@ -3050,9 +3112,11 @@ class FinanceController extends Controller
                 ?? $cp?->reservaPodcast?->titulo
                 ?? $cp?->reservaPodcast?->paquete?->nombre
                 ?? $cp?->reservaAula?->aula?->nombre
+                ?? ($cp?->reservaSet ? ('Alquiler de Set' . ($cp->reservaSet->set?->nombre ? ': ' . $cp->reservaSet->set->nombre : '')) : null)
                 ?? $cp?->alquilerEquipo?->equipo?->nombre
                 ?? $cp?->reservaRadio?->tarifa?->nombre
                 ?? $cp?->edicionVideo?->titulo
+                ?? ($cp?->reserva_set_id ? 'Alquiler de Set' : null)
                 ?? $rep->lineaPagoModulo?->matricula?->cursoAbierto?->catalogo?->nombre;
 
             $esMixto = $grupo && $grupo->pluck('metodo_pago')->unique()->count() > 1;
@@ -3071,7 +3135,7 @@ class FinanceController extends Controller
                 'created_at' => $rep->fecha_verificacion?->toISOString(),
                 'concepto' => $concepto,
                 'es_personalizado' => (bool) ($curso?->es_personalizado ?? false),
-                'estudiante_nombre' => $estudiante ? trim(($estudiante->nombres ?? '') . ' ' . ($estudiante->apellidos ?? '')) : null,
+                'estudiante_nombre' => $estudiante ? ($estudiante->nombre_mostrado ?? ($estudiante->tipo_cliente === 'empresa' && !empty($estudiante->nombre_empresa) ? $estudiante->nombre_empresa : null) ?? trim(($estudiante->nombres ?? '') . ' ' . ($estudiante->apellidos ?? '')) ?: ($estudiante->nombre_empresa ?? null)) : null,
                 'categoria' => $cat,
                 'monto' => $monto,
                 'metodo_pago' => $esMixto ? 'mixto' : (string) $rep->metodo_pago,
@@ -3139,6 +3203,7 @@ class FinanceController extends Controller
                     WHEN cp.reserva_radio_id IS NOT NULL THEN 'Radio'
                     WHEN cp.edicion_video_id IS NOT NULL THEN 'Edición'
                     WHEN cp.alquiler_equipo_id IS NOT NULL THEN 'Equipos'
+                    WHEN cp.reserva_set_id IS NOT NULL THEN 'Sets'
                     WHEN cp.servicio_streaming_id IS NOT NULL THEN 'Streaming'
                     WHEN cp.servicio_produccion_id IS NOT NULL THEN 'Producción'
                     ELSE 'Otros'
@@ -3165,7 +3230,8 @@ class FinanceController extends Controller
         $previoServicios = (float) TransaccionIngreso::whereBetween('fecha_pago', [$previoInicio, $previoFin . ' 23:59:59'])
             ->whereHas('cuentaPorCobrar', fn($q) => $q->whereNotNull('reserva_podcast_id')
                 ->orWhereNotNull('reserva_aula_id')->orWhereNotNull('alquiler_equipo_id')
-                ->orWhereNotNull('reserva_radio_id')->orWhereNotNull('edicion_video_id'))
+                ->orWhereNotNull('reserva_radio_id')->orWhereNotNull('edicion_video_id')
+                ->orWhereNotNull('reserva_set_id'))
             ->sum('monto');
         $totales['previo_total'] = round($previoTotal, 2);
         $totales['previo_cursos'] = round($previoCursos, 2);

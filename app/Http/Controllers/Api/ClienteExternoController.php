@@ -288,8 +288,9 @@ class ClienteExternoController extends Controller
         $podcastIds = ReservaPodcast::where('cliente_externo_id', $id)->pluck('id');
         $equipoIds = AlquilerEquipo::where('cliente_externo_id', $id)->pluck('id');
         $edicionIds = TrabajoEdicion::where('cliente_externo_id', $id)->pluck('id');
+        $setIds = \App\Models\Services\ReservaSet::where('cliente_externo_id', $id)->pluck('id');
 
-        $tieneServicios = $radioIds->isNotEmpty() || $aulaIds->isNotEmpty() || $podcastIds->isNotEmpty() || $equipoIds->isNotEmpty() || $edicionIds->isNotEmpty();
+        $tieneServicios = $radioIds->isNotEmpty() || $aulaIds->isNotEmpty() || $podcastIds->isNotEmpty() || $equipoIds->isNotEmpty() || $edicionIds->isNotEmpty() || $setIds->isNotEmpty();
         if (!$tieneServicios) {
             return response()->json(['data' => []]);
         }
@@ -298,12 +299,14 @@ class ClienteExternoController extends Controller
             'transacciones',
             'reservaRadio.tarifa',
             'reservaAula.aula',
+            'reservaSet.set',
             'reservaPodcast.paquete',
             'alquilerEquipo.equipo',
             'edicionVideo',
-        ])->where(function ($q) use ($radioIds, $aulaIds, $podcastIds, $equipoIds, $edicionIds) {
+        ])->where(function ($q) use ($radioIds, $aulaIds, $podcastIds, $equipoIds, $edicionIds, $setIds) {
                 if ($radioIds->isNotEmpty()) $q->orWhereIn('reserva_radio_id', $radioIds);
                 if ($aulaIds->isNotEmpty()) $q->orWhereIn('reserva_aula_id', $aulaIds);
+                if ($setIds->isNotEmpty()) $q->orWhereIn('reserva_set_id', $setIds);
                 if ($podcastIds->isNotEmpty()) $q->orWhereIn('reserva_podcast_id', $podcastIds);
                 if ($equipoIds->isNotEmpty()) $q->orWhereIn('alquiler_equipo_id', $equipoIds);
                 if ($edicionIds->isNotEmpty()) $q->orWhereIn('edicion_video_id', $edicionIds);

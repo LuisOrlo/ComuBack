@@ -27,12 +27,82 @@ class CursoAbiertoController extends Controller
     /**
      * Lista para matrícula pública: cursos futuros de cualquier fecha y cursos
      * que iniciaron dentro de los últimos siete días.
+     * Retorna únicamente las columnas y relaciones estrictamente necesarias para el estudiante.
      */
     public function disponibles(Request $request)
     {
-        $request->merge(['dias_desde_inicio' => 7]);
+        $query = CursoAbierto::query()
+            ->select([
+                'id',
+                'catalogo_curso_id',
+                'nombre_instancia',
+                'semestre',
+                'fecha_inicio',
+                'fecha_fin',
+                'capacidad_maxima',
+                'docente_id',
+                'es_activo',
+                'modalidad',
+                'ciudad_id',
+                'horario_id',
+                'precio_base',
+                'precio_matricula',
+                'estado',
+            ])
+            ->with([
+                'catalogo:id,nombre,categoria,color,imagen,horas_totales',
+                'ciudad:id,nombre',
+                'horario:id,hora_inicio,hora_fin,nombre_referencial,dia_semana',
+                'horario.diasSemana',
+                'docente:id,nombres,apellidos',
+            ])
+            ->withCount(['matriculas as total_matriculas']);
 
-        return $this->index($request);
+        // Excluir cursos personalizados
+        $query->where(function ($q) {
+            $q->where('es_personalizado', false)
+                ->orWhere(function ($legacy) {
+                    $legacy->whereNull('es_personalizado')
+                        ->whereDoesntHave('catalogo', function ($catalogo) {
+                            $catalogo->where('categoria', 'personalizado');
+                        });
+                });
+        });
+
+        // Cursos vigentes/próximos
+        $dias = is_numeric($request->dias_desde_inicio) ? max(0, (int) $request->dias_desde_inicio) : 7;
+        $query->whereDate('fecha_inicio', '>=', now()->subDays($dias)->toDateString());
+
+        if ($request->filled('catalogo_curso_id')) {
+            $query->where('catalogo_curso_id', $request->catalogo_curso_id);
+        }
+
+        if ($request->filled('modalidad')) {
+            $query->where('modalidad', $request->modalidad);
+        }
+
+        if ($request->filled('ciudad_id')) {
+            $query->where('ciudad_id', (int) $request->ciudad_id);
+        }
+
+        if ($request->filled('estado')) {
+            $query->where('estado', $request->estado);
+        }
+
+        $query->orderBy('fecha_inicio', 'asc');
+
+        $perPage = min((int) $request->get('per_page', 200), 200);
+        $cursos = $query->paginate($perPage);
+
+        return response()->json([
+            'data' => $cursos->items(),
+            'meta' => [
+                'total' => $cursos->total(),
+                'per_page' => $cursos->perPage(),
+                'current_page' => $cursos->currentPage(),
+                'last_page' => $cursos->lastPage(),
+            ]
+        ]);
     }
 
     public function index(Request $request)
@@ -316,9 +386,208 @@ class CursoAbiertoController extends Controller
             'horario.diasSemana',
             'matriculas',
             'modulos.clases' => function ($q) {
-                $q->withCount('asistencias')->orderBy('fecha_clase')->orderBy('hora_inicio');
+                $q->withCount([
+                    'asistencias as asistencias_total',
+                    'asistencias as asistencias_presentes' => function ($aq) {
+                        $aq->where('asistio', true);
+                    }
+                ])->orderBy('fecha_clase')->orderBy('hora_inicio');
             }
         ])->findOrFail($id);
+        return response()->json(['data' => $curso]);
+    }
+
+    /**
+     * Sincronizar clases y horarios de un curso abierto:
+     * Permite agregar, eliminar y ajustar horarios de clases preservando las que ya tienen asistencias tomadas.
+     */
+    public function sincronizarClases(Request $request, string $id): JsonResponse
+    {
+        $curso = CursoAbierto::with(['modulos', 'horario'])->findOrFail($id);
+
+        $request->validate([
+            'clases' => 'required|array',
+            'clases.*.fecha_clase' => 'required|date_format:Y-m-d',
+            'clases.*.hora_inicio' => 'nullable|string',
+            'clases.*.hora_fin' => 'nullable|string',
+            'clases.*.id' => 'nullable|uuid',
+            'clases.*.modulo_id' => 'nullable|uuid',
+        ]);
+
+        $modulos = $curso->modulos()->orderBy('numero_orden')->get();
+        if ($modulos->isEmpty()) {
+            return response()->json([
+                'message' => 'El curso debe tener al menos un módulo para programar clases.',
+            ], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        $modulosIds = $modulos->pluck('id')->toArray();
+        $clasesExistentes = Clase::whereIn('modulo_id', $modulosIds)
+            ->withCount('asistencias')
+            ->get();
+
+        $clasesEnviadas = $request->input('clases', []);
+
+        // Identificar IDs enviados
+        $enviadosIds = collect($clasesEnviadas)->pluck('id')->filter()->toArray();
+
+        // 1. Validar que no se intente eliminar clases con asistencia registrada
+        foreach ($clasesExistentes as $existente) {
+            if ($existente->asistencias_count > 0 && !in_array($existente->id, $enviadosIds)) {
+                return response()->json([
+                    'message' => "No se puede eliminar la clase del {$existente->fecha_clase->format('Y-m-d')} porque ya cuenta con asistencia registrada.",
+                ], Response::HTTP_UNPROCESSABLE_ENTITY);
+            }
+        }
+
+        // 2. Eliminar clases existentes que ya no están en la lista (solo las que no tienen asistencia)
+        $aEliminar = $clasesExistentes->filter(function ($c) use ($enviadosIds) {
+            return !in_array($c->id, $enviadosIds) && $c->asistencias_count === 0;
+        });
+        foreach ($aEliminar as $c) {
+            $c->delete();
+        }
+
+        // 3. Crear o actualizar clases
+        $primerModulo = $modulos->first();
+        $ultimoModulo = $modulos->last();
+
+        // Horario por defecto del curso
+        $horaInicioDef = $curso->horario?->hora_inicio ? substr($curso->horario->hora_inicio, 0, 5) : '08:00';
+        $horaFinDef = $curso->horario?->hora_fin ? substr($curso->horario->hora_fin, 0, 5) : '10:00';
+
+        foreach ($clasesEnviadas as $c) {
+            $fechaClase = \Carbon\Carbon::parse($c['fecha_clase'])->format('Y-m-d');
+            $hInicio = !empty($c['hora_inicio']) ? substr($c['hora_inicio'], 0, 5) : $horaInicioDef;
+            $hFin = !empty($c['hora_fin']) ? substr($c['hora_fin'], 0, 5) : $horaFinDef;
+
+            // Determinar modulo_id
+            $moduloId = null;
+            if (!empty($c['modulo_id']) && in_array($c['modulo_id'], $modulosIds)) {
+                $moduloId = $c['modulo_id'];
+            }
+
+            if (!$moduloId) {
+                foreach ($modulos as $mod) {
+                    if ($mod->fecha_inicio && $mod->fecha_fin) {
+                        $mIni = \Carbon\Carbon::parse($mod->fecha_inicio)->format('Y-m-d');
+                        $mFin = \Carbon\Carbon::parse($mod->fecha_fin)->format('Y-m-d');
+                        if ($fechaClase >= $mIni && $fechaClase <= $mFin) {
+                            $moduloId = $mod->id;
+                            break;
+                        }
+                    }
+                }
+                if (!$moduloId && $primerModulo->fecha_inicio) {
+                    $mIni = \Carbon\Carbon::parse($primerModulo->fecha_inicio)->format('Y-m-d');
+                    if ($fechaClase < $mIni) {
+                        $moduloId = $primerModulo->id;
+                    }
+                }
+                if (!$moduloId && $ultimoModulo->fecha_fin) {
+                    $mFin = \Carbon\Carbon::parse($ultimoModulo->fecha_fin)->format('Y-m-d');
+                    if ($fechaClase > $mFin) {
+                        $moduloId = $ultimoModulo->id;
+                    }
+                }
+                if (!$moduloId) {
+                    $moduloId = $primerModulo->id;
+                }
+            }
+
+            if (!empty($c['id'])) {
+                // Actualizar existente
+                $claseExistente = $clasesExistentes->firstWhere('id', $c['id']);
+                if ($claseExistente) {
+                    $claseExistente->update([
+                        'fecha_clase' => $fechaClase,
+                        'hora_inicio' => $hInicio,
+                        'hora_fin' => $hFin,
+                        'modulo_id' => $moduloId,
+                    ]);
+                    continue;
+                }
+            }
+
+            // Nueva clase
+            Clase::create([
+                'modulo_id' => $moduloId,
+                'instructor_id' => $curso->docente_id,
+                'fecha_clase' => $fechaClase,
+                'hora_inicio' => $hInicio,
+                'hora_fin' => $hFin,
+            ]);
+        }
+
+        // Retornar lista actualizada y limpia de clases
+        $clasesActualizadas = Clase::whereIn('modulo_id', $modulosIds)
+            ->withCount([
+                'asistencias as asistencias_total',
+                'asistencias as asistencias_presentes' => function ($aq) {
+                    $aq->where('asistio', true);
+                }
+            ])
+            ->orderBy('fecha_clase')
+            ->orderBy('hora_inicio')
+            ->get()
+            ->map(function ($clase) {
+                return [
+                    'id' => $clase->id,
+                    'modulo_id' => $clase->modulo_id,
+                    'fecha_clase' => $clase->fecha_clase->format('Y-m-d'),
+                    'hora_inicio' => substr($clase->hora_inicio, 0, 5),
+                    'hora_fin' => substr($clase->hora_fin, 0, 5),
+                    'asistencia_registrada' => $clase->asistencias_total > 0,
+                    'asistencias_count' => $clase->asistencias_total,
+                    'asistencias_total' => $clase->asistencias_total,
+                    'asistencias_presentes' => $clase->asistencias_presentes,
+                    'tema' => $clase->tema,
+                    'observaciones' => $clase->observaciones,
+                ];
+            });
+
+        return response()->json([
+            'message' => 'Cronograma de clases actualizado exitosamente.',
+            'data' => $clasesActualizadas,
+        ]);
+    }
+
+    public function showPublico($id)
+    {
+        $curso = CursoAbierto::query()
+            ->select([
+                'id',
+                'catalogo_curso_id',
+                'nombre_instancia',
+                'semestre',
+                'fecha_inicio',
+                'fecha_fin',
+                'capacidad_maxima',
+                'docente_id',
+                'es_activo',
+                'modalidad',
+                'ciudad_id',
+                'horario_id',
+                'precio_base',
+                'precio_matricula',
+                'estado',
+            ])
+            ->with([
+                'catalogo:id,nombre,categoria,color,imagen,horas_totales',
+                'ciudad:id,nombre',
+                'horario:id,hora_inicio,hora_fin,nombre_referencial,dia_semana',
+                'horario.diasSemana',
+                'docente:id,nombres,apellidos',
+            ])
+            ->withCount(['matriculas as total_matriculas'])
+            ->find($id);
+
+        if (!$curso) {
+            return response()->json([
+                'message' => 'No se encontró el curso solicitado.',
+            ], Response::HTTP_NOT_FOUND);
+        }
+
         return response()->json(['data' => $curso]);
     }
 

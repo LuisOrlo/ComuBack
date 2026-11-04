@@ -25,6 +25,7 @@ class CuentaPorCobrar extends Model
         'edicion_video_id',
         'alquiler_equipo_id',
         'reserva_radio_id',
+        'reserva_set_id',
         'clase_extra_id',
         'asesoria_id',
         'solicitud_inscripcion_id',
@@ -103,6 +104,14 @@ class CuentaPorCobrar extends Model
     public function reservaAula(): BelongsTo
     {
         return $this->belongsTo(\App\Models\Services\ReservaAula::class, 'reserva_aula_id', 'id');
+    }
+
+    /**
+     * Reserva de set asociada
+     */
+    public function reservaSet(): BelongsTo
+    {
+        return $this->belongsTo(\App\Models\Services\ReservaSet::class, 'reserva_set_id', 'id');
     }
 
     /**
@@ -271,7 +280,7 @@ class CuentaPorCobrar extends Model
 
         if ($this->reserva_aula_id || $this->reserva_podcast_id || $this->alquiler_equipo_id
             || $this->servicio_streaming_id || $this->servicio_produccion_id || $this->edicion_video_id
-            || $this->clase_extra_id || $this->asesoria_id || $this->reserva_radio_id) {
+            || $this->clase_extra_id || $this->asesoria_id || $this->reserva_radio_id || $this->reserva_set_id) {
             return 'servicio';
         }
 

@@ -16,6 +16,88 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 class TallerController extends Controller
 {
+    /**
+     * Consulta pública de talleres disponibles para matrícula:
+     * Retorna únicamente los campos públicos, excluyendo costos y presupuestos internos.
+     */
+    public function disponiblesPublico(Request $request): JsonResponse
+    {
+        $query = Taller::query()
+            ->select([
+                'id',
+                'nombre',
+                'descripcion',
+                'instructor_id',
+                'ciudad_id',
+                'modalidad',
+                'capacidad_maxima',
+                'precio',
+                'fecha',
+                'fecha_fin',
+                'hora_inicio',
+                'hora_fin',
+                'estado',
+            ])
+            ->with([
+                'ciudad:id,nombre',
+                'horarios',
+                'instructor:id,nombres,apellidos',
+            ])
+            ->withCount(['inscripciones as inscripciones_count' => function ($q) {
+                $q->where('estado', 'activo');
+            }]);
+
+        // Talleres en estados disponibles
+        if ($request->filled('estado')) {
+            $query->where('estado', $request->estado);
+        } else {
+            $query->whereIn('estado', ['pendiente', 'confirmado', 'en_progreso']);
+        }
+
+        // Talleres próximos o que iniciaron recientemente (últimos 7 días)
+        if ($request->filled('tab')) {
+            if ($request->tab === 'proximos') {
+                $query->where(function ($q) {
+                    $q->where('fecha', '>=', now()->toDateString())
+                      ->orWhere('fecha_fin', '>=', now()->toDateString());
+                });
+            } elseif ($request->tab === 'pasados') {
+                $query->where(function ($q) {
+                    $q->where('fecha', '<', now()->toDateString())
+                      ->whereNull('fecha_fin')
+                      ->orWhere('fecha_fin', '<', now()->toDateString());
+                });
+            }
+        } else {
+            $query->where(function ($q) {
+                $q->where('fecha', '>=', now()->subDays(7)->toDateString())
+                  ->orWhere('fecha_fin', '>=', now()->subDays(7)->toDateString());
+            });
+        }
+
+        if ($request->filled('modalidad')) {
+            $query->where('modalidad', $request->modalidad);
+        }
+
+        if ($request->filled('ciudad_id')) {
+            $query->where('ciudad_id', $request->ciudad_id);
+        }
+
+        if ($request->filled('search')) {
+            $search = $request->search;
+            $query->where(function ($q) use ($search) {
+                $q->where('nombre', 'ilike', "%{$search}%")
+                  ->orWhere('descripcion', 'ilike', "%{$search}%");
+            });
+        }
+
+        $talleres = $query
+            ->orderBy('fecha', 'asc')
+            ->paginate($request->per_page ?? 50);
+
+        return response()->json($talleres);
+    }
+
     public function index(Request $request): JsonResponse
     {
         $query = Taller::query()->with(['ciudad', 'horarios', 'instructor:id,nombres,apellidos'])->withCount(['inscripciones as inscripciones_count' => function ($q) {
