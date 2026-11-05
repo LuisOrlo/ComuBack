@@ -30,6 +30,12 @@ class StorePagoInicialRequest extends FormRequest
                 'numeric',
                 'min:0',
                 function (string $attribute, mixed $value, Closure $fail) {
+                    $grupoPagoId = $this->input('grupo_pago_id');
+                    if ($grupoPagoId && \App\Models\TransaccionIngreso::where('grupo_pago_id', $grupoPagoId)->exists()) {
+                        // Operación idempotente: el grupo_pago_id ya fue procesado previamente
+                        return;
+                    }
+
                     $index = explode('.', $attribute)[1];
                     $lineaId = $this->input("pagos.{$index}.linea_pago_modulo_id");
                     if (! $lineaId) {

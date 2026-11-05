@@ -912,8 +912,24 @@ class FinanceController extends Controller
 
         $grupoPagoId = $request->grupo_pago_id ?: (string) \Illuminate\Support\Str::uuid();
 
-        if (TransaccionIngreso::where('grupo_pago_id', $grupoPagoId)->exists()) {
-            return response()->json(['mensaje' => 'Esta operación de pago ya fue procesada anteriormente.'], 409);
+        $transaccionesExistentes = TransaccionIngreso::where('grupo_pago_id', $grupoPagoId)->get();
+        if ($transaccionesExistentes->isNotEmpty()) {
+            $resultados = $transaccionesExistentes->map(fn($t) => [
+                'linea_pago_modulo_id' => $t->linea_pago_modulo_id,
+                'transaccion_id' => $t->id,
+                'grupo_pago_id' => $t->grupo_pago_id,
+                'metodo_pago' => $t->metodo_pago,
+                'monto' => (float) $t->monto,
+                'referencia_pago' => $t->referencia_pago,
+            ])->all();
+
+            return response()->json([
+                'mensaje' => 'Esta operación de pago ya fue procesada exitosamente.',
+                'datos' => $transaccionesExistentes->first(),
+                'pagos' => $resultados,
+                'grupo_pago_id' => $grupoPagoId,
+                'ya_procesado' => true,
+            ], 200);
         }
 
         DB::beginTransaction();
@@ -1041,8 +1057,24 @@ class FinanceController extends Controller
     {
         $grupoPagoId = $request->grupo_pago_id ?: (string) \Illuminate\Support\Str::uuid();
 
-        if (TransaccionIngreso::where('grupo_pago_id', $grupoPagoId)->exists()) {
-            return response()->json(['mensaje' => 'Esta operación de pago ya fue procesada anteriormente.'], 409);
+        $transaccionesExistentes = TransaccionIngreso::where('grupo_pago_id', $grupoPagoId)->get();
+        if ($transaccionesExistentes->isNotEmpty()) {
+            $resultados = $transaccionesExistentes->map(fn($t) => [
+                'linea_pago_modulo_id' => $t->linea_pago_modulo_id,
+                'transaccion_id' => $t->id,
+                'grupo_pago_id' => $t->grupo_pago_id,
+                'metodo_pago' => $t->metodo_pago,
+                'monto' => (float) $t->monto,
+                'referencia_pago' => $t->referencia_pago,
+            ])->all();
+
+            return response()->json([
+                'mensaje' => 'Esta operación de pago ya fue procesada exitosamente.',
+                'datos' => $transaccionesExistentes->first(),
+                'pagos' => $resultados,
+                'grupo_pago_id' => $grupoPagoId,
+                'ya_procesado' => true,
+            ], 200);
         }
 
         $response = DB::transaction(function () use ($request, $grupoPagoId) {
