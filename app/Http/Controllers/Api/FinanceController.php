@@ -2320,11 +2320,15 @@ class FinanceController extends Controller
 
             $esExterno = $est && $est instanceof \App\Models\ClienteExterno;
 
+            $apellidos = trim($est?->apellidos ?? '');
+            $nombres = trim($est?->nombres ?? '');
+            $nombreCompleto = trim($apellidos . ' ' . $nombres);
+
             $estudiantesData[] = [
                 'matricula_id' => $matricula->id,
-                'nombre' => $est
-                    ? trim(($est->nombres ?? '') . ' ' . ($est->apellidos ?? ''))
-                    : '—',
+                'apellidos' => $apellidos ?: '—',
+                'nombres' => $nombres ?: '—',
+                'nombre' => $nombreCompleto ?: '—',
                 'cedula' => $est?->cedula ?? '—',
                 'telefono' => $est?->celular ?? $est?->telefono ?? '—',
                 'ciudad' => $est?->ciudad?->nombre ?? $est?->ciudad ?? '—',
@@ -2341,6 +2345,14 @@ class FinanceController extends Controller
 
             $totalRecaudadoReal += $totalPagadoEstudiante;
         }
+
+        usort($estudiantesData, function ($a, $b) {
+            $comp = strcoll(mb_strtolower($a['apellidos'] ?? ''), mb_strtolower($b['apellidos'] ?? ''));
+            if ($comp !== 0) {
+                return $comp;
+            }
+            return strcoll(mb_strtolower($a['nombres'] ?? ''), mb_strtolower($b['nombres'] ?? ''));
+        });
 
         $horarioStr = '—';
         if ($curso->horario) {
