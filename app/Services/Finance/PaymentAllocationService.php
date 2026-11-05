@@ -101,7 +101,7 @@ class PaymentAllocationService
     ): array {
         $transacciones = [];
 
-        $hasExplicitLineas = collect($metodosNormalizados)->contains(fn($m) => !empty($m['linea_pago_modulo_id']));
+        $hasExplicitLineas = !empty($metodosNormalizados) && collect($metodosNormalizados)->every(fn($m) => !empty($m['linea_pago_modulo_id']));
 
         if ($hasExplicitLineas) {
             foreach ($lineasItems as $item) {
