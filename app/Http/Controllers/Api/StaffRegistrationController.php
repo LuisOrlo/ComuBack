@@ -1222,7 +1222,7 @@ class StaffRegistrationController extends Controller
      */
     public function uploadComprobante(string $id, Request $request)
     {
-        $request->validate(['archivo' => 'required|file|image|max:5120']);
+        $request->validate(['archivo' => 'required|file|image|max:20480']);
         $solicitud = SolicitudInscripcion::findOrFail($id);
         $service = app(StorageCleanupService::class);
 

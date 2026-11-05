@@ -1046,7 +1046,7 @@ class FinanceController extends Controller
 
     public function uploadComprobantePago(Request $request): JsonResponse
     {
-        $request->validate(['archivo' => 'required|file|image|max:5120']);
+        $request->validate(['archivo' => 'required|file|image|max:20480']);
         $file = $request->file('archivo');
         $filename = \Illuminate\Support\Str::uuid() . '.' . $file->getClientOriginalExtension();
         $path = $file->storeAs('comprobantes', $filename);
@@ -1221,7 +1221,7 @@ class FinanceController extends Controller
             'referencia_pago' => 'sometimes|nullable|string|max:255',
             'fecha_pago' => 'sometimes|nullable|string',
             'observaciones' => 'sometimes|nullable|string|max:1000',
-            'comprobante' => 'sometimes|nullable|file|image|max:5120',
+            'comprobante' => 'sometimes|nullable|file|image|max:20480',
             'comprobante_url' => 'sometimes|nullable|string',
             'desglose_metodos' => 'sometimes|nullable|array',
             'desglose_metodos.*.metodo_pago' => 'nullable|string',

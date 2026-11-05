@@ -27,12 +27,13 @@ class EstudianteStoreRequest extends FormRequest
             'archivo_cedula' => [
                 'nullable',
                 'file',
+                'max:20480',
                 'mimes:jpeg,png,jpg,webp,pdf',
                 function ($attribute, $value, $fail) {
                     if ($value instanceof \Illuminate\Http\UploadedFile) {
                         $isPdf = strtolower($value->getClientOriginalExtension()) === 'pdf' || $value->getMimeType() === 'application/pdf';
-                        if ($isPdf && $value->getSize() > 5 * 1024 * 1024) {
-                            $fail('El documento PDF de la cédula no debe superar los 5 MB.');
+                        if ($isPdf && $value->getSize() > 20 * 1024 * 1024) {
+                            $fail('El documento PDF de la cédula no debe superar los 20 MB.');
                         }
                     }
                 },

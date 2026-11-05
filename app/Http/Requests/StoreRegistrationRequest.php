@@ -66,18 +66,19 @@ class StoreRegistrationRequest extends FormRequest
             
             // Comprobante (URL o archivo)
             'archivo_comprobante_url' => 'nullable|string|max:500',
-            'archivo_comprobante' => 'nullable|file|image|max:5120',
+            'archivo_comprobante' => 'nullable|file|image|max:20480',
             'archivo_cedula_url' => 'required_without:archivo_cedula|nullable|string|max:500',
             'archivo_cedula' => [
                 'required_without:archivo_cedula_url',
                 'nullable',
                 'file',
+                'max:20480',
                 'mimes:jpeg,png,jpg,webp,pdf',
                 function ($attribute, $value, $fail) {
                     if ($value instanceof \Illuminate\Http\UploadedFile) {
                         $isPdf = strtolower($value->getClientOriginalExtension()) === 'pdf' || $value->getMimeType() === 'application/pdf';
-                        if ($isPdf && $value->getSize() > 5 * 1024 * 1024) {
-                            $fail('El documento PDF de la cédula no debe superar los 5 MB.');
+                        if ($isPdf && $value->getSize() > 20 * 1024 * 1024) {
+                            $fail('El documento PDF de la cédula no debe superar los 20 MB.');
                         }
                     }
                 },
@@ -129,10 +130,11 @@ class StoreRegistrationRequest extends FormRequest
             'tipo_pago.in' => 'El tipo de pago debe ser "completo" o "abono"',
             'archivo_comprobante_url.max' => 'La URL del comprobante es demasiado larga',
             'archivo_comprobante_url.url' => 'La URL del comprobante no es válida',
-            'archivo_comprobante.max' => 'El comprobante no debe superar los 5 MB',
+            'archivo_comprobante.max' => 'El comprobante no debe superar los 20 MB',
             'archivo_comprobante.image' => 'El comprobante debe ser una imagen',
             'archivo_comprobante.file' => 'El comprobante debe ser un archivo válido',
             'archivo_cedula_url.max' => 'La URL de la cédula es demasiado larga',
+            'archivo_cedula.max' => 'El archivo de la cédula no debe superar los 20 MB',
             'archivo_cedula.mimes' => 'La cédula debe ser una imagen (JPG, PNG, WEBP) o un documento PDF',
             'archivo_cedula.file' => 'El archivo de la cédula debe ser un archivo válido',
             'tipo_comprobante.required' => 'Debe especificar el tipo de comprobante',

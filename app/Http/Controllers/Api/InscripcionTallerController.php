@@ -155,16 +155,17 @@ class InscripcionTallerController extends Controller
             'referencia_declarada' => 'nullable|string|max:100',
             'metodo_pago' => 'nullable|string|max:50',
             'fecha_pago' => 'nullable|date',
-            'comprobante' => 'nullable|file|image|max:5120',
+            'comprobante' => 'nullable|file|image|max:20480',
             'archivo_cedula' => [
                 'nullable',
                 'file',
+                'max:20480',
                 'mimes:jpeg,png,jpg,webp,pdf',
                 function ($attribute, $value, $fail) {
                     if ($value instanceof \Illuminate\Http\UploadedFile) {
                         $isPdf = strtolower($value->getClientOriginalExtension()) === 'pdf' || $value->getMimeType() === 'application/pdf';
-                        if ($isPdf && $value->getSize() > 5 * 1024 * 1024) {
-                            $fail('El documento PDF de la cédula no debe superar los 5 MB.');
+                        if ($isPdf && $value->getSize() > 20 * 1024 * 1024) {
+                            $fail('El documento PDF de la cédula no debe superar los 20 MB.');
                         }
                     }
                 },
@@ -343,7 +344,7 @@ class InscripcionTallerController extends Controller
     public function uploadComprobante(Request $request, string $id): JsonResponse
     {
         $request->validate([
-            'archivo' => 'required|file|image|max:5120',
+            'archivo' => 'required|file|image|max:20480',
         ]);
 
         $inscripcion = InscripcionTaller::findOrFail($id);
