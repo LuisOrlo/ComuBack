@@ -11,14 +11,16 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::connection('pgsql')->table('finance.cuentas_por_cobrar', function (Blueprint $table) {
-            $table->uuid('solicitud_inscripcion_id')->nullable();
-            
-            $table->foreign('solicitud_inscripcion_id')
-                ->references('id')
-                ->on('academic.solicitudes_inscripcion')
-                ->onDelete('set null');
-        });
+        if (!Schema::connection('pgsql')->hasColumn('finance.cuentas_por_cobrar', 'solicitud_inscripcion_id')) {
+            Schema::connection('pgsql')->table('finance.cuentas_por_cobrar', function (Blueprint $table) {
+                $table->uuid('solicitud_inscripcion_id')->nullable();
+                
+                $table->foreign('solicitud_inscripcion_id')
+                    ->references('id')
+                    ->on('academic.solicitudes_inscripcion')
+                    ->onDelete('set null');
+            });
+        }
     }
 
     /**

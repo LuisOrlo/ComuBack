@@ -25,12 +25,20 @@ class StoreTallerRequest extends FormRequest
             'ciudad_id' => 'nullable|integer|exists:ciudades,id',
             'capacidad_maxima' => 'required|integer|min:1|max:500',
             'precio' => 'required|numeric|min:0',
+            'precio_matricula' => 'nullable|numeric|min:0',
             'estado' => 'sometimes|in:pendiente,confirmado,completado,cancelado',
             'horarios' => 'nullable|array',
             'horarios.*.dia_semana' => 'required_with:horarios|integer|between:1,7',
             'horarios.*.hora_inicio' => 'required_with:horarios|date_format:H:i',
             'horarios.*.hora_fin' => 'required_with:horarios|date_format:H:i|after:horarios.*.hora_inicio',
             'horarios.*.aula' => 'nullable|string|max:100',
+            'sesiones' => 'nullable|array',
+            'sesiones.*.fecha_sesion' => 'required_with:sesiones|date|after_or_equal:fecha|before_or_equal:fecha_fin',
+            'sesiones.*.hora_inicio' => 'required_with:sesiones|date_format:H:i',
+            'sesiones.*.hora_fin' => 'required_with:sesiones|date_format:H:i|after:sesiones.*.hora_inicio',
+            'sesiones.*.aula' => 'nullable|string|max:100',
+            'sesiones.*.tema' => 'nullable|string|max:255',
+            'sesiones.*.observaciones' => 'nullable|string|max:1000',
         ];
     }
 

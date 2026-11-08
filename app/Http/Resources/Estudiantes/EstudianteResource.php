@@ -69,6 +69,9 @@ class EstudianteResource extends JsonResource
                     'estado_civil' => $this->perfilEstudiante->estado_civil,
                     'edad' => $this->perfilEstudiante->edad,
                     'nivel_educativo' => $this->perfilEstudiante->nivel_educativo,
+                    'terminos_aceptados' => (bool) ($this->perfilEstudiante->terminos_aceptados ?? ($this->resolveTerminosFromSolicitud()['aceptados'] ?? false)),
+                    'fecha_terminos_aceptados' => $this->perfilEstudiante->fecha_terminos_aceptados?->toIso8601String()
+                        ?? ($this->resolveTerminosFromSolicitud()['fecha'] ?? null),
                 ];
             }),
             'creado_en' => $this->created_at->toIso8601String(),
@@ -196,5 +199,19 @@ class EstudianteResource extends JsonResource
         }
 
         return false;
+    }
+
+    private function resolveTerminosFromSolicitud(): array
+    {
+        $solicitud = \App\Models\SolicitudInscripcion::where('persona_id', $this->id)
+            ->whereNotNull('datos_declarados')
+            ->orderBy('created_at', 'desc')
+            ->first();
+
+        $declarados = is_array($solicitud?->datos_declarados) ? $solicitud->datos_declarados : [];
+        return [
+            'aceptados' => !empty($declarados['terminos_aceptados']),
+            'fecha' => $declarados['fecha_terminos_aceptados'] ?? null,
+        ];
     }
 }

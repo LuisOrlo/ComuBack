@@ -491,6 +491,8 @@ class EstudianteController extends Controller
                         'ultima_matricula' => $ultimaMatricula,
                         'total_cursos' => $totalCursos,
                         'notas_internas' => null,
+                        'terminos_aceptados' => (bool) ($cliente->terminos_aceptados ?? true),
+                        'fecha_terminos_aceptados' => $cliente->fecha_terminos_aceptados?->toIso8601String() ?? $cliente->created_at?->toIso8601String(),
                     ],
                     'creado_en' => $cliente->created_at?->toIso8601String(),
                     'actualizado_en' => $cliente->updated_at?->toIso8601String(),

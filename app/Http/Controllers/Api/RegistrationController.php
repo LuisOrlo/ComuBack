@@ -73,6 +73,8 @@ class RegistrationController extends Controller
                 'edad' => $validated['edad'] ?? null,
                 'nivel_educativo' => $validated['nivel_educativo'] ?? null,
                 'tipo_cliente' => 'persona',
+                'terminos_aceptados' => true,
+                'fecha_terminos_aceptados' => now(),
             ];
 
             $participanteExterno = ClienteExterno::personas()->where('correo', $validated['correo'])->first();
@@ -136,14 +138,16 @@ class RegistrationController extends Controller
         // --- VALIDACIONES APROBADAS: Proceder con la subida física de archivos ---
         if ($request->hasFile('archivo_comprobante') && empty($validated['archivo_comprobante_url'])) {
             $file = $request->file('archivo_comprobante');
-            $filename = Str::uuid() . '.' . $file->getClientOriginalExtension();
+            $extension = $file->extension() ?: 'bin';
+            $filename = Str::uuid() . '.' . $extension;
             $path = $file->storeAs('comprobantes', $filename);
             $validated['archivo_comprobante_url'] = Storage::disk()->url($path);
         }
 
         if ($request->hasFile('archivo_cedula') && empty($validated['archivo_cedula_url'])) {
             $file = $request->file('archivo_cedula');
-            $filename = Str::uuid() . '.' . $file->getClientOriginalExtension();
+            $extension = $file->extension() ?: 'bin';
+            $filename = Str::uuid() . '.' . $extension;
             $path = $file->storeAs('cedulas', $filename);
             $validated['archivo_cedula_url'] = Storage::disk()->url($path);
         }
@@ -177,6 +181,8 @@ class RegistrationController extends Controller
                 'referencia_declarada' => $validated['referencia_declarada'] ?? $request->input('referencia_declarada'),
                 'fecha_pago_declarada' => $validated['fecha_pago_declarada'] ?? null,
                 'metodo_pago_declarado' => $validated['tipo_comprobante'] ?? $validated['tipo_pago'] ?? null,
+                'terminos_aceptados' => true,
+                'fecha_terminos_aceptados' => now()->toIso8601String(),
             ],
             'estado' => SolicitudInscripcion::ESTADO_PENDIENTE_VALIDACION,
         ]);

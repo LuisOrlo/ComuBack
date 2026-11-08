@@ -32,11 +32,11 @@ class RegistrationValidationService
 
         // 1. Validar que existe uno y solo uno de personaId o participanteExternoId
         if (empty($personaId) && empty($participanteExternoId)) {
-            $errores[] = 'Debe proporcionar persona_id o participante_externo_id';
+            $errores[] = 'No se pudo identificar la información del participante.';
         }
 
         if (!empty($personaId) && !empty($participanteExternoId)) {
-            $errores[] = 'No puede proporcionar ambos persona_id y participante_externo_id';
+            $errores[] = 'La identificación del participante es ambigua.';
         }
 
         // Si hay errores de identificación, retornar

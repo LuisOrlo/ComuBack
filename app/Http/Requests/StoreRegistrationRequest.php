@@ -85,6 +85,7 @@ class StoreRegistrationRequest extends FormRequest
             ],
             'tipo_comprobante' => 'required|in:transferencia,deposito,efectivo,otro',
             'fecha_pago_declarada' => 'required|date|before_or_equal:today',
+            'acepta_terminos' => 'required|accepted',
         ];
     }
 
@@ -142,6 +143,8 @@ class StoreRegistrationRequest extends FormRequest
             'fecha_pago_declarada.required' => 'Debe especificar la fecha en que realizó el pago',
             'fecha_pago_declarada.date' => 'La fecha de pago debe ser una fecha válida',
             'fecha_pago_declarada.before_or_equal' => 'La fecha de pago no puede ser en el futuro',
+            'acepta_terminos.required' => 'Debe aceptar los términos y condiciones y el tratamiento de datos personales para continuar.',
+            'acepta_terminos.accepted' => 'Debe aceptar los términos y condiciones y el tratamiento de datos personales para continuar.',
         ];
     }
 

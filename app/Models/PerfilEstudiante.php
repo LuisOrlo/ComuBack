@@ -23,6 +23,8 @@ class PerfilEstudiante extends Model
         'edad',
         'ciudad',
         'nivel_educativo',
+        'terminos_aceptados',
+        'fecha_terminos_aceptados',
     ];
 
     protected function casts(): array
@@ -31,6 +33,8 @@ class PerfilEstudiante extends Model
             'primera_matricula' => 'date',
             'ultima_matricula' => 'date',
             'total_cursos' => 'integer',
+            'terminos_aceptados' => 'boolean',
+            'fecha_terminos_aceptados' => 'datetime',
         ];
     }
 

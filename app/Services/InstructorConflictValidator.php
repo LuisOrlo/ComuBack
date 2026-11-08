@@ -112,6 +112,64 @@ class InstructorConflictValidator
     }
 
     /**
+     * Validar conflictos de un taller a partir de sus sesiones explícitas programadas.
+     *
+     * @param string $instructorId
+     * @param array $sesiones Array de sesiones con ['fecha_sesion', 'hora_inicio', 'hora_fin']
+     * @param string|null $excludeTallerId
+     * @return array
+     */
+    public function validarTallerSesiones(
+        string $instructorId,
+        array $sesiones,
+        ?string $excludeTallerId = null
+    ): array {
+        $errores = [];
+
+        if (empty($sesiones)) {
+            return ['valido' => true, 'errores' => []];
+        }
+
+        foreach ($sesiones as $s) {
+            $fecha = $s['fecha_sesion'] ?? null;
+            $horaInicio = $s['hora_inicio'] ?? null;
+            $horaFin = $s['hora_fin'] ?? null;
+
+            if (!$fecha || !$horaInicio || !$horaFin) {
+                continue;
+            }
+
+            $tallerConflicto = $this->buscarConflictoEnTalleres(
+                $instructorId,
+                $fecha,
+                $this->formatTime($horaInicio),
+                $this->formatTime($horaFin),
+                $excludeTallerId
+            );
+            if ($tallerConflicto) {
+                $errores[] = "El instructor ya está asignado al taller \"{$tallerConflicto['nombre']}\" "
+                    . "el {$tallerConflicto['fecha']} de {$tallerConflicto['hora_inicio']} a {$tallerConflicto['hora_fin']}";
+            }
+
+            $claseConflicto = $this->buscarConflictoEnClases(
+                $instructorId,
+                $fecha,
+                $this->formatTime($horaInicio),
+                $this->formatTime($horaFin)
+            );
+            if ($claseConflicto) {
+                $errores[] = "El instructor ya tiene una clase del curso \"{$claseConflicto['nombre']}\" "
+                    . "el {$claseConflicto['fecha']} de {$claseConflicto['hora_inicio']} a {$claseConflicto['hora_fin']}";
+            }
+        }
+
+        return [
+            'valido' => empty($errores),
+            'errores' => array_values(array_unique($errores)),
+        ];
+    }
+
+    /**
      * Validar conflictos para un taller multi-día con horarios por día.
      *
      * @param string $instructorId

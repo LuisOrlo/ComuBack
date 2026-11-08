@@ -26,6 +26,7 @@ class Taller extends Model
         'modalidad',
         'capacidad_maxima',
         'precio',
+        'precio_matricula',
         'estado',
     ];
 
@@ -35,6 +36,7 @@ class Taller extends Model
         'fecha' => 'date',
         'fecha_fin' => 'date',
         'precio' => 'decimal:2',
+        'precio_matricula' => 'decimal:2',
         'capacidad_maxima' => 'integer',
     ];
 
@@ -61,6 +63,11 @@ class Taller extends Model
     public function horarios(): HasMany
     {
         return $this->hasMany(HorarioTaller::class, 'taller_id');
+    }
+
+    public function sesiones(): HasMany
+    {
+        return $this->hasMany(SesionTaller::class, 'taller_id')->orderBy('fecha_sesion', 'asc')->orderBy('hora_inicio', 'asc');
     }
 
     public function esMultiDia(): bool

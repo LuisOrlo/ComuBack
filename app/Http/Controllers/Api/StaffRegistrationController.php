@@ -692,6 +692,8 @@ class StaffRegistrationController extends Controller
                     'estado_civil' => $validated['estado_civil'] ?? null,
                     'edad' => $validated['edad'] ?? null,
                     'nivel_educativo' => $validated['nivel_educativo'] ?? null,
+                    'terminos_aceptados' => $solicitud->datos_declarados['terminos_aceptados'] ?? null,
+                    'fecha_terminos_aceptados' => $solicitud->datos_declarados['fecha_terminos_aceptados'] ?? null,
                 ], fn($v) => $v !== null);
 
                 if (!empty($perfilUpdate) && $solicitud->estudiante->perfilEstudiante) {

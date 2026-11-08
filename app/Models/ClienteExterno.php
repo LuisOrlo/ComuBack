@@ -36,10 +36,14 @@ class ClienteExterno extends Model
         'edad',
         'nivel_educativo',
         'es_cliente',
+        'terminos_aceptados',
+        'fecha_terminos_aceptados',
     ];
 
     protected $casts = [
         'tipo_cliente' => 'string',
+        'terminos_aceptados' => 'boolean',
+        'fecha_terminos_aceptados' => 'datetime',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
         'deleted_at' => 'datetime',

@@ -100,7 +100,7 @@ class TallerController extends Controller
 
     public function index(Request $request): JsonResponse
     {
-        $query = Taller::query()->with(['ciudad', 'horarios', 'instructor:id,nombres,apellidos'])->withCount(['inscripciones as inscripciones_count' => function ($q) {
+        $query = Taller::query()->with(['ciudad', 'horarios', 'sesiones', 'instructor:id,nombres,apellidos'])->withCount(['inscripciones as inscripciones_count' => function ($q) {
             $q->where('estado', 'activo');
         }]);
 
@@ -170,13 +170,23 @@ class TallerController extends Controller
     public function store(StoreTallerRequest $request, InstructorConflictValidator $validator): JsonResponse
     {
         $data = $request->validated();
+        if (array_key_exists('precio_matricula', $data) && $data['precio_matricula'] === null) {
+            $data['precio_matricula'] = 0;
+        }
         $horarios = $data['horarios'] ?? null;
         unset($data['horarios']);
+        $sesiones = $data['sesiones'] ?? null;
+        unset($data['sesiones']);
 
         $fechas = $this->obtenerFechasRango($data['fecha'], $data['fecha_fin'] ?? null);
 
         if (!empty($data['instructor_id'] ?? null)) {
-            if (!empty($data['fecha_fin'])) {
+            if (!empty($sesiones)) {
+                $conflicto = $validator->validarTallerSesiones(
+                    $data['instructor_id'],
+                    $sesiones
+                );
+            } elseif (!empty($data['fecha_fin'])) {
                 $conflicto = $validator->validarTallerRango(
                     $data['instructor_id'],
                     $fechas,
@@ -199,7 +209,7 @@ class TallerController extends Controller
             }
         }
 
-        $taller = DB::transaction(function () use ($data, $horarios) {
+        $taller = DB::transaction(function () use ($data, $horarios, $sesiones) {
             $taller = Taller::create($data);
 
             if (!empty($data['fecha_fin']) && !empty($horarios)) {
@@ -214,11 +224,24 @@ class TallerController extends Controller
                 }
             }
 
+            if (!empty($sesiones)) {
+                foreach ($sesiones as $s) {
+                    $taller->sesiones()->create([
+                        'fecha_sesion' => $s['fecha_sesion'],
+                        'hora_inicio' => $s['hora_inicio'],
+                        'hora_fin' => $s['hora_fin'],
+                        'aula' => $s['aula'] ?? null,
+                        'tema' => $s['tema'] ?? null,
+                        'observaciones' => $s['observaciones'] ?? null,
+                    ]);
+                }
+            }
+
             return $taller;
         });
 
         return response()->json(
-            $taller->load(['instructor', 'ciudad', 'horarios']),
+            $taller->load(['instructor', 'ciudad', 'horarios', 'sesiones']),
             201
         );
     }
@@ -231,6 +254,7 @@ class TallerController extends Controller
             'inscripciones',
             'asistencias',
             'horarios',
+            'sesiones',
         ])->findOrFail($id);
 
         return response()->json($taller);
@@ -240,50 +264,75 @@ class TallerController extends Controller
     {
         $taller = Taller::findOrFail($id);
         $data = $request->validated();
+        if (array_key_exists('precio_matricula', $data) && $data['precio_matricula'] === null) {
+            $data['precio_matricula'] = 0;
+        }
         $horarios = $data['horarios'] ?? null;
         unset($data['horarios']);
+        $sesiones = $data['sesiones'] ?? null;
+        unset($data['sesiones']);
 
-        $needsValidation = $request->has('fecha') || $request->has('fecha_fin')
+        $hasScheduleChange = $request->has('fecha') || $request->has('fecha_fin')
             || $request->has('hora_inicio') || $request->has('hora_fin')
-            || $request->has('instructor_id') || !is_null($horarios);
+            || $request->has('instructor_id') || !is_null($horarios) || !is_null($sesiones);
 
-        if ($needsValidation) {
+        // Protección contra regeneración destructiva de sesiones con asistencia ya tomada
+        if ($hasScheduleChange && !$request->boolean('confirmar_regeneracion_sesiones')) {
+            $tieneAsistencias = \App\Models\AsistenciaTaller::where('taller_id', $taller->id)->exists();
+            if ($tieneAsistencias) {
+                return response()->json([
+                    'mensaje' => 'Este taller ya tiene asistencias registradas. Modificar las fechas puede alterar el historial de asistencia. Confirma la actualización para continuar.',
+                    'requiere_confirmacion_regeneracion' => true,
+                ], 422);
+            }
+        }
+
+        if ($hasScheduleChange) {
             $instructorId = $data['instructor_id'] ?? $taller->instructor_id;
             $fechaInicio = $data['fecha'] ?? $taller->fecha;
             $fechaFin = array_key_exists('fecha_fin', $data) ? $data['fecha_fin'] : $taller->fecha_fin;
             $horaInicio = $data['hora_inicio'] ?? $taller->hora_inicio;
             $horaFin = $data['hora_fin'] ?? $taller->hora_fin;
 
-            if (!empty($fechaFin)) {
-                $fechas = $this->obtenerFechasRango(
-                    $fechaInicio instanceof \Carbon\Carbon ? $fechaInicio->toDateString() : $fechaInicio,
-                    $fechaFin instanceof \Carbon\Carbon ? $fechaFin->toDateString() : $fechaFin
-                );
-                $conflicto = $validator->validarTallerRango(
-                    $instructorId,
-                    $fechas,
-                    $horarios ?? $taller->horarios->toArray()
-                );
-            } else {
-                $fechaStr = $fechaInicio instanceof \Carbon\Carbon ? $fechaInicio->toDateString() : $fechaInicio;
-                $conflicto = $validator->validarTaller(
-                    $instructorId,
-                    $fechaStr,
-                    $horaInicio,
-                    $horaFin,
-                    $id
-                );
-            }
+            if (!empty($instructorId)) {
+                if (!empty($sesiones)) {
+                    $conflicto = $validator->validarTallerSesiones(
+                        $instructorId,
+                        $sesiones,
+                        $id
+                    );
+                } elseif (!empty($fechaFin)) {
+                    $fechas = $this->obtenerFechasRango(
+                        $fechaInicio instanceof \Carbon\Carbon ? $fechaInicio->toDateString() : $fechaInicio,
+                        $fechaFin instanceof \Carbon\Carbon ? $fechaFin->toDateString() : $fechaFin
+                    );
+                    $conflicto = $validator->validarTallerRango(
+                        $instructorId,
+                        $fechas,
+                        $horarios ?? $taller->horarios->toArray(),
+                        $id
+                    );
+                } else {
+                    $fechaStr = $fechaInicio instanceof \Carbon\Carbon ? $fechaInicio->toDateString() : $fechaInicio;
+                    $conflicto = $validator->validarTaller(
+                        $instructorId,
+                        $fechaStr,
+                        $horaInicio,
+                        $horaFin,
+                        $id
+                    );
+                }
 
-            if (!$conflicto['valido']) {
-                return response()->json([
-                    'mensaje' => 'Conflicto de horario detectado',
-                    'errores' => $conflicto['errores'],
-                ], 409);
+                if (!$conflicto['valido']) {
+                    return response()->json([
+                        'mensaje' => 'Conflicto de horario detectado',
+                        'errores' => $conflicto['errores'],
+                    ], 409);
+                }
             }
         }
 
-        DB::transaction(function () use ($taller, $data, $horarios) {
+        DB::transaction(function () use ($taller, $data, $horarios, $sesiones) {
             $taller->update($data);
 
             if (!is_null($horarios)) {
@@ -298,9 +347,23 @@ class TallerController extends Controller
                     ]);
                 }
             }
+
+            if (!is_null($sesiones)) {
+                $taller->sesiones()->delete();
+                foreach ($sesiones as $s) {
+                    $taller->sesiones()->create([
+                        'fecha_sesion' => $s['fecha_sesion'],
+                        'hora_inicio' => $s['hora_inicio'],
+                        'hora_fin' => $s['hora_fin'],
+                        'aula' => $s['aula'] ?? null,
+                        'tema' => $s['tema'] ?? null,
+                        'observaciones' => $s['observaciones'] ?? null,
+                    ]);
+                }
+            }
         });
 
-        return response()->json($taller->fresh(['instructor', 'ciudad', 'horarios']));
+        return response()->json($taller->fresh(['instructor', 'ciudad', 'horarios', 'sesiones']));
     }
 
     private function obtenerFechasRango(string $fechaInicio, ?string $fechaFin): array
