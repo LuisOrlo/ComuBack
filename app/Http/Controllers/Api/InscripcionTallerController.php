@@ -11,6 +11,8 @@ use App\Models\ClienteExterno;
 use App\Models\CuentaPorCobrar;
 use App\Models\TransaccionIngreso;
 use App\Models\ArchivoEliminado;
+use App\Models\CursoAbierto;
+use App\Models\SolicitudInscripcion;
 use App\Services\StorageCleanupService;
 use App\Services\StudentScheduleConflictService;
 use App\Services\Finance\PaymentAllocationService;
@@ -687,8 +689,40 @@ class InscripcionTallerController extends Controller
             'motivo_ajuste' => 'nullable|string|max:255',
         ]);
 
-        $inscripcion = InscripcionTaller::findOrFail($id);
-        $inscripcion->update($validated);
+        $inscripcion = InscripcionTaller::with(['taller', 'cuentaPorCobrar'])->findOrFail($id);
+        $tallerAnteriorId = $inscripcion->taller_id;
+
+        DB::transaction(function () use ($inscripcion, $validated, $tallerAnteriorId) {
+            $inscripcion->update($validated);
+
+            // Si cambió el taller y la inscripción ya tiene una cuenta por cobrar (pago verificado)
+            if (!empty($validated['taller_id']) && $validated['taller_id'] !== $tallerAnteriorId && $inscripcion->cuentaPorCobrar) {
+                $nuevoTaller = Taller::find($validated['taller_id']);
+                if ($nuevoTaller) {
+                    $nuevoPrecio = isset($validated['precio_ajustado'])
+                        ? (float) $validated['precio_ajustado']
+                        : (float) ($nuevoTaller->precio ?? 0);
+
+                    $cuenta = $inscripcion->cuentaPorCobrar;
+                    $montoAbonado = (float) $cuenta->monto_abonado;
+
+                    $nuevoEstado = match (true) {
+                        $montoAbonado >= $nuevoPrecio => CuentaPorCobrar::ESTADO_PAGADO,
+                        $montoAbonado > 0 => CuentaPorCobrar::ESTADO_ABONADO,
+                        default => CuentaPorCobrar::ESTADO_PENDIENTE,
+                    };
+
+                    $cuenta->update([
+                        'monto_total' => $nuevoPrecio,
+                        'estado' => $nuevoEstado,
+                    ]);
+
+                    $inscripcion->update([
+                        'tipo_pago' => $montoAbonado >= $nuevoPrecio ? 'completo' : 'abono',
+                    ]);
+                }
+            }
+        });
 
         return response()->json([
             'mensaje' => 'Inscripción actualizada',
@@ -712,6 +746,76 @@ class InscripcionTallerController extends Controller
         $inscripcion->update(['estado' => $request->estado]);
 
         return response()->json($inscripcion);
+    }
+
+    public function transferirACurso(Request $request, string $id): JsonResponse
+    {
+        $validated = $request->validate([
+            'curso_abierto_id' => 'required|uuid|exists:pgsql.academic.cursos_abiertos,id',
+        ]);
+
+        $inscripcion = InscripcionTaller::with(['taller', 'cuentaPorCobrar'])->findOrFail($id);
+        $curso = CursoAbierto::with('catalogo')->findOrFail($validated['curso_abierto_id']);
+
+        $nuevaSolicitud = DB::transaction(function () use ($inscripcion, $curso) {
+            $solicitud = SolicitudInscripcion::create([
+                'persona_id' => $inscripcion->persona_id,
+                'participante_externo_id' => $inscripcion->participante_externo_id,
+                'es_participante_externo' => !empty($inscripcion->participante_externo_id),
+                'curso_abierto_id' => $curso->id,
+                'monto_solicitado' => $inscripcion->monto_pagado ?? 0,
+                'tipo_pago' => $inscripcion->tipo_pago ?? 'abono',
+                'archivo_comprobante_url' => $inscripcion->comprobante_url,
+                'archivo_cedula_url' => $inscripcion->cedula_url,
+                'tipo_comprobante' => $inscripcion->metodo_pago ?? 'transferencia',
+                'fecha_pago_declarada' => $inscripcion->fecha_pago ?? now()->toDateString(),
+                'estado' => SolicitudInscripcion::ESTADO_PENDIENTE_VALIDACION,
+                'datos_declarados' => [
+                    'nombres' => $inscripcion->nombres,
+                    'apellidos' => $inscripcion->apellidos,
+                    'cedula' => $inscripcion->cedula,
+                    'correo' => $inscripcion->correo,
+                    'celular' => $inscripcion->telefono,
+                    'ocupacion' => $inscripcion->ocupacion,
+                    'direccion' => $inscripcion->direccion,
+                    'ciudad' => $inscripcion->ciudad,
+                    'estado_civil' => $inscripcion->estado_civil,
+                    'edad' => $inscripcion->edad,
+                    'nivel_educativo' => $inscripcion->nivel_educativo,
+                    'monto_declarado' => $inscripcion->monto_pagado,
+                    'fecha_pago_declarada' => $inscripcion->fecha_pago ? (string) $inscripcion->fecha_pago : null,
+                    'metodo_pago_declarado' => $inscripcion->metodo_pago,
+                    'origen_traslado' => 'inscripcion_taller',
+                    'taller_origen_id' => $inscripcion->taller_id,
+                    'taller_origen_nombre' => $inscripcion->taller?->nombre,
+                ],
+            ]);
+
+            // Limpiar asistencias del taller si existieran
+            DB::table('academic.asistencia_taller_estudiantes')->where('inscripcion_taller_id', $inscripcion->id)->delete();
+
+            // Si tenía cuentas por cobrar del taller, eliminarlas para evitar duplicidad financiera
+            $cuentaIds = DB::table('finance.cuentas_por_cobrar')
+                ->where('inscripcion_taller_id', $inscripcion->id)
+                ->pluck('id')
+                ->toArray();
+
+            if (!empty($cuentaIds)) {
+                DB::table('finance.transacciones_ingreso')->whereIn('cuenta_cobrar_id', $cuentaIds)->delete();
+                DB::table('finance.cuentas_por_cobrar')->whereIn('id', $cuentaIds)->delete();
+            }
+
+            // Eliminar la inscripción del taller ya que fue transferida a solicitud de curso
+            $inscripcion->delete();
+
+            return $solicitud;
+        });
+
+        return response()->json([
+            'mensaje' => 'Inscripción transferida a solicitud de curso correctamente',
+            'solicitud_id' => $nuevaSolicitud->id,
+            'data' => $nuevaSolicitud,
+        ]);
     }
 
     public function destroy(string $id): JsonResponse

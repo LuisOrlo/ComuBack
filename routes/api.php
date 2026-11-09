@@ -629,6 +629,7 @@ use Illuminate\Support\Facades\Route;
             Route::post('{id}/upload-cedula', [InscripcionTallerController::class, 'uploadCedula'])->name('inscripciones-talleres.upload-cedula');
             Route::post('{id}/verificar-pago', [InscripcionTallerController::class, 'verificarPago'])->name('inscripciones-talleres.verificar-pago');
             Route::patch('{id}/actualizar-pago', [InscripcionTallerController::class, 'actualizarPago'])->name('inscripciones-talleres.actualizar-pago');
+            Route::post('{id}/transferir-a-curso', [InscripcionTallerController::class, 'transferirACurso'])->name('inscripciones-talleres.transferir-a-curso');
             Route::get('{id}/exportar', [InscripcionTallerController::class, 'exportar'])->name('inscripciones-talleres.exportar');
             Route::delete('{id}', [InscripcionTallerController::class, 'destroy'])->name('inscripciones-talleres.destroy');
             Route::delete('{id}/archivo', [InscripcionTallerController::class, 'deleteArchivo'])->name('inscripciones-talleres.delete-archivo');
