@@ -26,17 +26,37 @@ class EstadisticasService
     public function __construct(
         private string $desde,
         private string $hasta,
+        private string $unidad = 'todos',
     ) {}
 
     private function cacheKey(string $section): string
     {
         $version = (int) Cache::get('estadisticas.version', 1);
-        return "estadisticas.v{$version}.{$section}.{$this->desde}.{$this->hasta}";
+        return "estadisticas.v{$version}.{$section}.{$this->unidad}.{$this->desde}.{$this->hasta}";
     }
 
     private function rangoHasta(): string
     {
         return $this->hasta . ' 23:59:59';
+    }
+
+    private function aplicarFiltroUnidad($query)
+    {
+        if ($this->unidad === 'academia') {
+            $query->where(function ($q) {
+                $q->whereHas('cuentaPorCobrar', fn($sq) => $sq->whereNotNull('matricula_id')->orWhereNotNull('inscripcion_taller_id'))
+                  ->orWhereNotNull('linea_pago_modulo_id');
+            });
+        } elseif ($this->unidad === 'servicios') {
+            $query->whereHas('cuentaPorCobrar', fn($q) => $q->where(fn($sq) =>
+                $sq->whereNotNull('reserva_aula_id')->orWhereNotNull('reserva_podcast_id')
+                   ->orWhereNotNull('reserva_radio_id')->orWhereNotNull('reserva_set_id')
+                   ->orWhereNotNull('alquiler_equipo_id')->orWhereNotNull('servicio_streaming_id')
+                   ->orWhereNotNull('servicio_produccion_id')->orWhereNotNull('edicion_video_id')
+                   ->orWhereNotNull('clase_extra_id')->orWhereNotNull('asesoria_id')
+            ));
+        }
+        return $query;
     }
 
     // ========================================================================
@@ -46,15 +66,20 @@ class EstadisticasService
     public function metricasBase(): array
     {
         return Cache::remember($this->cacheKey('metricas'), now()->addMinutes(15), function () {
-            $ingresosTotales = (float) TransaccionIngreso::where('fecha_pago', '>=', $this->desde)
+            $ingresosQuery = TransaccionIngreso::where('fecha_pago', '>=', $this->desde)
                 ->where('fecha_pago', '<=', $this->rangoHasta())
-                ->where('estado_verificacion', 'aprobado')
-                ->sum('monto');
+                ->where('estado_verificacion', 'aprobado');
+            $this->aplicarFiltroUnidad($ingresosQuery);
+            $ingresosTotales = (float) $ingresosQuery->sum('monto');
 
-            $egresosTotales = (float) DB::table('finance.transacciones_egreso')
-                ->where('fecha_pago', '>=', $this->desde)
-                ->where('fecha_pago', '<=', $this->rangoHasta())
-                ->sum('monto');
+            if ($this->unidad === 'todos') {
+                $egresosTotales = (float) DB::table('finance.transacciones_egreso')
+                    ->where('fecha_pago', '>=', $this->desde)
+                    ->where('fecha_pago', '<=', $this->rangoHasta())
+                    ->sum('monto');
+            } else {
+                $egresosTotales = 0.0;
+            }
 
             $balance = $ingresosTotales - $egresosTotales;
             $margenNeto = $ingresosTotales > 0 ? round(($balance / $ingresosTotales) * 100, 1) : 0;
@@ -64,10 +89,12 @@ class EstadisticasService
             $duracionDias = $inicioPeriodo->diffInDays($finPeriodo) + 1;
             $inicioAnterior = $inicioPeriodo->copy()->subDays($duracionDias);
             $finAnterior = $inicioPeriodo->copy()->subDay();
-            $ingresosPeriodoAnterior = (float) TransaccionIngreso::where('fecha_pago', '>=', $inicioAnterior->toDateString())
+
+            $ingresosAnteriorQuery = TransaccionIngreso::where('fecha_pago', '>=', $inicioAnterior->toDateString())
                 ->where('fecha_pago', '<=', $finAnterior->endOfDay())
-                ->where('estado_verificacion', 'aprobado')
-                ->sum('monto');
+                ->where('estado_verificacion', 'aprobado');
+            $this->aplicarFiltroUnidad($ingresosAnteriorQuery);
+            $ingresosPeriodoAnterior = (float) $ingresosAnteriorQuery->sum('monto');
 
             $vsPeriodoAnterior = $ingresosPeriodoAnterior > 0
                 ? round((($ingresosTotales - $ingresosPeriodoAnterior) / $ingresosPeriodoAnterior) * 100, 1)
@@ -136,21 +163,25 @@ class EstadisticasService
     public function flujoFinanciero(): array
     {
         return Cache::remember($this->cacheKey('flujo'), now()->addMinutes(15), function () {
-            $ingresosMensuales = TransaccionIngreso::selectRaw("to_char(fecha_pago AT TIME ZONE 'America/Guayaquil', 'YYYY-MM') as mes, SUM(monto) as total")
+            $txQuery = TransaccionIngreso::selectRaw("to_char(fecha_pago AT TIME ZONE 'America/Guayaquil', 'YYYY-MM') as mes, SUM(monto) as total")
                 ->where('fecha_pago', '>=', $this->desde)
                 ->where('fecha_pago', '<=', $this->rangoHasta())
-                ->where('estado_verificacion', 'aprobado')
-                ->groupBy(DB::raw("to_char(fecha_pago AT TIME ZONE 'America/Guayaquil', 'YYYY-MM')"))
+                ->where('estado_verificacion', 'aprobado');
+            $this->aplicarFiltroUnidad($txQuery);
+            $ingresosMensuales = $txQuery->groupBy(DB::raw("to_char(fecha_pago AT TIME ZONE 'America/Guayaquil', 'YYYY-MM')"))
                 ->orderBy(DB::raw("to_char(fecha_pago AT TIME ZONE 'America/Guayaquil', 'YYYY-MM')"))
                 ->get()->keyBy('mes');
 
-            $egresosMensuales = DB::table('finance.transacciones_egreso')
-                ->selectRaw("to_char(fecha_pago AT TIME ZONE 'America/Guayaquil', 'YYYY-MM') as mes, SUM(monto) as total")
-                ->where('fecha_pago', '>=', $this->desde)
-                ->where('fecha_pago', '<=', $this->rangoHasta())
-                ->groupBy(DB::raw("to_char(fecha_pago AT TIME ZONE 'America/Guayaquil', 'YYYY-MM')"))
-                ->orderBy(DB::raw("to_char(fecha_pago AT TIME ZONE 'America/Guayaquil', 'YYYY-MM')"))
-                ->get()->keyBy('mes');
+            $egresosMensuales = collect();
+            if ($this->unidad === 'todos') {
+                $egresosMensuales = DB::table('finance.transacciones_egreso')
+                    ->selectRaw("to_char(fecha_pago AT TIME ZONE 'America/Guayaquil', 'YYYY-MM') as mes, SUM(monto) as total")
+                    ->where('fecha_pago', '>=', $this->desde)
+                    ->where('fecha_pago', '<=', $this->rangoHasta())
+                    ->groupBy(DB::raw("to_char(fecha_pago AT TIME ZONE 'America/Guayaquil', 'YYYY-MM')"))
+                    ->orderBy(DB::raw("to_char(fecha_pago AT TIME ZONE 'America/Guayaquil', 'YYYY-MM')"))
+                    ->get()->keyBy('mes');
+            }
 
             $mesesKeys = collect(CarbonPeriod::create(Carbon::parse($this->desde)->startOfMonth(), '1 month', Carbon::parse($this->hasta)->startOfMonth()))
                 ->map(fn (Carbon $fecha) => $fecha->format('Y-m'));
@@ -170,14 +201,15 @@ class EstadisticasService
     public function distribucionCategorias(): array
     {
         return Cache::remember($this->cacheKey('dist_cat'), now()->addMinutes(15), function () {
-            $txs = TransaccionIngreso::with([
+            $txQuery = TransaccionIngreso::with([
                     'cuentaPorCobrar.matricula.cursoAbierto',
                     'lineaPagoModulo.matricula.cursoAbierto',
                 ])
                 ->where('fecha_pago', '>=', $this->desde)
                 ->where('fecha_pago', '<=', $this->rangoHasta())
-                ->where('estado_verificacion', 'aprobado')
-                ->get();
+                ->where('estado_verificacion', 'aprobado');
+            $this->aplicarFiltroUnidad($txQuery);
+            $txs = $txQuery->get();
 
             $ingresosTotales = (float) $txs->sum('monto');
 
@@ -187,13 +219,16 @@ class EstadisticasService
                     ?? $t->lineaPagoModulo?->matricula?->cursoAbierto;
 
                 if ($curso?->es_personalizado) return 'Cursos personalizados';
-                if ($t->linea_pago_modulo_id || $cp?->matricula_id) return 'Cursos';
+                if ($t->linea_pago_modulo_id || $cp?->matricula_id) return 'Cursos regulares';
                 if ($cp?->inscripcion_taller_id) return 'Talleres';
                 if ($cp?->reserva_podcast_id) return 'Podcast';
                 if ($cp?->reserva_aula_id) return 'Aulas';
                 if ($cp?->reserva_radio_id) return 'Radio';
+                if ($cp?->reserva_set_id) return 'Sets de grabación';
                 if ($cp?->alquiler_equipo_id) return 'Equipos';
-                if ($cp?->edicion_video_id) return 'Edición';
+                if ($cp?->servicio_streaming_id) return 'Streaming';
+                if ($cp?->servicio_produccion_id) return 'Producción audiovisual';
+                if ($cp?->edicion_video_id) return 'Edición de video';
                 return 'Otros';
             })->map(function ($g, $k) use ($ingresosTotales) {
                 $total = (float) $g->sum('monto');
@@ -213,10 +248,11 @@ class EstadisticasService
     public function metodoPago(): array
     {
         return Cache::remember($this->cacheKey('metodo_pago'), now()->addMinutes(15), function () {
-            return TransaccionIngreso::where('fecha_pago', '>=', $this->desde)
+            $txQuery = TransaccionIngreso::where('fecha_pago', '>=', $this->desde)
                 ->where('fecha_pago', '<=', $this->rangoHasta())
-                ->where('estado_verificacion', 'aprobado')
-                ->selectRaw("metodo_pago, SUM(monto) as total")
+                ->where('estado_verificacion', 'aprobado');
+            $this->aplicarFiltroUnidad($txQuery);
+            return $txQuery->selectRaw("metodo_pago, SUM(monto) as total")
                 ->groupBy('metodo_pago')
                 ->get()
                 ->map(fn($r) => ['name' => $r->metodo_pago, 'value' => (float) $r->total])
@@ -232,10 +268,11 @@ class EstadisticasService
     public function diasSemana(): array
     {
         return Cache::remember($this->cacheKey('dias_sem'), now()->addMinutes(15), function () {
-            return TransaccionIngreso::where('fecha_pago', '>=', $this->desde)
+            $txQuery = TransaccionIngreso::where('fecha_pago', '>=', $this->desde)
                 ->where('fecha_pago', '<=', $this->rangoHasta())
-                ->where('estado_verificacion', 'aprobado')
-                ->selectRaw("EXTRACT(DOW FROM fecha_pago) as dia, SUM(monto) as total")
+                ->where('estado_verificacion', 'aprobado');
+            $this->aplicarFiltroUnidad($txQuery);
+            return $txQuery->selectRaw("EXTRACT(DOW FROM fecha_pago) as dia, SUM(monto) as total")
                 ->groupBy(DB::raw("EXTRACT(DOW FROM fecha_pago)"))
                 ->get()
                 ->map(function ($r) {
@@ -422,14 +459,15 @@ class EstadisticasService
     public function topEstudiantes(): array
     {
         return Cache::remember($this->cacheKey('top_est'), now()->addMinutes(15), function () {
-            $top = TransaccionIngreso::where('fecha_pago', '>=', $this->desde)
+            $txQuery = TransaccionIngreso::where('fecha_pago', '>=', $this->desde)
                 ->where('fecha_pago', '<=', $this->rangoHasta())
-                ->where('estado_verificacion', 'aprobado')
-                ->where(function ($q) {
+                ->where('estado_verificacion', 'aprobado');
+            $this->aplicarFiltroUnidad($txQuery);
+            $top = $txQuery->where(function ($q) {
                     $q->whereHas('cuentaPorCobrar')
                       ->orWhereHas('lineaPagoModulo');
                 })
-                ->with(['cuentaPorCobrar.matricula', 'cuentaPorCobrar.solicitudInscripcion', 'lineaPagoModulo.matricula'])
+                ->with(['cuentaPorCobrar.matricula', 'cuentaPorCobrar.solicitudInscripcion', 'cuentaPorCobrar.clienteExterno', 'lineaPagoModulo.matricula'])
                 ->get()
                 ->groupBy(function ($t) {
                     $cp = $t->cuentaPorCobrar;
@@ -437,6 +475,7 @@ class EstadisticasService
                     return $cp?->matricula?->estudiante_id
                         ?? $lpm?->matricula?->estudiante_id
                         ?? $cp?->solicitudInscripcion?->persona_id
+                        ?? ($cp?->cliente_externo_id ? 'ce_' . $cp->cliente_externo_id : null)
                         ?? 'otro';
                 })
                 ->map(function ($g, $key) {
@@ -450,12 +489,29 @@ class EstadisticasService
                 ->take(10)
                 ->values();
 
-            $ids = $top->pluck('id')->toArray();
-            $personas = !empty($ids)
-                ? Persona::whereIn('id', $ids)->get()->keyBy('id')
+            $rawIds = $top->pluck('id')->toArray();
+            $personaIds = array_filter($rawIds, fn($id) => !str_starts_with($id, 'ce_'));
+            $ceIds = array_map(fn($id) => substr($id, 3), array_filter($rawIds, fn($id) => str_starts_with($id, 'ce_')));
+
+            $personas = !empty($personaIds)
+                ? Persona::whereIn('id', $personaIds)->get()->keyBy('id')
+                : collect();
+            $clientesExt = !empty($ceIds)
+                ? \App\Models\ClienteExterno::whereIn('id', $ceIds)->get()->keyBy('id')
                 : collect();
 
-            return $top->map(function ($e) use ($personas) {
+            return $top->map(function ($e) use ($personas, $clientesExt) {
+                if (str_starts_with($e['id'], 'ce_')) {
+                    $ceId = substr($e['id'], 3);
+                    $ce = $clientesExt->get($ceId);
+                    $name = $ce ? trim(($ce->nombres ?? '') . ' ' . ($ce->apellidos ?? '')) : '';
+                    if (!$name && $ce?->nombre_empresa) $name = $ce->nombre_empresa;
+                    return [
+                        'id' => $e['id'],
+                        'nombre' => $name ?: 'Cliente de servicios',
+                        'total' => $e['total'],
+                    ];
+                }
                 $p = $personas->get($e['id']);
                 return [
                     'id' => $e['id'],
@@ -586,6 +642,30 @@ class EstadisticasService
             $edicionCount = TrabajoEdicion::whereBetween('fecha_recibo', [$this->desde, $this->rangoHasta()])->count();
             if ($edicion > 0 || $edicionCount > 0) {
                 $servicios[] = ['tipo' => 'Edición', 'ingresos' => round($edicion, 2), 'cantidad' => $edicionCount];
+            }
+
+            $sets = (float) TransaccionIngreso::whereHas('cuentaPorCobrar', function ($q) {
+                $q->whereNotNull('reserva_set_id');
+            })->where('fecha_pago', '>=', $this->desde)
+              ->where('fecha_pago', '<=', $this->rangoHasta())
+              ->where('estado_verificacion', 'aprobado')
+              ->sum('monto');
+
+            $setsCount = \App\Models\Services\ReservaSet::whereBetween('fecha_reserva', [$this->desde, $this->rangoHasta()])->count();
+            if ($sets > 0 || $setsCount > 0) {
+                $servicios[] = ['tipo' => 'Sets de grabación', 'ingresos' => round($sets, 2), 'cantidad' => $setsCount];
+            }
+
+            $streaming = (float) TransaccionIngreso::whereHas('cuentaPorCobrar', function ($q) {
+                $q->whereNotNull('servicio_streaming_id');
+            })->where('fecha_pago', '>=', $this->desde)
+              ->where('fecha_pago', '<=', $this->rangoHasta())
+              ->where('estado_verificacion', 'aprobado')
+              ->sum('monto');
+
+            $streamingCount = \App\Models\Services\ServicioStreaming::whereBetween('fecha_evento', [$this->desde, $this->rangoHasta()])->count();
+            if ($streaming > 0 || $streamingCount > 0) {
+                $servicios[] = ['tipo' => 'Streaming', 'ingresos' => round($streaming, 2), 'cantidad' => $streamingCount];
             }
 
             usort($servicios, fn($a, $b) => $b['ingresos'] <=> $a['ingresos']);

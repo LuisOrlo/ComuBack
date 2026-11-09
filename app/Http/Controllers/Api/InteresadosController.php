@@ -476,7 +476,7 @@ class InteresadosController extends Controller
                 // ¿Tiene inscripción en OTRO taller?
                 $otraInscripcion = InscripcionTaller::where('cedula', $lead->cedula)
                     ->with('taller')
-                    ->latest('created_at')
+                    ->latest('fecha_inscripcion')
                     ->first();
 
                 if ($otraInscripcion && $otraInscripcion->taller) {

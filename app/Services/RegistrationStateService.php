@@ -545,6 +545,8 @@ class RegistrationStateService
                             'edad' => $externo->edad,
                             'ciudad' => $externo->ciudad,
                             'nivel_educativo' => $externo->nivel_educativo,
+                            'terminos_aceptados' => $externo->terminos_aceptados ?? ($solicitud->datos_declarados['terminos_aceptados'] ?? true),
+                            'fecha_terminos_aceptados' => $externo->fecha_terminos_aceptados ?? ($solicitud->datos_declarados['fecha_terminos_aceptados'] ?? now()),
                         ]
                     );
                     $estudianteId = $persona->id;
@@ -554,6 +556,19 @@ class RegistrationStateService
                         'es_participante_externo' => false,
                     ]);
                     $externo->update(['es_cliente' => false]);
+                }
+            }
+
+            if ($estudianteId) {
+                $perfil = \App\Models\PerfilEstudiante::where('persona_id', $estudianteId)->first();
+                if ($perfil && empty($perfil->terminos_aceptados)) {
+                    $declarados = is_array($solicitud->datos_declarados) ? $solicitud->datos_declarados : [];
+                    if (!empty($declarados['terminos_aceptados']) || !empty($declarados['acepta_terminos'])) {
+                        $perfil->update([
+                            'terminos_aceptados' => true,
+                            'fecha_terminos_aceptados' => $declarados['fecha_terminos_aceptados'] ?? $solicitud->created_at ?? now(),
+                        ]);
+                    }
                 }
             }
 

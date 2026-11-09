@@ -33,9 +33,11 @@ class CursoAbierto extends Model
         'horario_id',
         'precio_base',
         'precio_matricula',
+        'recordatorios_config',
     ];
 
     protected $casts = [
+        'recordatorios_config' => 'array',
         'es_activo' => 'boolean',
         'es_personalizado' => 'boolean',
         'capacidad_maxima' => 'integer',

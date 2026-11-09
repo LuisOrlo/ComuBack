@@ -44,6 +44,8 @@ class EstudianteStoreRequest extends FormRequest
             'estado_civil' => ['nullable'],
             'edad' => ['nullable'],
             'nivel_educativo' => ['nullable'],
+            'terminos_aceptados' => ['nullable', 'boolean'],
+            'fecha_terminos_aceptados' => ['nullable'],
         ];
     }
 

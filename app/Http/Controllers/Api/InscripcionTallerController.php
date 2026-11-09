@@ -495,6 +495,146 @@ class InscripcionTallerController extends Controller
         ]);
     }
 
+    /**
+     * Actualizar el pago y conciliación contable de una inscripción a taller post-aprobación
+     */
+    public function actualizarPago(Request $request, string $id): JsonResponse
+    {
+        $validated = $request->validate([
+            'monto_pagado' => 'required|numeric|min:0',
+            'precio_ajustado' => 'nullable|numeric|min:0',
+            'motivo_ajuste' => 'nullable|string|max:255',
+            'tipo_pago' => 'nullable|string|in:completo,abono',
+            'metodo_pago' => 'nullable|string|in:efectivo,transferencia,deposito,tarjeta,otro',
+            'fecha_pago' => 'nullable|date',
+            'grupo_pago_id' => 'nullable|uuid',
+            'metodos_pago' => 'nullable|array|max:5',
+            'metodos_pago.*.metodo_pago' => 'required_with:metodos_pago|string|in:efectivo,transferencia,deposito,tarjeta,otro',
+            'metodos_pago.*.monto' => 'required_with:metodos_pago|numeric|min:0.01',
+            'metodos_pago.*.referencia_pago' => 'nullable|string|max:100',
+            'metodos_pago.*.comprobante_url' => 'nullable|string|max:500',
+            'metodos_pago.*.fecha_pago' => 'nullable|date',
+        ]);
+
+        $inscripcion = InscripcionTaller::with(['taller', 'cuentaPorCobrar'])->findOrFail($id);
+
+        $resultado = DB::transaction(function () use ($inscripcion, $validated) {
+            $precioBase = (float) ($inscripcion->taller->precio ?? 0);
+            $precioPactado = isset($validated['precio_ajustado'])
+                ? round((float) $validated['precio_ajustado'], 2)
+                : (isset($inscripcion->precio_ajustado) ? (float) $inscripcion->precio_ajustado : $precioBase);
+
+            $montoAbonado = round((float) $validated['monto_pagado'], 2);
+
+            // Si vienen métodos explícitos, asegurar consistencia
+            if (!empty($validated['metodos_pago']) && is_array($validated['metodos_pago'])) {
+                $sumaMetodos = round((float) collect($validated['metodos_pago'])->sum(fn($m) => (float) ($m['monto'] ?? 0)), 2);
+                if ($sumaMetodos > 0) {
+                    $montoAbonado = $sumaMetodos;
+                }
+            }
+
+            if ($montoAbonado > $precioPactado) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'monto_pagado' => "El monto abonado (\${$montoAbonado}) no puede exceder el precio pactado (\${$precioPactado}).",
+                ]);
+            }
+
+            $primaryMetodo = $validated['metodo_pago'] ?? $inscripcion->metodo_pago ?? 'efectivo';
+            if (!empty($validated['metodos_pago']) && is_array($validated['metodos_pago'])) {
+                $primaryMetodo = $validated['metodos_pago'][0]['metodo_pago'] ?? $primaryMetodo;
+            }
+
+            $updateData = [
+                'pago_verificado' => true,
+                'monto_pagado' => $montoAbonado,
+                'precio_ajustado' => $precioPactado,
+                'metodo_pago' => $primaryMetodo,
+                'fecha_pago' => $validated['fecha_pago'] ?? $inscripcion->fecha_pago ?? now()->timezone('America/Guayaquil')->toDateString(),
+                'tipo_pago' => $validated['tipo_pago'] ?? ($montoAbonado >= $precioPactado ? 'completo' : 'abono'),
+            ];
+
+            if (array_key_exists('motivo_ajuste', $validated)) {
+                $updateData['motivo_ajuste'] = $validated['motivo_ajuste'];
+            }
+
+            $inscripcion->update($updateData);
+
+            $estadoCuenta = match (true) {
+                $montoAbonado >= $precioPactado => CuentaPorCobrar::ESTADO_PAGADO,
+                $montoAbonado > 0 => CuentaPorCobrar::ESTADO_ABONADO,
+                default => CuentaPorCobrar::ESTADO_PENDIENTE,
+            };
+
+            $cuenta = CuentaPorCobrar::updateOrCreate(
+                ['inscripcion_taller_id' => $inscripcion->id],
+                [
+                    'monto_total' => $precioPactado,
+                    'monto_abonado' => $montoAbonado,
+                    'estado' => $estadoCuenta,
+                    'es_legacy' => false,
+                ]
+            );
+
+            // Reconciliar transacciones bajo withoutEvents
+            TransaccionIngreso::withoutEvents(function () use ($cuenta, $inscripcion, $validated, $montoAbonado, $primaryMetodo) {
+                // Eliminar transacciones previas asociadas a esta cuenta
+                TransaccionIngreso::where('cuenta_cobrar_id', $cuenta->id)->delete();
+
+                if ($montoAbonado > 0) {
+                    $personaId = auth()->user()->persona_id ?? auth()->id() ?? null;
+                    if ($personaId && !Persona::where('id', $personaId)->exists()) {
+                        $personaId = null;
+                    }
+
+                    $grupoPagoId = $validated['grupo_pago_id'] ?? (string) Str::uuid();
+
+                    if (!empty($validated['metodos_pago']) && is_array($validated['metodos_pago'])) {
+                        foreach ($validated['metodos_pago'] as $m) {
+                            $montoM = round((float) ($m['monto'] ?? 0), 2);
+                            if ($montoM <= 0) continue;
+
+                            TransaccionIngreso::create([
+                                'cuenta_cobrar_id' => $cuenta->id,
+                                'grupo_pago_id' => $grupoPagoId,
+                                'monto' => $montoM,
+                                'metodo_pago' => $m['metodo_pago'] ?? 'transferencia',
+                                'referencia_pago' => $m['referencia_pago'] ?? null,
+                                'comprobante_url' => !empty($m['comprobante_url']) ? $m['comprobante_url'] : $inscripcion->comprobante_url,
+                                'fecha_pago' => $m['fecha_pago'] ?? $validated['fecha_pago'] ?? now()->timezone('America/Guayaquil')->toDateString(),
+                                'estado_verificacion' => TransaccionIngreso::VERIFICACION_APROBADO,
+                                'registrado_por' => $personaId,
+                                'verificado_por' => $personaId,
+                                'fecha_verificacion' => now(),
+                            ]);
+                        }
+                    } else {
+                        TransaccionIngreso::create([
+                            'cuenta_cobrar_id' => $cuenta->id,
+                            'grupo_pago_id' => $grupoPagoId,
+                            'monto' => $montoAbonado,
+                            'metodo_pago' => $primaryMetodo,
+                            'referencia_pago' => $inscripcion->referencia_pago ?? null,
+                            'comprobante_url' => $inscripcion->comprobante_url,
+                            'fecha_pago' => $validated['fecha_pago'] ?? $inscripcion->fecha_pago ?? now()->timezone('America/Guayaquil')->toDateString(),
+                            'estado_verificacion' => TransaccionIngreso::VERIFICACION_APROBADO,
+                            'registrado_por' => $personaId,
+                            'verificado_por' => $personaId,
+                            'fecha_verificacion' => now(),
+                        ]);
+                    }
+                }
+            });
+
+            return $inscripcion->fresh(['taller', 'cuentaPorCobrar.transacciones']);
+        });
+
+        return response()->json([
+            'mensaje' => 'Pago de inscripción a taller actualizado correctamente',
+            'data' => $resultado,
+        ]);
+    }
+
     public function uploadCedula(Request $request, string $id): JsonResponse
     {
         $request->validate([
@@ -558,7 +698,7 @@ class InscripcionTallerController extends Controller
 
     public function show(string $id): JsonResponse
     {
-        $inscripcion = InscripcionTaller::with('taller')->findOrFail($id);
+        $inscripcion = InscripcionTaller::with(['taller', 'cuentaPorCobrar.transacciones'])->findOrFail($id);
         return response()->json($inscripcion);
     }
 

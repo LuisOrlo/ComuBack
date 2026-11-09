@@ -16,6 +16,7 @@ class StoreEstadisticasRequest extends FormRequest
         return [
             'desde' => ['nullable', 'date', 'date_format:Y-m-d'],
             'hasta' => ['nullable', 'date', 'date_format:Y-m-d', 'after_or_equal:desde'],
+            'unidad_negocio' => ['nullable', 'string', 'in:todos,academia,servicios'],
         ];
     }
 

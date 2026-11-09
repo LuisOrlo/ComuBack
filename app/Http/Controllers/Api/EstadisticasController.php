@@ -16,26 +16,28 @@ class EstadisticasController extends Controller
     {
         $desde = $request->get('desde', now()->startOfMonth()->format('Y-m-d'));
         $hasta = $request->get('hasta', now()->endOfMonth()->format('Y-m-d'));
+        $unidad = $request->get('unidad_negocio', 'todos');
 
-        $service = new EstadisticasService($desde, $hasta);
+        $service = new EstadisticasService($desde, $hasta, $unidad);
 
         $metricas = $this->safeCall(fn() => $service->metricasBase(), []);
-        $metricasEst = $this->safeCall(fn() => $service->metricasEstudiantes(), []);
+        $metricasEst = $unidad !== 'servicios' ? $this->safeCall(fn() => $service->metricasEstudiantes(), []) : [];
         $flujo = $this->safeCall(fn() => $service->flujoFinanciero(), []);
         $distribucion = $this->safeCall(fn() => $service->distribucionCategorias(), []);
 
         $data = [
             'periodo' => ['desde' => $desde, 'hasta' => $hasta],
+            'unidad_negocio' => $unidad,
             'metricas' => array_merge($metricas, $metricasEst),
             'ingresos_vs_egresos' => $flujo,
             'distribucion_categorias' => $distribucion,
             'metodo_pago' => $this->safeCall(fn() => $service->metodoPago(), []),
             'dias_semana' => $this->safeCall(fn() => $service->diasSemana(), []),
-            'catalogos_top' => $this->safeCall(fn() => $service->catalogosTop(), []),
-            'ciudades_top' => $this->safeCall(fn() => $service->ciudadesTop(), []),
-            'modalidad' => $this->safeCall(fn() => $service->modalidadComparativa(), null),
-            'cobranza' => $this->safeCall(fn() => $service->cobranza(), null),
-            'actividad_servicios' => $this->safeCall(fn() => $service->actividadServicios(), []),
+            'catalogos_top' => $unidad !== 'servicios' ? $this->safeCall(fn() => $service->catalogosTop(), []) : [],
+            'ciudades_top' => $unidad !== 'servicios' ? $this->safeCall(fn() => $service->ciudadesTop(), []) : [],
+            'modalidad' => $unidad !== 'servicios' ? $this->safeCall(fn() => $service->modalidadComparativa(), null) : null,
+            'cobranza' => $unidad !== 'servicios' ? $this->safeCall(fn() => $service->cobranza(), null) : null,
+            'actividad_servicios' => $unidad !== 'academia' ? $this->safeCall(fn() => $service->actividadServicios(), []) : [],
             'top_estudiantes' => $this->safeCall(fn() => $service->topEstudiantes(), []),
             'insight_text' => $this->safeCall(fn() => $service->insightText($metricas, $flujo, $distribucion), ''),
         ];

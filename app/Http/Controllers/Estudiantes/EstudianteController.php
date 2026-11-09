@@ -801,6 +801,8 @@ class EstudianteController extends Controller
                     'estado_civil' => $datos['estado_civil'] ?? null,
                     'edad' => $datos['edad'] ?? null,
                     'nivel_educativo' => $datos['nivel_educativo'] ?? null,
+                    'terminos_aceptados' => $datos['terminos_aceptados'] ?? true,
+                    'fecha_terminos_aceptados' => !empty($datos['terminos_aceptados']) ? ($datos['fecha_terminos_aceptados'] ?? now()) : ($datos['fecha_terminos_aceptados'] ?? now()),
                 ]);
 
                 return [$persona->load(['ciudad', 'perfilEstudiante']), $reutilizada, null, null];
@@ -866,6 +868,8 @@ class EstudianteController extends Controller
                 'edad',
                 'ciudad',
                 'nivel_educativo',
+                'terminos_aceptados',
+                'fecha_terminos_aceptados',
             ]));
 
             $datosPersona = array_diff_key($datos, $datosPerfil);

@@ -27,6 +27,7 @@ class StoreCursoAbiertoRequest extends FormRequest
             'ciudad_id' => 'nullable|integer|exists:ciudades,id',
             'precio_base' => 'nullable|numeric|min:0',
             'precio_matricula' => 'nullable|numeric|min:0',
+            'recordatorios_config' => 'nullable|array',
             'hora_inicio' => 'nullable|date_format:H:i',
             'hora_fin' => 'nullable|date_format:H:i|after:hora_inicio',
             'modulos' => 'nullable|array|max:10',

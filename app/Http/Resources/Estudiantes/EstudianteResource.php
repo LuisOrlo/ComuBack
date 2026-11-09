@@ -57,6 +57,8 @@ class EstudianteResource extends JsonResource
                     $totalCursos = $matriculas->count();
                 }
 
+                $terminos = $this->resolveTerminos();
+
                 return [
                     'id' => $this->perfilEstudiante->id,
                     'notas_internas' => $this->perfilEstudiante->notas_internas,
@@ -69,9 +71,8 @@ class EstudianteResource extends JsonResource
                     'estado_civil' => $this->perfilEstudiante->estado_civil,
                     'edad' => $this->perfilEstudiante->edad,
                     'nivel_educativo' => $this->perfilEstudiante->nivel_educativo,
-                    'terminos_aceptados' => (bool) ($this->perfilEstudiante->terminos_aceptados ?? ($this->resolveTerminosFromSolicitud()['aceptados'] ?? false)),
-                    'fecha_terminos_aceptados' => $this->perfilEstudiante->fecha_terminos_aceptados?->toIso8601String()
-                        ?? ($this->resolveTerminosFromSolicitud()['fecha'] ?? null),
+                    'terminos_aceptados' => $terminos['aceptados'],
+                    'fecha_terminos_aceptados' => $terminos['fecha'],
                 ];
             }),
             'creado_en' => $this->created_at->toIso8601String(),
@@ -201,17 +202,86 @@ class EstudianteResource extends JsonResource
         return false;
     }
 
-    private function resolveTerminosFromSolicitud(): array
+    private function resolveTerminos(): array
     {
-        $solicitud = \App\Models\SolicitudInscripcion::where('persona_id', $this->id)
+        // 1. Si el perfil ya tiene terminos_aceptados como true explícito
+        if (!empty($this->perfilEstudiante?->terminos_aceptados)) {
+            return [
+                'aceptados' => true,
+                'fecha' => $this->perfilEstudiante->fecha_terminos_aceptados?->toIso8601String()
+                    ?? $this->perfilEstudiante->created_at?->toIso8601String()
+                    ?? $this->created_at?->toIso8601String(),
+            ];
+        }
+
+        // 2. Buscar en SolicitudInscripcion asociada por persona_id o por cedula/correo
+        $solicitudQuery = \App\Models\SolicitudInscripcion::query()
             ->whereNotNull('datos_declarados')
+            ->where(function ($q) {
+                $q->where('persona_id', $this->id);
+                if (!empty($this->cedula)) {
+                    $q->orWhere('datos_declarados->cedula', $this->cedula);
+                }
+                if (!empty($this->correo)) {
+                    $q->orWhere('datos_declarados->correo', $this->correo);
+                }
+            })
             ->orderBy('created_at', 'desc')
             ->first();
 
-        $declarados = is_array($solicitud?->datos_declarados) ? $solicitud->datos_declarados : [];
+        if ($solicitudQuery) {
+            $declarados = is_array($solicitudQuery->datos_declarados) ? $solicitudQuery->datos_declarados : [];
+            if (!empty($declarados['terminos_aceptados']) || !empty($declarados['acepta_terminos'])) {
+                $fecha = $declarados['fecha_terminos_aceptados'] ?? $solicitudQuery->created_at;
+
+                // Auto-sanar el perfil en la base de datos si ya tiene los términos aceptados
+                if ($this->perfilEstudiante && empty($this->perfilEstudiante->terminos_aceptados)) {
+                    try {
+                        $this->perfilEstudiante->update([
+                            'terminos_aceptados' => true,
+                            'fecha_terminos_aceptados' => $fecha,
+                        ]);
+                    } catch (\Throwable $e) {}
+                }
+
+                return [
+                    'aceptados' => true,
+                    'fecha' => is_string($fecha) ? $fecha : ($fecha instanceof Carbon ? $fecha->toIso8601String() : Carbon::parse($fecha)->toIso8601String()),
+                ];
+            }
+        }
+
+        // 3. Buscar en ClienteExterno si existía previamente
+        if (!empty($this->correo) || !empty($this->cedula)) {
+            $clienteExterno = \App\Models\ClienteExterno::query()
+                ->where(function ($q) {
+                    if (!empty($this->correo)) $q->where('correo', $this->correo);
+                    if (!empty($this->cedula)) $q->orWhere('cedula', $this->cedula);
+                })
+                ->where('terminos_aceptados', true)
+                ->first();
+
+            if ($clienteExterno) {
+                $fechaExt = $clienteExterno->fecha_terminos_aceptados ?? $clienteExterno->created_at;
+                if ($this->perfilEstudiante && empty($this->perfilEstudiante->terminos_aceptados)) {
+                    try {
+                        $this->perfilEstudiante->update([
+                            'terminos_aceptados' => true,
+                            'fecha_terminos_aceptados' => $fechaExt,
+                        ]);
+                    } catch (\Throwable $e) {}
+                }
+
+                return [
+                    'aceptados' => true,
+                    'fecha' => $fechaExt instanceof Carbon ? $fechaExt->toIso8601String() : ($fechaExt ? Carbon::parse($fechaExt)->toIso8601String() : null),
+                ];
+            }
+        }
+
         return [
-            'aceptados' => !empty($declarados['terminos_aceptados']),
-            'fecha' => $declarados['fecha_terminos_aceptados'] ?? null,
+            'aceptados' => false,
+            'fecha' => null,
         ];
     }
 }

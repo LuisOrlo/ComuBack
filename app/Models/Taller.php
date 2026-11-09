@@ -28,11 +28,13 @@ class Taller extends Model
         'precio',
         'precio_matricula',
         'estado',
+        'recordatorios_config',
     ];
 
     public $timestamps = false;
 
     protected $casts = [
+        'recordatorios_config' => 'array',
         'fecha' => 'date',
         'fecha_fin' => 'date',
         'precio' => 'decimal:2',

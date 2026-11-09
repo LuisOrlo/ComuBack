@@ -55,6 +55,7 @@ use App\Http\Controllers\Api\SecretariaDashboardController;
 use App\Http\Controllers\Api\SecretariaFinanceController;
 use App\Http\Controllers\Api\AgendaController;
 use App\Http\Controllers\Api\NotificationController;
+use App\Http\Controllers\Api\RecordatorioController;
 use App\Http\Controllers\Api\InteresadosController;
 use App\Http\Controllers\Api\DocumentoArchivoController;
 use App\Http\Controllers\Api\TareaStaffController;
@@ -161,8 +162,15 @@ use Illuminate\Support\Facades\Route;
         ->name('ciudades.todas');
 
     Route::prefix('auth')->group(function () {
-        Route::post('iniciar-sesion', [AuthController::class, 'login'])->name('auth.iniciar-sesion');
-        Route::post('cerrar-sesion', [AuthController::class, 'logout'])->middleware('auth:sanctum')->name('auth.cerrar-sesion');
+        Route::post('iniciar-sesion', [AuthController::class, 'login'])
+            ->middleware('throttle:30,1')
+            ->name('auth.iniciar-sesion');
+        Route::post('cerrar-sesion', [AuthController::class, 'logout'])
+            ->middleware('auth:sanctum')
+            ->name('auth.cerrar-sesion');
+        Route::post('cerrar-todas-sesiones', [AuthController::class, 'logoutAll'])
+            ->middleware('auth:sanctum')
+            ->name('auth.cerrar-todas-sesiones');
     });
 
     Route::middleware('auth:sanctum')->prefix('perfil')->group(function () {
@@ -620,6 +628,7 @@ use Illuminate\Support\Facades\Route;
             Route::post('{id}/upload-comprobante', [InscripcionTallerController::class, 'uploadComprobante'])->name('inscripciones-talleres.upload-comprobante');
             Route::post('{id}/upload-cedula', [InscripcionTallerController::class, 'uploadCedula'])->name('inscripciones-talleres.upload-cedula');
             Route::post('{id}/verificar-pago', [InscripcionTallerController::class, 'verificarPago'])->name('inscripciones-talleres.verificar-pago');
+            Route::patch('{id}/actualizar-pago', [InscripcionTallerController::class, 'actualizarPago'])->name('inscripciones-talleres.actualizar-pago');
             Route::get('{id}/exportar', [InscripcionTallerController::class, 'exportar'])->name('inscripciones-talleres.exportar');
             Route::delete('{id}', [InscripcionTallerController::class, 'destroy'])->name('inscripciones-talleres.destroy');
             Route::delete('{id}/archivo', [InscripcionTallerController::class, 'deleteArchivo'])->name('inscripciones-talleres.delete-archivo');
@@ -786,11 +795,15 @@ Route::prefix('reports')->group(function () {
     });
 
     // ========================================================================
-    // NOTIFICACIONES (compartido entre roles)
+    // NOTIFICACIONES Y RECORDATORIOS (compartido entre roles)
     // ========================================================================
     Route::middleware('auth:sanctum')->prefix('academic')->group(function () {
         Route::prefix('notificaciones')->group(function () {
             Route::get('/', [NotificationController::class, 'index'])->name('notificaciones.index');
+        });
+
+        Route::prefix('recordatorios')->group(function () {
+            Route::get('/', [RecordatorioController::class, 'index'])->name('recordatorios.index');
         });
 
         // Consulta de streaming (lectura para cualquier usuario autenticado)

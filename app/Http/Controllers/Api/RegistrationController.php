@@ -131,7 +131,16 @@ class RegistrationController extends Controller
         }
 
         if ($esParticipanteExterno && !$participanteExterno) {
-            $participanteExterno = ClienteExterno::create($datosExterno);
+            try {
+                $participanteExterno = ClienteExterno::create($datosExterno);
+            } catch (\Illuminate\Database\QueryException $e) {
+                if (str_contains($e->getMessage(), 'terminos_aceptados')) {
+                    unset($datosExterno['terminos_aceptados'], $datosExterno['fecha_terminos_aceptados']);
+                    $participanteExterno = ClienteExterno::create($datosExterno);
+                } else {
+                    throw $e;
+                }
+            }
             $participanteExternoId = $participanteExterno->id;
         }
 

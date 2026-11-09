@@ -26,6 +26,7 @@ class StoreTallerRequest extends FormRequest
             'capacidad_maxima' => 'required|integer|min:1|max:500',
             'precio' => 'required|numeric|min:0',
             'precio_matricula' => 'nullable|numeric|min:0',
+            'recordatorios_config' => 'nullable|array',
             'estado' => 'sometimes|in:pendiente,confirmado,completado,cancelado',
             'horarios' => 'nullable|array',
             'horarios.*.dia_semana' => 'required_with:horarios|integer|between:1,7',

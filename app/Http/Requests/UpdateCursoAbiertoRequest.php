@@ -26,6 +26,7 @@ class UpdateCursoAbiertoRequest extends FormRequest
             'ciudad_id' => 'nullable|integer|exists:ciudades,id',
             'precio_base' => 'nullable|numeric|min:0',
             'precio_matricula' => 'nullable|numeric|min:0',
+            'recordatorios_config' => 'nullable|array',
             'hora_inicio' => 'nullable|date_format:H:i',
             'hora_fin' => 'nullable|date_format:H:i|after:hora_inicio',
             'dias_semana' => 'nullable|array|min:1|max:7',

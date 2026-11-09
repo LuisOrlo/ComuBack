@@ -11,6 +11,7 @@ class EstadisticasResource extends JsonResource
     {
         return [
             'periodo' => $this['periodo'] ?? null,
+            'unidad_negocio' => $this['unidad_negocio'] ?? 'todos',
             'metricas' => $this['metricas'] ?? null,
             'ingresos_vs_egresos' => $this['ingresos_vs_egresos'] ?? [],
             'distribucion_categorias' => $this['distribucion_categorias'] ?? [],

@@ -26,6 +26,7 @@ class UpdateTallerRequest extends FormRequest
             'capacidad_maxima' => 'sometimes|integer|min:1|max:500',
             'precio' => 'sometimes|numeric|min:0',
             'precio_matricula' => 'sometimes|nullable|numeric|min:0',
+            'recordatorios_config' => 'nullable|array',
             'estado' => 'sometimes|in:pendiente,confirmado,completado,cancelado',
             'horarios' => 'nullable|array',
             'horarios.*.dia_semana' => 'required_with:horarios|integer|between:1,7',

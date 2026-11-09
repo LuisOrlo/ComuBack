@@ -1644,8 +1644,12 @@ class FinanceController extends Controller
         }
 
         if ($metodo = $request->get('metodo_pago')) {
-            $ingresoIdsQuery->where('metodo_pago', $metodo);
-            $egresoIdsQuery->where('metodo_pago', $metodo);
+            $metodosValidos = ['efectivo', 'transferencia', 'deposito', 'tarjeta', 'otro'];
+            $metodoNormalizado = strtolower(trim((string) $metodo));
+            if (in_array($metodoNormalizado, $metodosValidos, true)) {
+                $ingresoIdsQuery->where('metodo_pago', $metodoNormalizado);
+                $egresoIdsQuery->where('metodo_pago', $metodoNormalizado);
+            }
         }
         if ($estado = $request->get('estado_verificacion')) {
             $ingresoIdsQuery->where('estado_verificacion', $estado);
@@ -1656,6 +1660,39 @@ class FinanceController extends Controller
         if ($tipo = $request->get('tipo_movimiento')) {
             if ($tipo === 'ingreso') $egresoIdsQuery->whereRaw('1 = 0');
             if ($tipo === 'egreso') $ingresoIdsQuery->whereRaw('1 = 0');
+        }
+
+        if ($unidad = $request->get('unidad_negocio')) {
+            if ($unidad === 'academia') {
+                $egresoIdsQuery->whereRaw('1 = 0');
+                $ingresoIdsQuery->where(function ($q) {
+                    $q->whereExists(function ($sub) {
+                        $sub->select(DB::raw(1))->from('finance.cuentas_por_cobrar')
+                            ->whereColumn('finance.cuentas_por_cobrar.id', 'finance.transacciones_ingreso.cuenta_cobrar_id')
+                            ->where(function ($sq) {
+                                $sq->whereNotNull('matricula_id')->orWhereNotNull('inscripcion_taller_id');
+                            });
+                    })->orWhereNotNull('linea_pago_modulo_id');
+                });
+            } elseif ($unidad === 'servicios') {
+                $egresoIdsQuery->whereRaw('1 = 0');
+                $ingresoIdsQuery->whereExists(function ($sub) {
+                    $sub->select(DB::raw(1))->from('finance.cuentas_por_cobrar')
+                        ->whereColumn('finance.cuentas_por_cobrar.id', 'finance.transacciones_ingreso.cuenta_cobrar_id')
+                        ->where(function ($sq) {
+                            $sq->whereNotNull('reserva_aula_id')
+                               ->orWhereNotNull('reserva_podcast_id')
+                               ->orWhereNotNull('reserva_radio_id')
+                               ->orWhereNotNull('reserva_set_id')
+                               ->orWhereNotNull('alquiler_equipo_id')
+                               ->orWhereNotNull('servicio_streaming_id')
+                               ->orWhereNotNull('servicio_produccion_id')
+                               ->orWhereNotNull('edicion_video_id')
+                               ->orWhereNotNull('clase_extra_id')
+                               ->orWhereNotNull('asesoria_id');
+                        });
+                });
+            }
         }
 
         // Se cargan todos los movimientos candidatos antes de agruparlos. La
@@ -2129,12 +2166,25 @@ class FinanceController extends Controller
         $esMixto = $metodosDistintos->count() > 1;
 
         $desgloseMetodos = $todosMiembros->groupBy('metodo_pago')->map(function ($items, $metodo) {
+            $primerRef = $items->pluck('referencia_pago')->filter()->first();
+            $primerComp = $items->pluck('comprobante_url')->filter()->first();
             return [
                 'metodo_pago' => $metodo,
                 'monto' => round((float) $items->sum('monto'), 2),
+                'referencia_pago' => $primerRef,
                 'referencias' => $items->pluck('referencia_pago')->filter()->unique()->values()->all(),
                 'comprobantes' => $items->pluck('comprobante_url')->filter()->unique()->values()->all(),
-                'comprobante_url' => $items->pluck('comprobante_url')->filter()->first(),
+                'comprobante_url' => $primerComp,
+            ];
+        })->values()->all();
+
+        $comprobantesDetalle = $todosMiembros->filter(fn($x) => !empty($x->comprobante_url))->map(function ($item) {
+            return [
+                'id' => $item->id,
+                'url' => $item->comprobante_url,
+                'metodo_pago' => $item->metodo_pago,
+                'monto' => round((float) $item->monto, 2),
+                'referencia_pago' => $item->referencia_pago,
             ];
         })->values()->all();
 
@@ -2271,6 +2321,15 @@ class FinanceController extends Controller
                 'estado_verificacion' => $t->estado_verificacion,
                 'comprobante_url' => $t->comprobante_url,
                 'comprobantes' => $todosMiembros->pluck('comprobante_url')->filter()->unique()->values()->all(),
+                'comprobantes_detalle' => $comprobantesDetalle,
+                'transacciones' => $todosMiembros->map(fn($item) => [
+                    'id' => $item->id,
+                    'metodo_pago' => $item->metodo_pago,
+                    'monto' => round((float) $item->monto, 2),
+                    'referencia_pago' => $item->referencia_pago,
+                    'comprobante_url' => $item->comprobante_url,
+                    'fecha_pago' => $item->fecha_pago?->format('Y-m-d H:i'),
+                ])->values()->all(),
                 'comprobante_purgado' => $comprobantePurgado,
                 'observaciones' => $t->observaciones,
                 'motivo_rechazo' => $t->motivo_rechazo,
@@ -2832,7 +2891,27 @@ class FinanceController extends Controller
             $query->whereDate('fecha_pago', '<=', $hasta);
         }
         if ($metodo = $request->get('metodo_pago')) {
-            $query->where('metodo_pago', $metodo);
+            $metodosValidos = ['efectivo', 'transferencia', 'deposito', 'tarjeta', 'otro'];
+            $metodoNormalizado = strtolower(trim((string) $metodo));
+            if (in_array($metodoNormalizado, $metodosValidos, true)) {
+                $query->where('metodo_pago', $metodoNormalizado);
+            }
+        }
+
+        $unidadNegocio = $request->get('unidad_negocio');
+        if ($unidadNegocio === 'academia') {
+            $query->where(function ($q) {
+                $q->whereHas('cuentaPorCobrar', fn($sq) => $sq->whereNotNull('matricula_id')->orWhereNotNull('inscripcion_taller_id'))
+                  ->orWhereNotNull('linea_pago_modulo_id');
+            });
+        } elseif ($unidadNegocio === 'servicios') {
+            $query->whereHas('cuentaPorCobrar', fn($q) => $q->where(fn($sq) =>
+                $sq->whereNotNull('reserva_aula_id')->orWhereNotNull('reserva_podcast_id')
+                   ->orWhereNotNull('alquiler_equipo_id')->orWhereNotNull('servicio_streaming_id')
+                   ->orWhereNotNull('servicio_produccion_id')->orWhereNotNull('edicion_video_id')
+                   ->orWhereNotNull('reserva_radio_id')->orWhereNotNull('reserva_set_id')
+                   ->orWhereNotNull('clase_extra_id')->orWhereNotNull('asesoria_id')
+            ));
         }
 
         $categoriaFilter = $request->get('categoria');
@@ -2855,6 +2934,7 @@ class FinanceController extends Controller
                     'radio' => 'reserva_radio_id', 'edicion' => 'edicion_video_id',
                     'equipos' => 'alquiler_equipo_id', 'streaming' => 'servicio_streaming_id',
                     'produccion' => 'servicio_produccion_id', 'asesorias' => 'clase_extra_id',
+                    'sets' => 'reserva_set_id',
                 ];
                 if (isset($fkMap[$categoriaFilter])) {
                     $query->whereHas('cuentaPorCobrar', fn($q) => $q->whereNotNull($fkMap[$categoriaFilter]));
@@ -2944,28 +3024,56 @@ class FinanceController extends Controller
         $totalQuery = clone $query;
         $totales = [
             'total' => (float) $totalQuery->sum('monto'),
+            'unidad_negocio' => $request->get('unidad_negocio', 'todos'),
         ];
 
         $cursosTotal = (float) (clone $query)->where(function ($q) {
             $q->whereHas('cuentaPorCobrar', fn($sq) => $sq->whereNotNull('matricula_id'))
               ->orWhereNotNull('linea_pago_modulo_id');
         })->sum('monto');
-        $serviciosTotal = (clone $query)->whereHas('cuentaPorCobrar', fn($q) => $q->where(fn($sq) =>
+        $serviciosTotal = (float) (clone $query)->whereHas('cuentaPorCobrar', fn($q) => $q->where(fn($sq) =>
             $sq->whereNotNull('reserva_aula_id')->orWhereNotNull('reserva_podcast_id')
                ->orWhereNotNull('alquiler_equipo_id')->orWhereNotNull('servicio_streaming_id')
                ->orWhereNotNull('servicio_produccion_id')->orWhereNotNull('edicion_video_id')
-               ->orWhereNotNull('reserva_radio_id')->orWhereNotNull('reserva_set_id')))->sum('monto');
+               ->orWhereNotNull('reserva_radio_id')->orWhereNotNull('reserva_set_id')
+               ->orWhereNotNull('clase_extra_id')->orWhereNotNull('asesoria_id')))->sum('monto');
         $totales['talleres'] = (float) (clone $query)->whereHas('cuentaPorCobrar', fn($q) => $q->whereNotNull('inscripcion_taller_id'))->sum('monto');
         $totales['cursos'] = (float) $cursosTotal;
         $totales['servicios'] = (float) $serviciosTotal;
+        $totales['academia_total'] = (float) ($totales['cursos'] + $totales['talleres']);
+        $totales['servicios_total'] = (float) $serviciosTotal;
         $totales['otros'] = max(0, $totales['total'] - $totales['cursos'] - $totales['talleres'] - $totales['servicios']);
+
+        // Desglose contextual para vistas específicas
+        $totales['servicios_breakdown'] = [
+            'podcast' => (float) (clone $query)->whereHas('cuentaPorCobrar', fn($q) => $q->whereNotNull('reserva_podcast_id'))->sum('monto'),
+            'aulas' => (float) (clone $query)->whereHas('cuentaPorCobrar', fn($q) => $q->whereNotNull('reserva_aula_id'))->sum('monto'),
+            'sets' => (float) (clone $query)->whereHas('cuentaPorCobrar', fn($q) => $q->whereNotNull('reserva_set_id'))->sum('monto'),
+            'equipos' => (float) (clone $query)->whereHas('cuentaPorCobrar', fn($q) => $q->whereNotNull('alquiler_equipo_id'))->sum('monto'),
+            'radio' => (float) (clone $query)->whereHas('cuentaPorCobrar', fn($q) => $q->whereNotNull('reserva_radio_id'))->sum('monto'),
+            'edicion' => (float) (clone $query)->whereHas('cuentaPorCobrar', fn($q) => $q->whereNotNull('edicion_video_id'))->sum('monto'),
+            'streaming' => (float) (clone $query)->whereHas('cuentaPorCobrar', fn($q) => $q->whereNotNull('servicio_streaming_id'))->sum('monto'),
+            'produccion' => (float) (clone $query)->whereHas('cuentaPorCobrar', fn($q) => $q->whereNotNull('servicio_produccion_id'))->sum('monto'),
+        ];
+
+        $totales['academia_breakdown'] = [
+            'cursos_regulares' => (float) (clone $query)->where(function ($q) {
+                $q->whereHas('cuentaPorCobrar.matricula.cursoAbierto', fn($sq) => $sq->where('es_personalizado', false)->orWhereNull('es_personalizado'))
+                  ->orWhereHas('lineaPagoModulo.matricula.cursoAbierto', fn($sq) => $sq->where('es_personalizado', false)->orWhereNull('es_personalizado'));
+            })->sum('monto'),
+            'cursos_personalizados' => (float) (clone $query)->where(function ($q) {
+                $q->whereHas('cuentaPorCobrar.matricula.cursoAbierto', fn($sq) => $sq->where('es_personalizado', true))
+                  ->orWhereHas('lineaPagoModulo.matricula.cursoAbierto', fn($sq) => $sq->where('es_personalizado', true));
+            })->sum('monto'),
+            'talleres' => $totales['talleres'],
+        ];
 
         $desde = $request->get('fecha_desde');
         $hasta = $request->get('fecha_hasta');
 
-        $grafico = TransaccionIngreso::selectRaw("to_char(fecha_pago, 'YYYY-MM') as mes, SUM(monto) as total")
-            ->when($desde, fn($q) => $q->whereDate('fecha_pago', '>=', $desde))
-            ->when($hasta, fn($q) => $q->whereDate('fecha_pago', '<=', $hasta))
+        $graficoQuery = TransaccionIngreso::query();
+        $this->aplicarFiltrosIngresosQuery($graficoQuery, $request);
+        $grafico = $graficoQuery->selectRaw("to_char(fecha_pago, 'YYYY-MM') as mes, SUM(monto) as total")
             ->groupBy('mes')->orderBy('mes')->limit(12)
             ->get()->map(fn($r) => ['mes' => $r->mes, 'total' => (float) $r->total]);
 

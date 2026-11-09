@@ -21,7 +21,16 @@ class AuthController extends Controller
     {
         $credenciales = $request->validated();
         $ip = $request->ip();
+        $ipThrottleKey = 'login_ip|' . $ip;
         $throttleKey = Str::lower($credenciales['username']) . '|' . $ip;
+
+        if (RateLimiter::tooManyAttempts($ipThrottleKey, 40)) {
+            $seconds = RateLimiter::availableIn($ipThrottleKey);
+            return response()->json([
+                'success' => false,
+                'mensaje' => "Demasiados intentos desde esta red. Por favor intente nuevamente en {$seconds} segundos.",
+            ], 429);
+        }
 
         if (RateLimiter::tooManyAttempts($throttleKey, 5)) {
             $seconds = RateLimiter::availableIn($throttleKey);
@@ -33,6 +42,7 @@ class AuthController extends Controller
 
         if (!Auth::attempt(['username' => $credenciales['username'], 'password' => $credenciales['password']])) {
             RateLimiter::hit($throttleKey, 300);
+            RateLimiter::hit($ipThrottleKey, 60);
             $this->audit('login_fallido', [
                 'username' => $credenciales['username'],
                 'ip' => $ip,
@@ -92,10 +102,29 @@ class AuthController extends Controller
 
         if ($cuenta) {
             $cuenta->currentAccessToken()->delete();
+            $this->audit('logout', [
+                'username' => $cuenta->username,
+            ]);
         }
 
         return response()->json([
             'mensaje' => 'Sesión cerrada exitosamente.',
+        ]);
+    }
+
+    public function logoutAll(): JsonResponse
+    {
+        $cuenta = auth()->user();
+
+        if ($cuenta) {
+            $cuenta->tokens()->delete();
+            $this->audit('logout_todas_sesiones', [
+                'username' => $cuenta->username,
+            ]);
+        }
+
+        return response()->json([
+            'mensaje' => 'Todas las sesiones activas han sido cerradas exitosamente.',
         ]);
     }
 }

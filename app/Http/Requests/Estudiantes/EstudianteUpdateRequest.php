@@ -31,6 +31,8 @@ class EstudianteUpdateRequest extends FormRequest
             'estado_civil' => ['nullable', 'string', 'max:50'],
             'edad' => ['nullable', 'integer', 'min:0', 'max:150'],
             'nivel_educativo' => ['nullable', 'string', 'max:100'],
+            'terminos_aceptados' => ['sometimes', 'boolean'],
+            'fecha_terminos_aceptados' => ['nullable', 'date'],
         ];
     }
 
