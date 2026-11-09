@@ -1165,18 +1165,6 @@ class CursoAbiertoController extends Controller
                         "modulos.{$index}.fecha_fin" => 'La fecha de inicio del módulo no puede ser posterior a su fecha de fin.',
                     ]);
                 }
-
-                if ($courseStartDate && $moduleStartDate->lt($courseStartDate)) {
-                    throw ValidationException::withMessages([
-                        "modulos.{$index}.fecha_inicio" => 'Las fechas del módulo deben estar dentro del rango del curso.',
-                    ]);
-                }
-
-                if ($courseEndDate && $moduleEndDate->gt($courseEndDate)) {
-                    throw ValidationException::withMessages([
-                        "modulos.{$index}.fecha_fin" => 'La fecha de fin del curso no puede ser anterior a la fecha de fin de sus módulos.',
-                    ]);
-                }
             }
         }
     }
