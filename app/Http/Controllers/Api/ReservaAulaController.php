@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\CuentaPorCobrar;
 use App\Models\Services\ReservaAula;
 use App\Models\Services\Aula;
+use App\Services\Finance\PagoInicialServicioService;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\DB;
@@ -103,7 +104,7 @@ class ReservaAulaController extends Controller
             $validated['estado'] = 'reservado';
         }
 
-        $reserva = DB::transaction(function () use ($validated) {
+        $reserva = DB::transaction(function () use ($validated, $request) {
             // Bloquear el recurso padre hace que la comprobación sea segura aun
             // cuando todavía no existan reservas previas para esa aula.
             Aula::whereKey($validated['aula_id'])->lockForUpdate()->firstOrFail();
@@ -118,13 +119,20 @@ class ReservaAulaController extends Controller
                 abort(422, 'El aula ya está reservada en el horario seleccionado');
             }
             $reserva = ReservaAula::create($validated);
-            CuentaPorCobrar::create([
+            $cuenta = CuentaPorCobrar::create([
                 'reserva_aula_id' => $reserva->id,
                 'monto_total' => $validated['precio_total'],
                 'monto_abonado' => 0,
                 'estado' => CuentaPorCobrar::ESTADO_PENDIENTE,
                 'es_legacy' => false,
             ]);
+
+            $pagoData = $request->input('pago', $request->input('metodos_pago') ? ['metodos_pago' => $request->input('metodos_pago'), 'observaciones' => $request->input('observaciones_pago')] : null);
+            if (!empty($pagoData)) {
+                $personaId = auth()->user()->persona_id ?? null;
+                app(PagoInicialServicioService::class)->procesarPagoInicial([$cuenta], $pagoData, $personaId);
+            }
+
             return $reserva;
         });
         Log::channel('audit')->info('reserva_aula.creada', ['reserva_id' => $reserva->id, 'usuario_id' => auth()->id(), 'ip' => request()->ip()]);
@@ -157,7 +165,7 @@ class ReservaAulaController extends Controller
         $this->validateBatchResponsible($validated);
         $this->validateAulaBatchConflicts($validated['reservas']);
 
-        $created = DB::transaction(function () use ($validated) {
+        $created = DB::transaction(function () use ($validated, $request) {
             $aulaIds = collect($validated['reservas'])
                 ->pluck('aula_id')->unique()->sort()->values();
 
@@ -181,6 +189,7 @@ class ReservaAulaController extends Controller
             }
 
             $result = [];
+            $cuentasCreadas = [];
             foreach ($validated['reservas'] as $item) {
                 $data = [
                     'aula_id' => $item['aula_id'],
@@ -199,17 +208,24 @@ class ReservaAulaController extends Controller
                 ];
 
                 $reserva = ReservaAula::create($data);
-                CuentaPorCobrar::create([
+                $cuenta = CuentaPorCobrar::create([
                     'reserva_aula_id' => $reserva->id,
                     'monto_total' => $data['precio_total'],
                     'monto_abonado' => 0,
                     'estado' => CuentaPorCobrar::ESTADO_PENDIENTE,
                     'es_legacy' => false,
                 ]);
-                $result[] = $reserva->load(['aula', 'persona', 'clienteExterno', 'cuentaPorCobrar']);
+                $cuentasCreadas[] = $cuenta;
+                $result[] = $reserva;
             }
 
-            return $result;
+            $pagoData = $request->input('pago', $request->input('metodos_pago') ? ['metodos_pago' => $request->input('metodos_pago'), 'observaciones' => $request->input('observaciones_pago')] : null);
+            if (!empty($pagoData) && !empty($cuentasCreadas)) {
+                $personaId = auth()->user()->persona_id ?? null;
+                app(PagoInicialServicioService::class)->procesarPagoInicial($cuentasCreadas, $pagoData, $personaId);
+            }
+
+            return collect($result)->map(fn($r) => $r->fresh()->load(['aula', 'persona', 'clienteExterno', 'cuentaPorCobrar']))->all();
         });
 
         return response()->json([

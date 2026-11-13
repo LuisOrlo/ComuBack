@@ -8,6 +8,7 @@ use App\Models\TransaccionIngreso;
 use App\Models\Services\AsignacionPersonal;
 use App\Models\Services\ReservaPodcast;
 use App\Models\Services\TrabajoEdicion;
+use App\Services\Finance\PagoInicialServicioService;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Cache;
@@ -123,7 +124,7 @@ class ReservaPodcastController extends Controller
             return response()->json(['message' => 'Solo puede especificar un tipo de responsable, no ambos'], 422);
         }
 
-        return DB::transaction(function () use ($data, $validated) {
+        return DB::transaction(function () use ($data, $validated, $request) {
             $conflicto = ReservaPodcast::where('fecha_reserva', $data['fecha_reserva'])
                 ->where('estado', '!=', 'cancelado')
                 ->where('hora_inicio', '<', $data['hora_fin'])
@@ -137,7 +138,7 @@ class ReservaPodcastController extends Controller
 
             $reserva = ReservaPodcast::create($data);
 
-            CuentaPorCobrar::create([
+            $cuenta = CuentaPorCobrar::create([
                 'reserva_podcast_id' => $reserva->id,
                 'monto_total' => $data['precio_total'],
                 'monto_abonado' => 0,
@@ -152,6 +153,12 @@ class ReservaPodcastController extends Controller
                         'rol_en_servicio' => $asignacion['rol'] ?? null,
                     ]);
                 }
+            }
+
+            $pagoData = $request->input('pago', $request->input('metodos_pago') ? ['metodos_pago' => $request->input('metodos_pago'), 'observaciones' => $request->input('observaciones_pago')] : null);
+            if (!empty($pagoData)) {
+                $personaId = auth()->user()->persona_id ?? null;
+                app(PagoInicialServicioService::class)->procesarPagoInicial([$cuenta], $pagoData, $personaId);
             }
 
             Cache::forget('finance.resumen');
@@ -192,7 +199,7 @@ class ReservaPodcastController extends Controller
         $this->validateBatchResponsible($validated);
         $this->validatePodcastBatchConflicts($validated['reservas']);
 
-        $created = DB::transaction(function () use ($validated) {
+        $created = DB::transaction(function () use ($validated, $request) {
             // Serializa las operaciones de reservas del único estudio de podcast
             // sin introducir tablas ni afectar otros módulos.
             DB::statement("SELECT pg_advisory_xact_lock(hashtext('services.reservas_podcast'))");
@@ -212,6 +219,7 @@ class ReservaPodcastController extends Controller
             }
 
             $result = [];
+            $cuentasCreadas = [];
             foreach ($validated['reservas'] as $item) {
                 $data = [
                     'paquete_id' => (int) $item['paquete_id'],
@@ -232,13 +240,14 @@ class ReservaPodcastController extends Controller
                 ];
 
                 $reserva = ReservaPodcast::create($data);
-                CuentaPorCobrar::create([
+                $cuenta = CuentaPorCobrar::create([
                     'reserva_podcast_id' => $reserva->id,
                     'monto_total' => $data['precio_total'],
                     'monto_abonado' => 0,
                     'estado' => 'pendiente',
                     'es_legacy' => false,
                 ]);
+                $cuentasCreadas[] = $cuenta;
 
                 foreach ($item['asignaciones'] ?? [] as $asignacion) {
                     $reserva->asignacionesPersonal()->create([
@@ -247,14 +256,20 @@ class ReservaPodcastController extends Controller
                     ]);
                 }
 
-                $result[] = $reserva->fresh()->load([
-                    'paquete.items', 'persona', 'clienteExterno',
-                    'asignacionesPersonal.persona', 'cuentaPorCobrar',
-                ]);
+                $result[] = $reserva;
+            }
+
+            $pagoData = $request->input('pago', $request->input('metodos_pago') ? ['metodos_pago' => $request->input('metodos_pago'), 'observaciones' => $request->input('observaciones_pago')] : null);
+            if (!empty($pagoData) && !empty($cuentasCreadas)) {
+                $personaId = auth()->user()->persona_id ?? null;
+                app(PagoInicialServicioService::class)->procesarPagoInicial($cuentasCreadas, $pagoData, $personaId);
             }
 
             Cache::forget('finance.resumen');
-            return $result;
+            return collect($result)->map(fn ($r) => $r->fresh()->load([
+                'paquete.items', 'persona', 'clienteExterno',
+                'asignacionesPersonal.persona', 'cuentaPorCobrar',
+            ]))->all();
         });
 
         return response()->json([
