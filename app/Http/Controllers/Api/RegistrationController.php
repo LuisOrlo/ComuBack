@@ -77,7 +77,10 @@ class RegistrationController extends Controller
                 'fecha_terminos_aceptados' => now(),
             ];
 
-            $participanteExterno = ClienteExterno::personas()->where('correo', $validated['correo'])->first();
+            $cedulaLimpia = !empty($validated['cedula']) ? trim((string) $validated['cedula']) : null;
+            if (!empty($cedulaLimpia)) {
+                $participanteExterno = ClienteExterno::personas()->where('cedula', $cedulaLimpia)->first();
+            }
             $participanteExternoId = $participanteExterno?->id;
             $esParticipanteExterno = true;
         }
@@ -100,7 +103,7 @@ class RegistrationController extends Controller
             $validated['curso_abierto_id'],
             $personaId,
             $personaId ? null : ($participanteExternoId ?? $identificadorValidacion),
-            $validated['monto_solicitado'],
+            (float) ($validated['monto_solicitado'] ?? 0),
             $validated['tipo_pago']
         );
 
@@ -118,8 +121,8 @@ class RegistrationController extends Controller
                 $archivoUrl,
                 $validated['tipo_comprobante'],
                 $validated['fecha_pago_declarada'],
-                $validated['monto_solicitado'],
-                $curso->precio_base
+                (float) ($validated['monto_solicitado'] ?? 0),
+                (float) ($curso->precio_base ?? 0)
             );
 
             if (!$validacionPago['valido']) {
@@ -134,14 +137,22 @@ class RegistrationController extends Controller
             try {
                 $participanteExterno = ClienteExterno::create($datosExterno);
             } catch (\Illuminate\Database\QueryException $e) {
-                if (str_contains($e->getMessage(), 'terminos_aceptados')) {
+                $errorMsg = strtolower($e->getMessage());
+                if (str_contains($errorMsg, 'terminos_aceptados') || str_contains($errorMsg, 'fecha_terminos_aceptados')) {
                     unset($datosExterno['terminos_aceptados'], $datosExterno['fecha_terminos_aceptados']);
                     $participanteExterno = ClienteExterno::create($datosExterno);
                 } else {
                     throw $e;
                 }
             }
-            $participanteExternoId = $participanteExterno->id;
+            $participanteExternoId = $participanteExterno?->id;
+        }
+
+        if ($esParticipanteExterno && empty($participanteExternoId)) {
+            return response()->json([
+                'mensaje' => 'No se pudo procesar la información del participante.',
+                'errores' => ['Error al registrar o asociar los datos del participante.'],
+            ], Response::HTTP_UNPROCESSABLE_ENTITY);
         }
 
         // --- VALIDACIONES APROBADAS: Proceder con la subida física de archivos ---
