@@ -744,6 +744,7 @@ Route::prefix('reports')->group(function () {
         Route::get('clases/{claseId}', [InstructorPortalController::class, 'detalleClase'])->name('instructor.detalle-clase');
         Route::get('clases/{claseId}/asistencia', [InstructorPortalController::class, 'asistenciaClase'])->name('instructor.asistencia-clase');
         Route::post('clases/{claseId}/asistencia', [InstructorPortalController::class, 'registrarAsistencia'])->name('instructor.registrar-asistencia');
+        Route::delete('clases/{claseId}/asistencia', [InstructorPortalController::class, 'limpiarAsistencia'])->name('instructor.limpiar-asistencia');
         Route::post('notas', [InstructorPortalController::class, 'registrarNotas'])->name('instructor.registrar-notas');
         Route::get('cursos/{id}/asistencia-pdf', [InstructorPortalController::class, 'asistenciaPDF'])->name('instructor.asistencia-pdf');
         // Talleres

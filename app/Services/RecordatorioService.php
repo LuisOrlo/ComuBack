@@ -27,19 +27,23 @@ class RecordatorioService
         }
 
         $now = Carbon::now('America/Guayaquil')->startOfDay();
-        $isDocenteOnly = $user->hasRole('Docente') && !$user->hasAnyRole(['Administrador', 'Super Admin', 'Secretaria', 'Coordinador']);
+        $isInstructor = $user->hasAnyRole(['Instructor', 'Docente']) && !$user->hasAnyRole(['Administrador', 'Super Admin', 'Secretaria', 'Coordinador']);
         $isStaff = $user->hasAnyRole(['Administrador', 'Super Admin', 'Secretaria', 'Coordinador']);
 
         $items = collect();
 
-        // 1. Cursos (Inicio, Fin, Módulos)
+        // 1. Cursos (Inicio, Fin)
         $cursosQuery = CursoAbierto::where('es_activo', true)
             ->with(['catalogo:id,nombre,color', 'modulos' => function ($q) {
                 $q->orderBy('numero_orden', 'asc');
             }]);
 
-        if ($isDocenteOnly) {
-            $cursosQuery->where('docente_id', $user->persona_id);
+        if ($isInstructor) {
+            if ($user->persona_id) {
+                $cursosQuery->where('docente_id', $user->persona_id);
+            } else {
+                $cursosQuery->whereRaw('1 = 0');
+            }
         }
 
         $cursos = $cursosQuery->get();
@@ -50,7 +54,7 @@ class RecordatorioService
             if ($curso->catalogo && $curso->nombre_instancia && $curso->catalogo->nombre !== $curso->nombre_instancia) {
                 $cursoNombre = "{$curso->catalogo->nombre} · {$curso->nombre_instancia}";
             }
-            $cursoUrl = $isDocenteOnly ? "/instructor/cursos/{$curso->id}" : "/cursos/{$curso->id}";
+            $cursoUrl = $isInstructor ? "/instructor/cursos/{$curso->id}" : "/cursos/{$curso->id}";
 
             // A) Curso por Iniciar
             if ($curso->fecha_inicio) {
@@ -95,35 +99,37 @@ class RecordatorioService
                 }
             }
 
-            // B) Próximo Módulo del Curso
-            $configModulos = $config['proximo_modulo'] ?? ['activo' => true, 'dias_antes' => 2];
-            if (($configModulos['activo'] ?? true) && $curso->modulos && $curso->modulos->count() > 0) {
-                $diasAntesMod = (int) ($configModulos['dias_antes'] ?? 2);
-                foreach ($curso->modulos as $modulo) {
-                    if ($modulo->fecha_inicio) {
-                        $fechaInicioMod = Carbon::parse($modulo->fecha_inicio)->startOfDay();
-                        // Solo módulos futuros o de hoy
-                        if ($fechaInicioMod->gte($now)) {
-                            $fechaAlertaMod = (clone $fechaInicioMod)->subDays($diasAntesMod);
-                            if ($now->gte($fechaAlertaMod) && $now->lte($fechaInicioMod)) {
-                                $diasRestantesMod = (int) round($now->diffInDays($fechaInicioMod, false));
-                                $items->push([
-                                    'id' => "modulo-inicio-{$modulo->id}",
-                                    'entidad_tipo' => 'curso',
-                                    'entidad_id' => $curso->id,
-                                    'tipo_evento' => 'modulo',
-                                    'titulo' => 'Próximo módulo por iniciar',
-                                    'subtitulo' => "{$cursoNombre} · {$modulo->nombre_modulo}",
-                                    'descripcion' => $diasRestantesMod <= 0
-                                        ? 'Inicia hoy'
-                                        : ($diasRestantesMod === 1 ? 'Inicia mañana' : "Inicia en {$diasRestantesMod} días ({$fechaInicioMod->format('d/m/Y')})"),
-                                    'fecha_evento' => $fechaInicioMod->toDateString(),
-                                    'dias_restantes' => $diasRestantesMod,
-                                    'urgencia' => $diasRestantesMod <= 1 ? 'urgente' : 'proximo',
-                                    'accion_label' => 'Ver Curso',
-                                    'accion_url' => $cursoUrl,
-                                ]);
-                                break; // Solo alertar del módulo más próximo
+            // B) Próximo Módulo del Curso (Solo para personal administrativo, no para instructor)
+            if (!$isInstructor) {
+                $configModulos = $config['proximo_modulo'] ?? ['activo' => true, 'dias_antes' => 2];
+                if (($configModulos['activo'] ?? true) && $curso->modulos && $curso->modulos->count() > 0) {
+                    $diasAntesMod = (int) ($configModulos['dias_antes'] ?? 2);
+                    foreach ($curso->modulos as $modulo) {
+                        if ($modulo->fecha_inicio) {
+                            $fechaInicioMod = Carbon::parse($modulo->fecha_inicio)->startOfDay();
+                            // Solo módulos futuros o de hoy
+                            if ($fechaInicioMod->gte($now)) {
+                                $fechaAlertaMod = (clone $fechaInicioMod)->subDays($diasAntesMod);
+                                if ($now->gte($fechaAlertaMod) && $now->lte($fechaInicioMod)) {
+                                    $diasRestantesMod = (int) round($now->diffInDays($fechaInicioMod, false));
+                                    $items->push([
+                                        'id' => "modulo-inicio-{$modulo->id}",
+                                        'entidad_tipo' => 'curso',
+                                        'entidad_id' => $curso->id,
+                                        'tipo_evento' => 'modulo',
+                                        'titulo' => 'Próximo módulo por iniciar',
+                                        'subtitulo' => "{$cursoNombre} · {$modulo->nombre_modulo}",
+                                        'descripcion' => $diasRestantesMod <= 0
+                                            ? 'Inicia hoy'
+                                            : ($diasRestantesMod === 1 ? 'Inicia mañana' : "Inicia en {$diasRestantesMod} días ({$fechaInicioMod->format('d/m/Y')})"),
+                                        'fecha_evento' => $fechaInicioMod->toDateString(),
+                                        'dias_restantes' => $diasRestantesMod,
+                                        'urgencia' => $diasRestantesMod <= 1 ? 'urgente' : 'proximo',
+                                        'accion_label' => 'Ver Curso',
+                                        'accion_url' => $cursoUrl,
+                                    ]);
+                                    break; // Solo alertar del módulo más próximo
+                                }
                             }
                         }
                     }
@@ -175,8 +181,12 @@ class RecordatorioService
 
         // 2. Talleres por Iniciar
         $talleresQuery = Taller::whereNotIn('estado', ['cancelado', 'completado']);
-        if ($isDocenteOnly) {
-            $talleresQuery->where('instructor_id', $user->persona_id);
+        if ($isInstructor) {
+            if ($user->persona_id) {
+                $talleresQuery->where('instructor_id', $user->persona_id);
+            } else {
+                $talleresQuery->whereRaw('1 = 0');
+            }
         }
 
         $talleres = $talleresQuery->get();
@@ -214,7 +224,7 @@ class RecordatorioService
                                 'dias_restantes' => $diasRestantesTaller,
                                 'urgencia' => $diasRestantesTaller <= 1 ? 'urgente' : 'proximo',
                                 'accion_label' => 'Ver Taller',
-                                'accion_url' => $isDocenteOnly ? "/instructor/talleres/{$taller->id}" : "/admin/talleres/{$taller->id}",
+                                'accion_url' => $isInstructor ? "/instructor/talleres/{$taller->id}" : "/admin/talleres/{$taller->id}",
                             ]);
                         }
                     }

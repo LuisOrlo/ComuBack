@@ -14,6 +14,7 @@ use App\Models\ClienteExterno;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class InstructorPortalController extends Controller
 {
@@ -562,6 +563,57 @@ class InstructorPortalController extends Controller
         } catch (\Exception $e) {
             DB::rollBack();
             return response()->json(['mensaje' => 'Error al registrar asistencia.', 'error' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Limpiar/eliminar por completo la asistencia de una clase (Exclusivo Administrador)
+     */
+    public function limpiarAsistencia($claseId): JsonResponse
+    {
+        if (!auth()->user()->hasRole('Administrador')) {
+            return response()->json([
+                'mensaje' => 'Acción no autorizada. Solo los administradores pueden limpiar la asistencia de una clase.'
+            ], 403);
+        }
+
+        $clase = Clase::findOrFail($claseId);
+
+        DB::beginTransaction();
+        try {
+            // 1. Eliminar registros de asistencia de los estudiantes
+            Asistencia::where('clase_id', $claseId)->delete();
+
+            // 2. Resetear tema y observaciones de la clase
+            $clase->update([
+                'tema' => null,
+                'observaciones' => null,
+            ]);
+
+            DB::commit();
+
+            Log::channel('audit')->info('asistencia.clase_limpiada', [
+                'clase_id' => $claseId,
+                'modulo_id' => $clase->modulo_id,
+                'usuario_id' => auth()->id(),
+            ]);
+
+            return response()->json([
+                'mensaje' => 'Asistencia de la clase limpiada correctamente.',
+                'datos' => [
+                    'id' => $clase->id,
+                    'asistencia_registrada' => false,
+                    'asistencias_presentes' => 0,
+                    'tema' => null,
+                    'observaciones' => null,
+                ]
+            ]);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json([
+                'mensaje' => 'Error al limpiar la asistencia de la clase.',
+                'error' => $e->getMessage()
+            ], 500);
         }
     }
 

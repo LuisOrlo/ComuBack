@@ -15,7 +15,7 @@ class NotificationController extends Controller
     public function index(Request $request): JsonResponse
     {
         $user = auth()->user();
-        $isDocenteOnly = $user && $user->hasRole('Docente') && !$user->hasAnyRole(['Administrador', 'Super Admin', 'Secretaria', 'Coordinador']);
+        $isDocenteOnly = $user && $user->hasAnyRole(['Instructor', 'Docente']) && !$user->hasAnyRole(['Administrador', 'Super Admin', 'Secretaria', 'Coordinador']);
         $soloPendientes = $request->boolean('solo_pendientes', false);
 
         // 1. Solicitudes de inscripción pendientes (para el contador y notificaciones de aprobación)

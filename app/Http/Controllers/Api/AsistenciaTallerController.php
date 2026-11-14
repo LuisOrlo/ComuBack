@@ -247,7 +247,7 @@ class AsistenciaTallerController extends Controller
         $user = auth()->user();
         if (!$user) return;
 
-        if ($user->hasRole('Docente') && !$user->hasAnyRole(['Administrador', 'Super Admin', 'Secretaria', 'Coordinador'])) {
+        if ($user->hasAnyRole(['Instructor', 'Docente']) && !$user->hasAnyRole(['Administrador', 'Super Admin', 'Secretaria', 'Coordinador'])) {
             if ($taller->instructor_id !== $user->persona_id) {
                 abort(403, 'No tienes autorización para acceder o gestionar la asistencia de este taller.');
             }
